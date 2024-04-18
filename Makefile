@@ -60,14 +60,17 @@ endif
 
 .EXPORT_ALL_VARIABLES:
 
-GPU_BINARIES = bin/gpu-controller bin/kubelet-gpu-plugin bin/gas-status-updater bin/alert-webhook
+GPU_BINARIES = bin/gpu-controller bin/kubelet-gpu-plugin bin/gas-status-updater bin/alert-webhook bin/intel-gpu-cdi-spec-generator
 COMMON_SRC = \
  Makefile \
  pkg/version/version.go \
  pkg/intel.com/resource/gpu/clientset/versioned/*.go \
  pkg/intel.com/resource/gpu/v1alpha2/api/*.go \
  pkg/intel.com/resource/gpu/v1alpha2/*.go \
- pkg/sriov/*.go \
+ pkg/gpu/sriov/*.go \
+ pkg/gpu/device/*.go \
+ pkg/gpu/cdihelpers/*.go \
+ pkg/gpu/discovery/*.go \
  go.sum
 
 .PHONY: build
@@ -88,6 +91,10 @@ bin/gas-status-updater: cmd/gas-status-updater/*.go $(COMMON_SRC)
 bin/alert-webhook: cmd/alert-webhook/*.go $(COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/alert-webhook
+
+bin/intel-gpu-cdi-spec-generator: cmd/gpu-cdi-spec-generator/*.go $(COMMON_SRC)
+	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
+	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/gpu-cdi-spec-generator
 
 .PHONY: branch-build
 # test that all commits in $GIT_BRANCH (default=current) build

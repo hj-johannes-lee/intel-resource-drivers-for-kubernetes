@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/fsnotify/fsnotify"
+	. "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	gpucsfake "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned/fake"
 	gpuv1alpha2 "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"

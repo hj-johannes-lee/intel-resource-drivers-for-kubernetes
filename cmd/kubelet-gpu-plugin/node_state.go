@@ -21,71 +21,30 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
 	"sync"
 
 	"k8s.io/klog/v2"
 
 	cdiapi "github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
 	specs "github.com/container-orchestrated-devices/container-device-interface/specs-go"
+	cdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/cdihelpers"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
 )
 
-// DeviceInfo is an internal structure type to store info about discovered device.
-type DeviceInfo struct {
-	UID        string `json:"uid"`        // unique identifier, pci_DBDF-pci_device_id
-	Model      string `json:"model"`      // pci_device_id
-	CardIdx    uint64 `json:"cardidx"`    // card device number (e.g. 0 for /dev/dri/card0)
-	RenderdIdx uint64 `json:"renderdidx"` // renderD device number (e.g. 128 for /dev/dri/renderD128)
-	MemoryMiB  uint64 `json:"memorymib"`  // in MiB
-	Millicores uint64 `json:"millicores"` // [0-1000] where 1000 means whole GPU.
-	DeviceType string `json:"devicetype"` // gpu, vf, any
-	MaxVFs     uint64 `json:"maxvfs"`     // if enabled, non-zero maximum amount of VFs
-	ParentUID  string `json:"parentuid"`  // uid of gpu device where VF is
-	VFProfile  string `json:"vfprofile"`  // name of the SR-IOV profile
-	VFIndex    uint64 `json:"vfindex"`    // 0-based PCI index of the VF on the GPU, DRM indexing starts with 1
-	EccOn      bool   `json:"eccon"`      // true of ECC is enabled, false otherwise
-}
-
-func (g *DeviceInfo) DeepCopy() *DeviceInfo {
-	di := *g
-	return &di
-}
-
-func (g *DeviceInfo) drmVFIndex() uint64 {
-	return g.VFIndex + 1
-}
-
-// DevicesInfo is a dictionary with DeviceInfo.uid being the key.
-type DevicesInfo map[string]*DeviceInfo
-
-func (g *DevicesInfo) DeepCopy() DevicesInfo {
-	devicesInfoCopy := DevicesInfo{}
-	for duid, device := range *g {
-		devicesInfoCopy[duid] = device.DeepCopy()
-	}
-	return devicesInfoCopy
-}
-
 // ClaimAllocations maps a slice of allocated DeviceInfos to Claim.Uid.
-type ClaimAllocations map[string][]*DeviceInfo
-type ClaimPreparations map[string][]*DeviceInfo
+type ClaimAllocations map[string][]*device.DeviceInfo
+type ClaimPreparations map[string][]*device.DeviceInfo
 
 type nodeState struct {
 	sync.Mutex
 	cdi         cdiapi.Registry
-	allocatable DevicesInfo
+	allocatable device.DevicesInfo
 	prepared    ClaimPreparations
 }
 
-func (g DeviceInfo) CDIName() string {
-	return fmt.Sprintf("%s=%s", cdiKind, g.UID)
-}
-
-func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*DeviceInfo, cdiRoot string, preparedClaimFilePath string) (*nodeState, error) {
+func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimFilePath string) (*nodeState, error) {
 	for ddev := range detectedDevices {
 		klog.V(3).Infof("new device: %+v", ddev)
 	}
@@ -102,7 +61,7 @@ func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*
 	}
 
 	// syncDetectedDevicesWithCdiRegistry overrides uid in detecteddevices from existing cdi spec
-	err = syncDetectedDevicesWithCdiRegistry(cdi, detectedDevices, true)
+	err = cdihelpers.SyncDetectedDevicesWithCdiRegistry(cdi, detectedDevices, true)
 	if err != nil {
 		return nil, fmt.Errorf("unable to sync detected devices to CDI registry: %v", err)
 	}
@@ -143,205 +102,8 @@ func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*
 	return state, nil
 }
 
-// Add detected devices into cdi registry if they are not yet there.
-// Update existing registry devices with detected.
-// Remove absent registry devices.
-func syncDetectedDevicesWithCdiRegistry(registry cdiapi.Registry, detectedDevices DevicesInfo, doCleanup bool) error {
-
-	vendorSpecs := registry.SpecDB().GetVendorSpecs(cdiVendor)
-	devicesToAdd := detectedDevices.DeepCopy()
-
-	if len(vendorSpecs) == 0 {
-		klog.V(5).Infof("No existing specs found for vendor %v, creating new", cdiVendor)
-		if err := addNewDevicesToNewRegistry(devicesToAdd); err != nil {
-			klog.V(5).Infof("Failed adding card to cdi registry: %v", err)
-			return err
-		}
-		return nil
-	}
-
-	// loop through spec devices
-	// - remove from CDI those not detected
-	// - update with card and renderD indexes
-	//   - delete from detected so they are not added as duplicates
-	// - write spec
-	// add rest of detected devices to first vendor spec
-	for specidx, vendorSpec := range vendorSpecs {
-		klog.V(5).Infof("checking vendorspec %v", specidx)
-
-		specChanged := false // if devices were updated or deleted
-		filteredDevices := []specs.Device{}
-
-		for specDeviceIdx, specDevice := range vendorSpec.Devices {
-			klog.V(5).Infof("checking device %v: %v", specDeviceIdx, specDevice)
-
-			// if matched detected - check and update cardIdx and renderDIdx if needed - add to filtered Devices
-			if detectedDevice, found := devicesToAdd[specDevice.Name]; found {
-
-				if syncDeviceNodes(specDevice, detectedDevice, cardRegexp, renderdRegexp) {
-					specChanged = true
-				}
-
-				filteredDevices = append(filteredDevices, specDevice)
-				// Regardless if we needed to update the existing device or not,
-				// it is in CDI registry so no need to add it again later.
-				delete(devicesToAdd, specDevice.Name)
-			} else if doCleanup {
-				// skip CDI devices that were not detected
-				klog.V(5).Infof("Removing device %v from CDI registry", specDevice.Name)
-				specChanged = true
-			} else {
-				filteredDevices = append(filteredDevices, specDevice)
-			}
-		}
-		// update spec if it was changed
-		if specChanged {
-			klog.V(5).Info("Replacing devices in spec with VFs filtered out")
-			vendorSpec.Spec.Devices = filteredDevices
-			specName := filepath.Base(vendorSpec.GetPath())
-			klog.V(5).Infof("Overwriting spec %v", specName)
-			err := registry.SpecDB().WriteSpec(vendorSpec.Spec, specName)
-			if err != nil {
-				klog.Errorf("failed writing CDI spec %v: %v", vendorSpec.GetPath(), err)
-				return fmt.Errorf("failed writing CDI spec %v: %v", vendorSpec.GetPath(), err)
-			}
-		}
-	}
-
-	if len(devicesToAdd) > 0 {
-		// add devices that were not found in registry to the first existing vendor spec
-		apispec := vendorSpecs[0]
-		klog.V(5).Infof("Adding %d devices to CDI spec", len(devicesToAdd))
-		addDevicesToCDISpec(devicesToAdd, apispec.Spec)
-		specName := filepath.Base(apispec.GetPath())
-
-		cdiVersion, err := cdiapi.MinimumRequiredVersion(apispec.Spec)
-		if err != nil {
-			klog.Errorf("failed to get minimum CDI version for spec %v: %v", apispec.GetPath(), err)
-			return fmt.Errorf("failed to get minimum CDI version for spec %v: %v", apispec.GetPath(), err)
-		}
-		if apispec.Version != cdiVersion {
-			apispec.Version = cdiVersion
-		}
-
-		klog.V(5).Infof("Overwriting spec %v", specName)
-		err = registry.SpecDB().WriteSpec(apispec.Spec, specName)
-		if err != nil {
-			klog.Errorf("failed to write CDI spec %v: %v", apispec.GetPath(), err)
-			return fmt.Errorf("failed write CDI spec %v: %v", apispec.GetPath(), err)
-		}
-	}
-
-	return nil
-}
-
-func syncDeviceNodes(
-	specDevice specs.Device, detectedDevice *DeviceInfo,
-	cardregexp *regexp.Regexp, renderdregexp *regexp.Regexp) bool {
-	specChanged := false
-	dridevpath := getDevfsDriDir()
-
-	for deviceNodeIdx, deviceNode := range specDevice.ContainerEdits.DeviceNodes {
-		driFileName := filepath.Base(deviceNode.Path) // e.g. card1 or renderD129
-		switch {
-		case cardregexp.MatchString(driFileName):
-			klog.V(5).Infof("CDI device node %v is a card device: %v", deviceNodeIdx, driFileName)
-			cardIdx, err := strconv.ParseUint(strings.Split(driFileName, "card")[1], 10, 64)
-			if err != nil {
-				klog.Errorf("Failed to parse index of DRI card device '%v', skipping", driFileName)
-				continue // deviceNode loop
-			}
-			if cardIdx != detectedDevice.CardIdx {
-				klog.V(5).Infof("Fixing card index for CDI device %v", detectedDevice.UID)
-				deviceNode.Path = filepath.Join(dridevpath, fmt.Sprintf("card%d", detectedDevice.CardIdx))
-				specChanged = true
-			} else {
-				klog.V(5).Info("card index for CDI device is correct")
-			}
-		case renderdregexp.MatchString(driFileName):
-			klog.V(5).Infof("CDI device node %v is a renderD device: %v", deviceNodeIdx, driFileName)
-			renderdIdx, err := strconv.ParseUint(strings.Split(driFileName, "renderD")[1], 10, 64)
-			if err != nil {
-				klog.Errorf("Failed to parse index of DRI renderD device '%v', skipping", driFileName)
-				continue // deviceNode loop
-			}
-			if renderdIdx != detectedDevice.RenderdIdx {
-				klog.V(5).Infof("Fixing renderD index for CDI device %v", detectedDevice.UID)
-				deviceNode.Path = filepath.Join(dridevpath, fmt.Sprintf("renderD%d", detectedDevice.RenderdIdx))
-				specChanged = true
-			} else {
-				klog.V(5).Info("renderD index for CDI device is correct")
-			}
-		default:
-			klog.Warningf("Unexpected device node %v in CDI device %v", deviceNode.Path)
-		}
-	}
-	return specChanged
-}
-
-func addDevicesToCDISpec(devices DevicesInfo, spec *specs.Spec) {
-	dridevpath := getDevfsDriDir()
-
-	for _, device := range devices {
-		// primary / control node (for modesetting)
-		newDevice := specs.Device{
-			Name: device.UID,
-			ContainerEdits: specs.ContainerEdits{
-				DeviceNodes: []*specs.DeviceNode{
-					{Path: filepath.Join(dridevpath, fmt.Sprintf("card%d", device.CardIdx)), Type: "c"},
-				},
-			},
-		}
-		// render nodes can be optional: https://www.kernel.org/doc/html/latest/gpu/drm-uapi.html#render-nodes
-		if device.RenderdIdx != 0 {
-			newDevice.ContainerEdits.DeviceNodes = append(
-				newDevice.ContainerEdits.DeviceNodes,
-				&specs.DeviceNode{
-					Path: filepath.Join(dridevpath, fmt.Sprintf("renderD%d", device.RenderdIdx)),
-					Type: "c",
-				},
-			)
-		}
-		// TODO: add /dev/dri/by-path entries
-		spec.Devices = append(spec.Devices, newDevice)
-	}
-}
-
-// Write devices into new vendor-specific CDI spec, should only be called if such spec does not exist.
-func addNewDevicesToNewRegistry(devices DevicesInfo) error {
-	klog.V(5).Infof("Adding %v devices to new spec", len(devices))
-	registry := cdiapi.GetRegistry()
-
-	spec := &specs.Spec{
-		Kind: cdiKind,
-	}
-
-	addDevicesToCDISpec(devices, spec)
-	klog.V(5).Infof("spec devices length: %v", len(spec.Devices))
-
-	cdiVersion, err := cdiapi.MinimumRequiredVersion(spec)
-	if err != nil {
-		return fmt.Errorf("failed to get minimum required CDI spec version: %v", err)
-	}
-	klog.V(5).Infof("CDI version required for new spec: %v", cdiVersion)
-	spec.Version = cdiVersion
-
-	specname, err := cdiapi.GenerateNameForSpec(spec)
-	if err != nil {
-		return fmt.Errorf("failed to generate name for cdi device spec: %+v", err)
-	}
-	klog.V(5).Infof("new name for new CDI spec: %v", specname)
-
-	err = registry.SpecDB().WriteSpec(spec, specname)
-	if err != nil {
-		return fmt.Errorf("failed to write CDI spec %v: %v", specname, err)
-	}
-
-	return nil
-}
-
 // Check if any prepared claim already uses VFs from given parent UIDs.
-func (s *nodeState) parentCanHaveVFs(toProvision map[string][]*DeviceInfo) bool {
+func (s *nodeState) parentCanHaveVFs(toProvision map[string][]*device.DeviceInfo) bool {
 	for _, preparedClaim := range s.prepared {
 		for _, device := range preparedClaim {
 			if _, found := toProvision[device.ParentUID]; found {
@@ -413,8 +175,8 @@ func (s *nodeState) GetUpdatedSpec(inspec *intelcrd.GpuAllocationStateSpec) *int
 	return outspec
 }
 
-func (s *nodeState) DeviceInfoFromAllocated(allocatedGpu intelcrd.AllocatedGpu) *DeviceInfo {
-	device := DeviceInfo{
+func (s *nodeState) DeviceInfoFromAllocated(allocatedGpu intelcrd.AllocatedGpu) *device.DeviceInfo {
+	device := device.DeviceInfo{
 		UID:        allocatedGpu.UID,
 		DeviceType: string(allocatedGpu.Type),
 		ParentUID:  allocatedGpu.ParentUID,
@@ -540,7 +302,7 @@ func (s *nodeState) syncAllocatableDevicesToGASSpec(spec *intelcrd.GpuAllocation
 }
 
 // On startup read what was previously prepared where we left off.
-func (s *nodeState) syncPreparedGpusFromFile(preparedClaims map[string][]*DeviceInfo) error {
+func (s *nodeState) syncPreparedGpusFromFile(preparedClaims map[string][]*device.DeviceInfo) error {
 	klog.V(5).Infof("Syncing %d Prepared allocations from GpuAllocationState to internal state", len(preparedClaims))
 
 	if s.prepared == nil {
@@ -550,7 +312,7 @@ func (s *nodeState) syncPreparedGpusFromFile(preparedClaims map[string][]*Device
 	for claimuid, preparedDevices := range preparedClaims {
 		klog.V(5).Infof("claim %v has %v gpus", claimuid, len(preparedDevices))
 		skipClaimAllocation := false
-		prepared := []*DeviceInfo{}
+		prepared := []*device.DeviceInfo{}
 		for _, preparedDevice := range preparedDevices {
 			klog.V(5).Infof("Device: %+v", preparedDevice)
 			switch preparedDevice.DeviceType {
@@ -592,7 +354,7 @@ func (s *nodeState) syncPreparedGpusFromFile(preparedClaims map[string][]*Device
 
 // addNewVFs adds new VFs into CDI registries and into internal
 // NodeState.allocatable list.
-func (s *nodeState) addNewVFs(newVFs DevicesInfo) error {
+func (s *nodeState) addNewVFs(newVFs device.DevicesInfo) error {
 	klog.V(5).Infof("Announcing new devices: %+v", newVFs)
 
 	s.Lock()
@@ -605,7 +367,7 @@ func (s *nodeState) addNewVFs(newVFs DevicesInfo) error {
 	}
 
 	klog.V(5).Infof("Adding %v new VFs to CDI", len(newVFs))
-	err = syncDetectedDevicesWithCdiRegistry(s.cdi, newVFs, false)
+	err = cdihelpers.SyncDetectedDevicesWithCdiRegistry(s.cdi, newVFs, false)
 	if err != nil {
 		klog.Errorf("failed announcing new VFs: %v", err)
 		return fmt.Errorf("failed announcing new VFs: %v", err)
@@ -668,7 +430,7 @@ func (s *nodeState) removeVFs(parentUID string) error {
 	return nil
 }
 
-func (s *nodeState) makePreparedClaimAllocation(preparedClaimFilePath string, perClaimDevices map[string][]*DeviceInfo) error {
+func (s *nodeState) makePreparedClaimAllocation(preparedClaimFilePath string, perClaimDevices map[string][]*device.DeviceInfo) error {
 
 	for claimUID, devices := range perClaimDevices {
 		for _, device := range devices {

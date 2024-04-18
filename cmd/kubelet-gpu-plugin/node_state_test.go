@@ -19,6 +19,8 @@ package main
 import (
 	"reflect"
 	"testing"
+
+	. "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 )
 
 func TestDeviceInfoDeepCopy(t *testing.T) {
