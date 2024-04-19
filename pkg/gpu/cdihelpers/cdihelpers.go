@@ -165,7 +165,7 @@ func SyncDeviceNodes(
 	return specChanged
 }
 
-// Write devices into new vendor-specific CDI spec, should only be called if such spec does not exist.
+// AddNewDevicesToNewRegistry writes devices into new vendor-specific CDI spec, should only be called if such spec does not exist.
 func AddNewDevicesToNewRegistry(devices device.DevicesInfo) error {
 	klog.V(5).Infof("Adding %v devices to new spec", len(devices))
 	registry := cdiapi.GetRegistry()
