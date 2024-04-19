@@ -29,7 +29,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// Add detected devices into cdi registry if they are not yet there.
+// SyncDetectedDevicesWithCdiRegistry adds detected devices into cdi registry if they are not yet there.
 // Update existing registry devices with detected.
 // Remove absent registry devices.
 func SyncDetectedDevicesWithCdiRegistry(registry cdiapi.Registry, detectedDevices device.DevicesInfo, doCleanup bool) error {
