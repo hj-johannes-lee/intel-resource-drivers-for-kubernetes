@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Intel Corporation.  All Rights Reserved.
+ * Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@ import (
 	"reflect"
 	"testing"
 
-	. "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 )
 
 func TestDeviceInfoDeepCopy(t *testing.T) {
-	di := DeviceInfo{
+	di := device.DeviceInfo{
 		UID:        "f",
 		Model:      "ff",
 		CardIdx:    2,

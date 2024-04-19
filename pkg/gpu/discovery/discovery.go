@@ -19,6 +19,7 @@ package discovery
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -34,8 +35,11 @@ const (
 	initialMillicores = 1000
 )
 
-// Detect devices from sysfs drm directory (card id and renderD id).
-func DiscoverDevices(sysfsI915Dir string, sysfsDrmDir string) map[string]*device.DeviceInfo {
+// Detect devices from sysfs. Only i915 KMD is supported at the moment.
+func DiscoverDevices(sysfsDir string) map[string]*device.DeviceInfo {
+
+	sysfsI915Dir := path.Join(sysfsDir, device.SysfsI915path)
+	sysfsDRMDir := path.Join(sysfsDir, device.SysfsDRMpath)
 
 	devices := make(map[string]*device.DeviceInfo)
 
@@ -58,8 +62,8 @@ func DiscoverDevices(sysfsI915Dir string, sysfsDrmDir string) map[string]*device
 		}
 		klog.V(5).Infof("Found GPU PCI device: " + deviceDBDF)
 
-		deviceI915Dir := filepath.Join(sysfsI915Dir, deviceDBDF)
-		deviceIdFile := filepath.Join(deviceI915Dir, "device")
+		deviceI915Dir := path.Join(sysfsI915Dir, deviceDBDF)
+		deviceIdFile := path.Join(deviceI915Dir, "device")
 		deviceIdBytes, err := os.ReadFile(deviceIdFile)
 		if err != nil {
 			klog.Errorf("Failed reading device file (%s): %+v", deviceIdFile, err)
@@ -86,7 +90,7 @@ func DiscoverDevices(sysfsI915Dir string, sysfsDrmDir string) map[string]*device
 		newDeviceInfo.CardIdx = cardIdx
 		newDeviceInfo.RenderdIdx = renderdIdx
 
-		drmGpuDir := filepath.Join(sysfsDrmDir, fmt.Sprintf("card%d", cardIdx))
+		drmGpuDir := path.Join(sysfsDRMDir, fmt.Sprintf("card%d", cardIdx))
 		newDeviceInfo.MemoryMiB = getLocalMemoryAmountMiB(drmGpuDir)
 
 		detectSRIOV(newDeviceInfo, sysfsI915Dir, deviceDBDF, deviceId)
@@ -131,13 +135,13 @@ func detectEcc(deviceId string, detectedMemoryInMiB uint64) bool {
 // Detects if the GPU is a VF or PF. For PF check if SR-IOV is enabled, and the maximum
 // number of VFs. For VF detects parent PR.
 func detectSRIOV(newDeviceInfo *device.DeviceInfo, sysfsI915Dir string, deviceDBDF string, deviceID string) {
-	deviceI915Dir := filepath.Join(sysfsI915Dir, deviceDBDF)
-	totalvfsFile := filepath.Join(deviceI915Dir, "sriov_totalvfs")
+	deviceI915Dir := path.Join(sysfsI915Dir, deviceDBDF)
+	totalvfsFile := path.Join(deviceI915Dir, "sriov_totalvfs")
 	totalvfsByte, err := os.ReadFile(totalvfsFile)
 	if err != nil {
 		klog.V(5).Infof("Could not read totalvfs file (%s): %+v. Checking for physfn.", totalvfsFile, err)
 		// Detect parent if device this is a VF
-		physfnLink := filepath.Join(deviceI915Dir, "physfn")
+		physfnLink := path.Join(deviceI915Dir, "physfn")
 		parentLink, err := os.Readlink(physfnLink)
 		if err != nil {
 			klog.Errorf("Failed reading %v: %v. Ignoring SR-IOV for device %v", physfnLink, err, deviceDBDF)
@@ -155,7 +159,7 @@ func detectSRIOV(newDeviceInfo *device.DeviceInfo, sysfsI915Dir string, deviceDB
 		}
 
 		parentUID := fmt.Sprintf("%s-%s", parentDBDF, deviceID)
-		parentI915Dir := filepath.Join(sysfsI915Dir, parentUID[:device.PciDBDFLength])
+		parentI915Dir := path.Join(sysfsI915Dir, parentUID[:device.PciDBDFLength])
 		parentCardIdx, _, err := DeduceCardAndRenderdIndexes(parentI915Dir)
 		if err != nil {
 			klog.Errorf("Ignoring device %v. Error: %v", deviceDBDF, err)
@@ -190,7 +194,7 @@ func detectSRIOV(newDeviceInfo *device.DeviceInfo, sysfsI915Dir string, deviceDB
 	klog.V(5).Infof("Detected SR-IOV capacity, max VFs: %v", totalvfsInt)
 
 	// check if driver will pick up new VFs as DRM devices for dynamic provisioning
-	driversAutoprobeFile := filepath.Join(sysfsI915Dir, deviceDBDF, "sriov_drivers_autoprobe")
+	driversAutoprobeFile := path.Join(sysfsI915Dir, deviceDBDF, "sriov_drivers_autoprobe")
 	driversAutoprobeByte, err := os.ReadFile(driversAutoprobeFile)
 	if err != nil {
 		klog.V(5).Infof("Could not read sriov_drivers_autoprobe file: %v. Not enabling SR-IOV", err)
@@ -208,7 +212,7 @@ func detectSRIOV(newDeviceInfo *device.DeviceInfo, sysfsI915Dir string, deviceDB
 }
 
 func deduceVfIdx(sysfsI915Dir string, parentDBDF string, vfDBDF string) (uint64, error) {
-	filePath := filepath.Join(sysfsI915Dir, parentDBDF, "virtfn*")
+	filePath := path.Join(sysfsI915Dir, parentDBDF, "virtfn*")
 	files, _ := filepath.Glob(filePath)
 
 	for _, virtfn := range files {
@@ -225,7 +229,7 @@ func deduceVfIdx(sysfsI915Dir string, parentDBDF string, vfDBDF string) (uint64,
 			continue
 		}
 
-		vfBase := filepath.Base(virtfn)
+		vfBase := path.Base(virtfn)
 		vfIdxStr := vfBase[6:]
 		klog.V(5).Infof("symlink target: %v, VF Base: %v, VF Idx: %s", virtfnTarget, vfBase, vfIdxStr)
 		if virtfnTarget[3:] != vfDBDF {
@@ -244,7 +248,7 @@ func deduceVfIdx(sysfsI915Dir string, parentDBDF string, vfDBDF string) (uint64,
 
 // getTileCount reads the tile count.
 func getTileCount(drmGpuDir string) (numTiles uint64) {
-	filePath := filepath.Join(drmGpuDir, "gt/gt*")
+	filePath := path.Join(drmGpuDir, "gt/gt*")
 	files, _ := filepath.Glob(filePath)
 
 	if len(files) == 0 {
@@ -256,7 +260,7 @@ func getTileCount(drmGpuDir string) (numTiles uint64) {
 // Return the amount of local memory GPU has, if any, otherwise shared memory presumed.
 func getLocalMemoryAmountMiB(drmGpuDir string) uint64 {
 	numTiles := getTileCount(drmGpuDir)
-	filePath := filepath.Join(drmGpuDir, "lmem_total_bytes")
+	filePath := path.Join(drmGpuDir, "lmem_total_bytes")
 
 	klog.V(5).Infof("probing local memory at %v", filePath)
 	dat, err := os.ReadFile(filePath)
@@ -283,7 +287,7 @@ func DeduceCardAndRenderdIndexes(deviceI915Dir string) (uint64, uint64, error) {
 	var renderDidx uint64
 
 	// get card and renderD indexes
-	drmDir := filepath.Join(deviceI915Dir, "drm")
+	drmDir := path.Join(deviceI915Dir, "drm")
 	drmFiles, err := os.ReadDir(drmDir)
 	if err != nil { // ignore this device
 		return 0, 0, fmt.Errorf("cannot read device folder %v: %v", drmDir, err)

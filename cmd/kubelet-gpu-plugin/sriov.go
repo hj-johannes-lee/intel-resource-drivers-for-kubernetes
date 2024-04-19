@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Intel Corporation.  All Rights Reserved.
+ * Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ const (
 
 // waitUntilNoVFs waits until timeout for all virtfnX symlinks to be gone from parent pci device.
 func (d *driver) waitUntilNoVFs(pciDBDF string) error {
-	filePath := filepath.Join(d.sysfsI915Dir, pciDBDF, "virtfn*")
+	filePath := path.Join(d.sysfsDir, device.SysfsI915path, pciDBDF, "virtfn*")
 
 	for attempt := 0; attempt < attemptsLimitBase; attempt++ {
 		klog.V(5).Infof("waiting until VFs %v are gone, attempt %v", filePath, attempt)
@@ -84,7 +84,7 @@ func (d *driver) removeAllVFsFromParents(parentDevices []string) error {
 func (d *driver) removeAllVFs(parentDevice *device.DeviceInfo) error {
 	pciDBDF := parentDevice.UID[:device.PciDBDFLength]
 	klog.V(5).Infof("removing all VFs for %v", pciDBDF)
-	sriovNumvfsFile := path.Join(d.sysfsI915Dir, pciDBDF, "sriov_numvfs")
+	sriovNumvfsFile := path.Join(d.sysfsDir, device.SysfsI915path, pciDBDF, "sriov_numvfs")
 
 	numvfsInt := parentDevice.MaxVFs
 	numvfsBytes, err := os.ReadFile(sriovNumvfsFile)
@@ -121,7 +121,7 @@ func (d *driver) removeAllVFs(parentDevice *device.DeviceInfo) error {
 
 	klog.V(5).Infof("cleaning up profiles for %v VFs", numvfsInt)
 
-	sysfsVFsDir := fmt.Sprintf("%v/card%d/prelim_iov", d.sysfsDRMDir, parentDevice.CardIdx)
+	sysfsVFsDir := path.Join(d.sysfsDir, device.SysfsDRMpath, fmt.Sprintf("card%d/prelim_iov", parentDevice.CardIdx))
 	if err2 := sriov.CleanupManualConfigurationMaybe(sysfsVFsDir, numvfsInt); err2 != nil {
 
 		return fmt.Errorf("failed cleaning up VFs configuration: %v", err2)
@@ -166,7 +166,7 @@ func (d *driver) validateVFs(pciDBDF string, vfs []*device.DeviceInfo) error {
 	// Loop through sysfsI915Dir/pciDBDF/virtfn* symlinks, check drm/[cardX, renderDY].
 	for _, vf := range vfs {
 		klog.V(5).Infof("Validating vf %v on device %v", vf.VFIndex, vf.ParentUID)
-		virtfnLinkPath := path.Join(d.sysfsI915Dir, pciDBDF, fmt.Sprintf("virtfn%d", vf.VFIndex))
+		virtfnLinkPath := path.Join(d.sysfsDir, device.SysfsI915path, pciDBDF, fmt.Sprintf("virtfn%d", vf.VFIndex))
 		drmDir := path.Join(virtfnLinkPath, "drm")
 		vfOK := false
 		for ; attempt < attemptsLimit; attempt++ {
@@ -260,7 +260,7 @@ func (d *driver) provisionVFs(toProvision map[string][]*device.DeviceInfo) (devi
 		klog.V(5).Infof("provisioning %v VFs for GPU %v ", numvfs, parentUID)
 
 		if needToPreconfigureVFs(vfs) {
-			sysfsVFsDir := fmt.Sprintf("%v/card%d/prelim_iov", d.sysfsDRMDir, d.state.allocatable[parentUID].CardIdx)
+			sysfsVFsDir := path.Join(d.sysfsDir, device.SysfsDRMpath, fmt.Sprintf("card%d/prelim_iov", d.state.allocatable[parentUID].CardIdx))
 			err := preConfigureVFs(sysfsVFsDir, vfs, d.state.allocatable[parentUID].EccOn)
 			if err != nil {
 				klog.Error("failed preconfiguring VFs, attempting to unconfigure them")
@@ -275,7 +275,7 @@ func (d *driver) provisionVFs(toProvision map[string][]*device.DeviceInfo) (devi
 			}
 		}
 
-		sriovNumvfsFile := path.Join(d.sysfsI915Dir, pciDBDF, "sriov_numvfs")
+		sriovNumvfsFile := path.Join(d.sysfsDir, device.SysfsI915path, pciDBDF, "sriov_numvfs")
 
 		fhandle, err := os.OpenFile(sriovNumvfsFile, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
@@ -306,7 +306,7 @@ func (d *driver) provisionVFs(toProvision map[string][]*device.DeviceInfo) (devi
 	}
 
 	// If no errors - discover all new VFs.
-	allDevices := discovery.DiscoverDevices(d.sysfsI915Dir, d.sysfsDRMDir)
+	allDevices := discovery.DiscoverDevices(d.sysfsDir)
 
 	// Amount of provisioned VFs on device might be more than requested, announce all VFs, not only
 	// requested.

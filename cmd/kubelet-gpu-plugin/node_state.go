@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"sync"
 
 	"k8s.io/klog/v2"
@@ -419,7 +419,7 @@ func (s *nodeState) removeVFs(parentUID string) error {
 			spec.Spec.Devices = remainingDevices
 
 			klog.V(5).Info("Overwriting spec")
-			specName := filepath.Base(spec.GetPath())
+			specName := path.Base(spec.GetPath())
 			err = s.cdi.SpecDB().WriteSpec(spec.Spec, specName)
 			if err != nil {
 				klog.Errorf("failed writing CDI spec %v: %v", spec.GetPath(), err)

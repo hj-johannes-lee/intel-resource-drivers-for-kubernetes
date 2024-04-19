@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"path/filepath"
 
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -39,8 +38,7 @@ var _ drav1.NodeServer = (*driver)(nil)
 type driver struct {
 	gas                   *intelcrd.GpuAllocationState
 	state                 *nodeState
-	sysfsI915Dir          string
-	sysfsDRMDir           string
+	sysfsDir              string
 	preparedClaimFilePath string
 }
 
@@ -50,9 +48,6 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 	driverVersion.PrintDriverVersion()
 
 	sysfsDir := device.GetSysfsDir()
-	sysfsI915Dir := filepath.Join(sysfsDir, device.SysfsI915path)
-	sysfsDRMDir := filepath.Join(sysfsDir, device.SysfsDRMpath)
-
 	gas := intelcrd.NewGpuAllocationState(config.crdconfig, config.clientset.intel)
 
 	preparedClaimFilePath := path.Join(config.driverPluginPath, "preparedClaims.json")
@@ -70,7 +65,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 			return fmt.Errorf("failed to set GpuAllocationState as NotReady: %v", err)
 		}
 
-		detectedDevices := discovery.DiscoverDevices(sysfsI915Dir, sysfsDRMDir)
+		detectedDevices := discovery.DiscoverDevices(sysfsDir)
 		if len(detectedDevices) == 0 {
 			klog.Info("No supported devices detected")
 		}
@@ -102,8 +97,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 	d := &driver{
 		gas:                   gas,
 		state:                 state,
-		sysfsI915Dir:          sysfsI915Dir,
-		sysfsDRMDir:           sysfsDRMDir,
+		sysfsDir:              sysfsDir,
 		preparedClaimFilePath: preparedClaimFilePath,
 	}
 	klog.V(3).Info("Finished creating new driver")

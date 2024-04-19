@@ -18,7 +18,7 @@ package cdihelpers
 
 import (
 	"fmt"
-	"path/filepath"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -84,7 +84,7 @@ func SyncDetectedDevicesWithCdiRegistry(registry cdiapi.Registry, detectedDevice
 		if specChanged {
 			klog.V(5).Info("Replacing devices in spec with VFs filtered out")
 			vendorSpec.Spec.Devices = filteredDevices
-			specName := filepath.Base(vendorSpec.GetPath())
+			specName := path.Base(vendorSpec.GetPath())
 			klog.V(5).Infof("Overwriting spec %v", specName)
 			err := registry.SpecDB().WriteSpec(vendorSpec.Spec, specName)
 			if err != nil {
@@ -99,7 +99,7 @@ func SyncDetectedDevicesWithCdiRegistry(registry cdiapi.Registry, detectedDevice
 		apispec := vendorSpecs[0]
 		klog.V(5).Infof("Adding %d devices to CDI spec", len(devicesToAdd))
 		AddDevicesToCDISpec(devicesToAdd, apispec.Spec)
-		specName := filepath.Base(apispec.GetPath())
+		specName := path.Base(apispec.GetPath())
 
 		cdiVersion, err := cdiapi.MinimumRequiredVersion(apispec.Spec)
 		if err != nil {
@@ -128,7 +128,7 @@ func SyncDeviceNodes(
 	dridevpath := device.GetDevfsDriDir()
 
 	for deviceNodeIdx, deviceNode := range specDevice.ContainerEdits.DeviceNodes {
-		driFileName := filepath.Base(deviceNode.Path) // e.g. card1 or renderD129
+		driFileName := path.Base(deviceNode.Path) // e.g. card1 or renderD129
 		switch {
 		case cardregexp.MatchString(driFileName):
 			klog.V(5).Infof("CDI device node %v is a card device: %v", deviceNodeIdx, driFileName)
@@ -139,7 +139,7 @@ func SyncDeviceNodes(
 			}
 			if cardIdx != detectedDevice.CardIdx {
 				klog.V(5).Infof("Fixing card index for CDI device %v", detectedDevice.UID)
-				deviceNode.Path = filepath.Join(dridevpath, fmt.Sprintf("card%d", detectedDevice.CardIdx))
+				deviceNode.Path = path.Join(dridevpath, fmt.Sprintf("card%d", detectedDevice.CardIdx))
 				specChanged = true
 			} else {
 				klog.V(5).Info("card index for CDI device is correct")
@@ -153,7 +153,7 @@ func SyncDeviceNodes(
 			}
 			if renderdIdx != detectedDevice.RenderdIdx {
 				klog.V(5).Infof("Fixing renderD index for CDI device %v", detectedDevice.UID)
-				deviceNode.Path = filepath.Join(dridevpath, fmt.Sprintf("renderD%d", detectedDevice.RenderdIdx))
+				deviceNode.Path = path.Join(dridevpath, fmt.Sprintf("renderD%d", detectedDevice.RenderdIdx))
 				specChanged = true
 			} else {
 				klog.V(5).Info("renderD index for CDI device is correct")
@@ -207,7 +207,7 @@ func AddDevicesToCDISpec(devices device.DevicesInfo, spec *specs.Spec) {
 			Name: device.UID,
 			ContainerEdits: specs.ContainerEdits{
 				DeviceNodes: []*specs.DeviceNode{
-					{Path: filepath.Join(dridevpath, fmt.Sprintf("card%d", device.CardIdx)), Type: "c"},
+					{Path: path.Join(dridevpath, fmt.Sprintf("card%d", device.CardIdx)), Type: "c"},
 				},
 			},
 		}
@@ -216,7 +216,7 @@ func AddDevicesToCDISpec(devices device.DevicesInfo, spec *specs.Spec) {
 			newDevice.ContainerEdits.DeviceNodes = append(
 				newDevice.ContainerEdits.DeviceNodes,
 				&specs.DeviceNode{
-					Path: filepath.Join(dridevpath, fmt.Sprintf("renderD%d", device.RenderdIdx)),
+					Path: path.Join(dridevpath, fmt.Sprintf("renderD%d", device.RenderdIdx)),
 					Type: "c",
 				},
 			)

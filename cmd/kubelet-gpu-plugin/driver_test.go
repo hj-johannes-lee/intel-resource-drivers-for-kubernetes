@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"reflect"
 	"testing"
 
@@ -280,7 +280,7 @@ func TestNodePrepareResources(t *testing.T) {
 		gasspec := driver.gas.Spec.DeepCopy()
 		gasspec.AllocatedClaims = testcase.gasSpecAllocations
 
-		if err := writePreparedClaimsToFile(filepath.Join(fakeDriverPluginPath, "preparedClaims.json"), nil); err != nil {
+		if err := writePreparedClaimsToFile(path.Join(fakeDriverPluginPath, "preparedClaims.json"), nil); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
@@ -502,7 +502,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 		t.Errorf("failed to create plugin socket dir: %v", err)
 	}
 
-	preparedClaimFilePath := filepath.Join(fakeDriverPluginPath, "preparedClaims.json")
+	preparedClaimFilePath := path.Join(fakeDriverPluginPath, "preparedClaims.json")
 
 	var watcher *fsnotify.Watcher
 	for _, testcase := range testcases {

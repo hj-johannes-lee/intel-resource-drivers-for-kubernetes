@@ -22,7 +22,7 @@ import (
 	"maps"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"sync"
 	"testing"
@@ -103,7 +103,7 @@ type notification struct {
 func applyNotifications(t *testing.T, alerter *alerter, files []notification) {
 	klog.V(5).Infof("processNotifications(alerter: %+v, files: %v)", alerter, files)
 	for _, file := range files {
-		path := filepath.Join(jsonPath, file.name+".json")
+		path := path.Join(jsonPath, file.name+".json")
 
 		data, err := os.ReadFile(path)
 		if err != nil {

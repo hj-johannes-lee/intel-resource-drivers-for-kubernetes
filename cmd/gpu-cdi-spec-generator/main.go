@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 
 	cdiapi "github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/cdihelpers"
@@ -28,10 +27,8 @@ import (
 
 func main() {
 	sysfsDir := device.GetSysfsDir()
-	sysfsI915Dir := filepath.Join(sysfsDir, device.SysfsI915path)
-	sysfsDRMDir := filepath.Join(sysfsDir, device.SysfsDRMpath)
 
-	detectedDevices := discovery.DiscoverDevices(sysfsI915Dir, sysfsDRMDir)
+	detectedDevices := discovery.DiscoverDevices(sysfsDir)
 	if len(detectedDevices) == 0 {
 		fmt.Println("No supported devices detected")
 	}
