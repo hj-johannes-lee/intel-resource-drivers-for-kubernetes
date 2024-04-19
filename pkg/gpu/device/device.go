@@ -94,7 +94,7 @@ func GetDevfsDriDir() string {
 	return "/dev/dri"
 }
 
-// getSysfsPath tries to get path where sysfs is mounted from
+// GetSysfsDir tries to get path where sysfs is mounted from
 // env var, or fallback to hardcoded path.
 func GetSysfsDir() string {
 	sysfsPath, found := os.LookupEnv(SysfsEnvVarName)
