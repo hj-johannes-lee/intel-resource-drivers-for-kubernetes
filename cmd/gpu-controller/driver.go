@@ -29,9 +29,9 @@ import (
 	"k8s.io/klog/v2"
 
 	sriov "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
+	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/version"
 	intelclientset "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
-	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
 const (

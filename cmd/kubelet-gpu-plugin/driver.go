@@ -28,8 +28,8 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
+	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/version"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
-	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
 // compile-time test for implementation conformance with the interface.
