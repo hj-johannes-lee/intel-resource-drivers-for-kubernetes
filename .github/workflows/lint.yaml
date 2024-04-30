@@ -1,0 +1,20 @@
+name: Run lint
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    runs-on: "self-hosted"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Lint
+        run: make lint
