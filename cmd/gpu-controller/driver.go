@@ -28,9 +28,9 @@ import (
 	"k8s.io/dynamic-resource-allocation/controller"
 	"k8s.io/klog/v2"
 
+	sriov "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
 	intelclientset "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
-	sriov "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/sriov"
 	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 

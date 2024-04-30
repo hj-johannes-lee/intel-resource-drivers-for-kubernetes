@@ -19,17 +19,16 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"path"
-	"path/filepath"
-	"regexp"
 
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha3"
 
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/sriov"
 	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
@@ -39,35 +38,16 @@ var _ drav1.NodeServer = (*driver)(nil)
 type driver struct {
 	gas                   *intelcrd.GpuAllocationState
 	state                 *nodeState
-	sysfsI915Dir          string
-	sysfsDRMDir           string
+	sysfsDir              string
 	preparedClaimFilePath string
 }
-
-const (
-	devDriEnvVarName = "DEV_DRI_PATH"
-	sysfsEnvVarName  = "SYSFS_ROOT"
-	// driver.sysfsI915Dir and driver.sysfsDRMDir are sysfsI915path and sysfsDRMpath
-	// respectively prefixed with $SYSFS_ROOT.
-	sysfsI915path = "bus/pci/drivers/i915"
-	sysfsDRMpath  = "class/drm/"
-)
-
-var (
-	pciRegexp     = regexp.MustCompile(`[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$`)
-	cardRegexp    = regexp.MustCompile(`^card[0-9]+$`)
-	renderdRegexp = regexp.MustCompile(`^renderD[0-9]+$`)
-)
 
 func newDriver(ctx context.Context, config *configType) (*driver, error) {
 	var state *nodeState
 
 	driverVersion.PrintDriverVersion()
 
-	sysfsDir := getSysfsDir()
-	sysfsI915Dir := filepath.Join(sysfsDir, sysfsI915path)
-	sysfsDRMDir := filepath.Join(sysfsDir, sysfsDRMpath)
-
+	sysfsDir := device.GetSysfsDir()
 	gas := intelcrd.NewGpuAllocationState(config.crdconfig, config.clientset.intel)
 
 	preparedClaimFilePath := path.Join(config.driverPluginPath, "preparedClaims.json")
@@ -85,7 +65,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 			return fmt.Errorf("failed to set GpuAllocationState as NotReady: %v", err)
 		}
 
-		detectedDevices := discoverDevices(sysfsI915Dir, sysfsDRMDir)
+		detectedDevices := discovery.DiscoverDevices(sysfsDir)
 		if len(detectedDevices) == 0 {
 			klog.Info("No supported devices detected")
 		}
@@ -117,8 +97,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 	d := &driver{
 		gas:                   gas,
 		state:                 state,
-		sysfsI915Dir:          sysfsI915Dir,
-		sysfsDRMDir:           sysfsDRMDir,
+		sysfsDir:              sysfsDir,
 		preparedClaimFilePath: preparedClaimFilePath,
 	}
 	klog.V(3).Info("Finished creating new driver")
@@ -168,7 +147,7 @@ func (d *driver) nodePrepareResources(
 		}
 
 		// perClaimDevices and toProvision are mutated below by calls taking them as parameters
-		perClaimDevices := map[string][]*DeviceInfo{}
+		perClaimDevices := map[string][]*device.DeviceInfo{}
 		toProvision, claimDevices, err := d.sanitizedClaimDevicesToBeProvisioned(claim)
 		if err != nil {
 			return err
@@ -298,95 +277,66 @@ func (d *driver) nodeUnprepareResource(ctx context.Context, claim *drav1.Claim) 
 
 // sanitizedClaimDevicesToBeProvisioned returns a map of sanitized devices that need provisioning or an error
 // in case sanitization failed.
-func (d *driver) sanitizedClaimDevicesToBeProvisioned(claim *drav1.Claim) (map[string][]*DeviceInfo, []*DeviceInfo, error) {
-	toProvision := map[string][]*DeviceInfo{}
-	claimDevices := []*DeviceInfo{}
+func (d *driver) sanitizedClaimDevicesToBeProvisioned(claim *drav1.Claim) (map[string][]*device.DeviceInfo, []*device.DeviceInfo, error) {
+	toProvision := map[string][]*device.DeviceInfo{}
+	claimDevices := []*device.DeviceInfo{}
 
 	// map VFs in req context that need provisioning against parent uids
-	for _, device := range d.gas.Spec.AllocatedClaims[claim.Uid].Gpus {
-		if device.Type == intelcrd.VfDeviceType {
+	for _, gpu := range d.gas.Spec.AllocatedClaims[claim.Uid].Gpus {
+		if gpu.Type == intelcrd.VfDeviceType {
 
-			if device.UID != intelcrd.NewVFUID { // Allocated VF existed at the time of allocation
+			if gpu.UID != intelcrd.NewVFUID { // Allocated VF existed at the time of allocation
 
-				if existingVF, exists := d.state.allocatable[device.UID]; exists {
+				if existingVF, exists := d.state.allocatable[gpu.UID]; exists {
 
-					klog.V(5).Infof("VF %v is already provisioned", device.UID)
+					klog.V(5).Infof("VF %v is already provisioned", gpu.UID)
 					// verify profile and parent fields
-					if existingVF.ParentUID != device.ParentUID || existingVF.MemoryMiB != device.Memory || (device.Profile != "" && existingVF.VFProfile != device.Profile) {
+					if existingVF.ParentUID != gpu.ParentUID || existingVF.MemoryMiB != gpu.Memory || (gpu.Profile != "" && existingVF.VFProfile != gpu.Profile) {
 
-						return nil, nil, fmt.Errorf("malformed allocated device %v: fields mismatch existing allocatable device", device.UID)
+						return nil, nil, fmt.Errorf("malformed allocated device %v: fields mismatch existing allocatable device", gpu.UID)
 					}
 
-					claimDevices = append(claimDevices, d.state.DeviceInfoFromAllocated(device))
+					claimDevices = append(claimDevices, d.state.DeviceInfoFromAllocated(gpu))
 					continue
 				}
 
-				klog.V(5).Infof("Allocated VF %v was removed, needs provisioning", device.UID)
-				device.UID = intelcrd.NewVFUID
+				klog.V(5).Infof("Allocated VF %v was removed, needs provisioning", gpu.UID)
+				gpu.UID = intelcrd.NewVFUID
 			}
 
-			parentDevice, exists := d.state.allocatable[device.ParentUID]
+			parentDevice, exists := d.state.allocatable[gpu.ParentUID]
 			if !exists {
-				return nil, nil, fmt.Errorf("no parent device '%v' for VF %v", device.ParentUID, device.UID)
+				return nil, nil, fmt.Errorf("no parent device '%v' for VF %v", gpu.ParentUID, gpu.UID)
 			}
 
 			// allocatable devices have no profile field. TODO: add such field.
 			// In case the controller allocated existing VF leaving profile blank,
 			// and VFs dismantling began before the claim came into preparation,
 			// the allocated device profile is effectively lost -> pick up new suitable profile.
-			if device.Profile == "" {
-				_, _, newProfile, err := sriov.PickVFProfile(parentDevice.Model, device.Memory, device.Millicores, parentDevice.EccOn)
+			if gpu.Profile == "" {
+				_, _, newProfile, err := sriov.PickVFProfile(parentDevice.Model, gpu.Memory, gpu.Millicores, parentDevice.EccOn)
 				if err != nil {
-					return nil, nil, fmt.Errorf("no suitable VF profile for device %v", device.UID)
+					return nil, nil, fmt.Errorf("no suitable VF profile for device %v", gpu.UID)
 				}
-				klog.V(5).Infof("picked profile %v for device %v", newProfile, device.UID)
-				device.Profile = newProfile
-			} else if !sriov.DeviceProfileExists(parentDevice.Model, device.Profile) {
-				return nil, nil, fmt.Errorf("no profile %v found for device %v (deviceId: %v)", device.Profile, device.UID, parentDevice.Model)
+				klog.V(5).Infof("picked profile %v for device %v", newProfile, gpu.UID)
+				gpu.Profile = newProfile
+			} else if !sriov.DeviceProfileExists(parentDevice.Model, gpu.Profile) {
+				return nil, nil, fmt.Errorf("no profile %v found for device %v (deviceId: %v)", gpu.Profile, gpu.UID, parentDevice.Model)
 			}
 
-			if _, parentInPlanned := toProvision[device.ParentUID]; !parentInPlanned {
-				toProvision[device.ParentUID] = []*DeviceInfo{}
+			if _, parentInPlanned := toProvision[gpu.ParentUID]; !parentInPlanned {
+				toProvision[gpu.ParentUID] = []*device.DeviceInfo{}
 			}
-			newDevice := d.state.DeviceInfoFromAllocated(device)
-			toProvision[device.ParentUID] = append(toProvision[device.ParentUID], newDevice)
+			newDevice := d.state.DeviceInfoFromAllocated(gpu)
+			toProvision[gpu.ParentUID] = append(toProvision[gpu.ParentUID], newDevice)
 			claimDevices = append(claimDevices, newDevice)
 
 			continue
 		}
 
 		// GPUs
-		claimDevices = append(claimDevices, d.state.DeviceInfoFromAllocated(device))
+		claimDevices = append(claimDevices, d.state.DeviceInfoFromAllocated(gpu))
 	}
 
 	return toProvision, claimDevices, nil
-}
-
-// getSysfsPath tries to get path where sysfs is mounted from
-// env var, or fallback to hardcoded path.
-func getSysfsDir() string {
-	sysfsPath, found := os.LookupEnv(sysfsEnvVarName)
-
-	if found {
-		if _, err := os.Stat(path.Join(sysfsPath, sysfsDRMpath)); err == nil {
-			klog.Infof("using custom sysfs location: %v", sysfsPath)
-			return sysfsPath
-		}
-	}
-
-	klog.Info("using default sysfs location: /sys")
-	// If /sys is not available, devices discovery will fail gracefully.
-	return "/sys"
-}
-
-func getDevfsDriDir() string {
-	devfsDriDir, found := os.LookupEnv(devDriEnvVarName)
-
-	if found {
-		klog.Infof("using custom devfs dri location: %v", devfsDriDir)
-		return devfsDriDir
-	}
-
-	klog.Info("using default devfs dri location: /dev/dri")
-	return "/dev/dri"
 }

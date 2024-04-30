@@ -20,11 +20,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"reflect"
 	"testing"
 
 	"github.com/fsnotify/fsnotify"
+	. "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	gpucsfake "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned/fake"
 	gpuv1alpha2 "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
@@ -279,7 +280,7 @@ func TestNodePrepareResources(t *testing.T) {
 		gasspec := driver.gas.Spec.DeepCopy()
 		gasspec.AllocatedClaims = testcase.gasSpecAllocations
 
-		if err := writePreparedClaimsToFile(filepath.Join(fakeDriverPluginPath, "preparedClaims.json"), nil); err != nil {
+		if err := writePreparedClaimsToFile(path.Join(fakeDriverPluginPath, "preparedClaims.json"), nil); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
@@ -501,7 +502,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 		t.Errorf("failed to create plugin socket dir: %v", err)
 	}
 
-	preparedClaimFilePath := filepath.Join(fakeDriverPluginPath, "preparedClaims.json")
+	preparedClaimFilePath := path.Join(fakeDriverPluginPath, "preparedClaims.json")
 
 	var watcher *fsnotify.Watcher
 	for _, testcase := range testcases {
