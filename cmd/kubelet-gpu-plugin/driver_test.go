@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -25,7 +26,8 @@ import (
 	"testing"
 
 	"github.com/fsnotify/fsnotify"
-	. "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	gpucsfake "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned/fake"
 	gpuv1alpha2 "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
@@ -35,12 +37,12 @@ import (
 )
 
 func TestFakeSysfs(t *testing.T) {
-	fakeSysfsRoot := "/tmp/fakesysfs2"
+	fakeSysfsRoot := "/tmp/fakegpusysfs"
 
-	if err := fakeSysFsContents(
+	if err := fakesysfs.FakeSysFsGpuContents(
 		t,
 		fakeSysfsRoot,
-		DevicesInfo{
+		device.DevicesInfo{
 			"0000:00:02.0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000:00:02.0-0x56c0", MaxVFs: 16},
 		},
 	); err != nil {
@@ -247,10 +249,10 @@ func TestNodePrepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		if err := fakeSysFsContents(
+		if err := fakesysfs.FakeSysFsGpuContents(
 			t,
 			fakeSysfsRoot,
-			DevicesInfo{
+			device.DevicesInfo{
 				"0000:00:02.0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000:00:02.0-0x56c0", MaxVFs: 16},
 				"0000:00:03.0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000:00:03.0-0x56c0", MaxVFs: 16},
 				"0000:00:03.1-0x56c0": {Model: "0x56c0", MemoryMiB: 8064, DeviceType: "vf", CardIdx: 2, RenderdIdx: 130, UID: "0000:00:03.1-0x56c0", VFIndex: 0, VFProfile: "flex170_m2", ParentUID: "0000:00:03.0-0x56c0"},
@@ -273,14 +275,14 @@ func TestNodePrepareResources(t *testing.T) {
 
 		// dynamically add and remove fake sysfs SR-IOV VFs
 		if testcase.updateFakeSysfs {
-			watcher = watchNumvfs(t, fakeSysfsRoot)
+			watcher = fakesysfs.WatchNumvfs(t, fakeSysfsRoot)
 		}
 
 		// cleanup and setup GAS
 		gasspec := driver.gas.Spec.DeepCopy()
 		gasspec.AllocatedClaims = testcase.gasSpecAllocations
 
-		if err := writePreparedClaimsToFile(path.Join(fakeDriverPluginPath, "preparedClaims.json"), nil); err != nil {
+		if err := writePreparedGpuClaimsToFile(path.Join(fakeDriverPluginPath, "preparedClaims.json"), nil); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
@@ -315,10 +317,10 @@ func TestNodePrepareResources(t *testing.T) {
 func TestReuseLeftoverSRIOVResources(t *testing.T) {
 	fakeSysfsRoot := "/tmp/fakesysfs2"
 	fakeDriverPluginPath := "/tmp/fakedriverpluginpath"
-	if err := fakeSysFsContents(
+	if err := fakesysfs.FakeSysFsGpuContents(
 		t,
 		fakeSysfsRoot,
-		DevicesInfo{
+		device.DevicesInfo{
 			"0000:00:02.0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000:00:02.0-0x56c0", MaxVFs: 16},
 			"0000:00:03.0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000:00:03.0-0x56c0", MaxVFs: 16},
 		},
@@ -484,10 +486,10 @@ func TestNodeUnprepareResources(t *testing.T) {
 
 	fakeSysfsRoot := "/tmp/fakesysfs"
 	fakeDriverPluginPath := "/tmp/fakedriverpluginpath"
-	if err := fakeSysFsContents(
+	if err := fakesysfs.FakeSysFsGpuContents(
 		t,
 		fakeSysfsRoot,
-		DevicesInfo{
+		device.DevicesInfo{
 			"0000:b3:00.0-0x0bda": {Model: "0x0bda", MemoryMiB: 49136, DeviceType: "gpu", CardIdx: 0, UID: "0000:b3:00.0-0x0bda", MaxVFs: 63},
 			"0000:af:00.0-0x0bda": {Model: "0x0bda", MemoryMiB: 49136, DeviceType: "gpu", CardIdx: 1, UID: "0000:af:00.0-0x0bda", MaxVFs: 63},
 			"0000:af:00.1-0x0bda": {Model: "0x0bda", MemoryMiB: 22528, Millicores: 500, DeviceType: "vf", CardIdx: 2, UID: "0000:af:00.1-0x0bda", VFIndex: 0, VFProfile: "max_47g_c2", ParentUID: "0000:af:00.0-0x0bda"},
@@ -508,7 +510,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
+		if err := writePreparedGpuClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
@@ -520,7 +522,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 
 		// dynamically add and remove fake sysfs SR-IOV VFs
 		if testcase.updateFakeSysfs {
-			watcher = watchNumvfs(t, fakeSysfsRoot)
+			watcher = fakesysfs.WatchNumvfs(t, fakeSysfsRoot)
 		}
 
 		response, err := driver.NodeUnprepareResources(context.TODO(), testcase.request)
@@ -528,7 +530,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 		}
 
-		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
+		preparedClaims, err := readPreparedGpuClaimsFromFile(preparedClaimFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 		}
@@ -538,11 +540,13 @@ func TestNodeUnprepareResources(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(testcase.expectedPreparedClaims, preparedClaims) {
+			preparedClaimsJSON, _ := json.MarshalIndent(preparedClaims, "", "\t")
+			expectedPreparedClaimsJSON, _ := json.MarshalIndent(testcase.expectedPreparedClaims, "", "\t")
 			t.Errorf(
-				"unexpected PreparedClaims:\n%+v\nexpected PreparedClaims:\n%+v",
-				preparedClaims,
-				testcase.expectedPreparedClaims,
+				"unexpected PreparedClaims:\n%s\nexpected PreparedClaims:\n%s",
+				preparedClaimsJSON, expectedPreparedClaimsJSON,
 			)
+			break
 		}
 
 		// dynamically add and remove fake sysfs SR-IOV VFs
@@ -589,4 +593,40 @@ func compareNodePrepareResourcesResponses(expectedResponse, response *v1alpha3.N
 		}
 	}
 	return true
+}
+
+func writePreparedGpuClaimsToFile(preparedClaimFilePath string, preparedClaims ClaimPreparations) error {
+	file, err := os.Create(preparedClaimFilePath)
+	if err != nil {
+		return fmt.Errorf("error creating file: %v", err)
+	}
+
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	err = encoder.Encode(preparedClaims)
+	if err != nil {
+		return fmt.Errorf("error encoding JSON: %v", err)
+	}
+
+	return nil
+}
+
+func readPreparedGpuClaimsFromFile(preparedClaimFilePath string) (ClaimPreparations, error) {
+	file, err := os.Open(preparedClaimFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %v", err)
+	}
+	defer file.Close()
+
+	preparedClaims := make(ClaimPreparations)
+
+	decoder := json.NewDecoder(file)
+
+	err = decoder.Decode(&preparedClaims)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding JSON: %v", err)
+	}
+
+	return preparedClaims, nil
 }

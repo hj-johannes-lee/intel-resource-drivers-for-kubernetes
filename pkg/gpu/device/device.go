@@ -86,11 +86,11 @@ func GetDevfsDriDir() string {
 	devfsDriDir, found := os.LookupEnv(DevDriEnvVarName)
 
 	if found {
-		fmt.Printf("using custom devfs dri location: %v", devfsDriDir)
+		fmt.Printf("using custom devfs dri location: %v\n", devfsDriDir)
 		return devfsDriDir
 	}
 
-	fmt.Printf("using default devfs dri location: /dev/dri")
+	fmt.Println("using default devfs dri location: /dev/dri")
 	return "/dev/dri"
 }
 
@@ -101,12 +101,12 @@ func GetSysfsDir() string {
 
 	if found {
 		if _, err := os.Stat(path.Join(sysfsPath, SysfsDRMpath)); err == nil {
-			fmt.Printf("using custom sysfs location: %v", sysfsPath)
+			fmt.Printf("using custom sysfs location: %v\n", sysfsPath)
 			return sysfsPath
 		}
 	}
 
-	fmt.Printf("using default sysfs location: /sys")
+	fmt.Println("using default sysfs location: /sys")
 	// If /sys is not available, devices discovery will fail gracefully.
 	return "/sys"
 }
