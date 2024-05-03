@@ -282,7 +282,7 @@ func TestNodePrepareResources(t *testing.T) {
 		gasspec := driver.gas.Spec.DeepCopy()
 		gasspec.AllocatedClaims = testcase.gasSpecAllocations
 
-		if err := writePreparedGpuClaimsToFile(path.Join(fakeDriverPluginPath, "preparedClaims.json"), nil); err != nil {
+		if err := writePreparedClaimsToFile(path.Join(fakeDriverPluginPath, "preparedClaims.json"), nil); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
@@ -510,7 +510,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		if err := writePreparedGpuClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
+		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
@@ -530,7 +530,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 		}
 
-		preparedClaims, err := readPreparedGpuClaimsFromFile(preparedClaimFilePath)
+		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 		}
@@ -593,40 +593,4 @@ func compareNodePrepareResourcesResponses(expectedResponse, response *v1alpha3.N
 		}
 	}
 	return true
-}
-
-func writePreparedGpuClaimsToFile(preparedClaimFilePath string, preparedClaims ClaimPreparations) error {
-	file, err := os.Create(preparedClaimFilePath)
-	if err != nil {
-		return fmt.Errorf("error creating file: %v", err)
-	}
-
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	err = encoder.Encode(preparedClaims)
-	if err != nil {
-		return fmt.Errorf("error encoding JSON: %v", err)
-	}
-
-	return nil
-}
-
-func readPreparedGpuClaimsFromFile(preparedClaimFilePath string) (ClaimPreparations, error) {
-	file, err := os.Open(preparedClaimFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("error opening file: %v", err)
-	}
-	defer file.Close()
-
-	preparedClaims := make(ClaimPreparations)
-
-	decoder := json.NewDecoder(file)
-
-	err = decoder.Decode(&preparedClaims)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding JSON: %v", err)
-	}
-
-	return preparedClaims, nil
 }
