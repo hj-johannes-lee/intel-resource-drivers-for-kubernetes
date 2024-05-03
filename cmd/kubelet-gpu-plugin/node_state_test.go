@@ -50,15 +50,16 @@ func TestDeviceInfoDeepCopy(t *testing.T) {
 }
 
 func errorCheck(t *testing.T, name, substr string, err error) {
-	if err == nil {
+	switch {
+	case err == nil:
 		if substr != "" {
 			t.Errorf("unexpected success on %s, expected: %s", name, substr)
 		}
-	} else if substr == "" {
+	case substr == "":
 		t.Errorf("unexpected failure on %s: %v", name, err)
-	} else if !strings.Contains(err.Error(), substr) {
+	case !strings.Contains(err.Error(), substr):
 		t.Errorf("wrong %s error, expected '%s', got: %v", name, substr, err)
-	} else {
+	default:
 		t.Logf("=> expected error for %s: %v", name, substr)
 	}
 }
@@ -161,8 +162,9 @@ func TestPreparedClaimsFiles(t *testing.T) {
 	for _, test := range testcases {
 		t.Log(test.name)
 
-		compare := true
-		if test.op1.claims != nil {
+		content := true
+		switch {
+		case test.op1.claims != nil:
 			// JSON write & read roundtrip
 			if test.op1.file != test.op2.file {
 				t.Errorf("=> different files for round-trip check: '%s' vs. '%s'", test.op1.file, test.op2.file)
@@ -171,25 +173,23 @@ func TestPreparedClaimsFiles(t *testing.T) {
 			errorCheck(t, "writing claims", test.op1.err, err)
 			claims, err = readPreparedClaimsFromFile(path.Join(claimDir, test.op2.file))
 			errorCheck(t, "reading claims", test.op2.err, err)
-		} else if test.op1.file != "" {
+		case test.op1.file != "":
 			// read pre-existing JSON
 			claims, err = readPreparedClaimsFromFile(path.Join(claimDir, test.op1.file))
 			errorCheck(t, "reading claims", test.op1.err, err)
-		} else {
-			compare = false
+		default:
+			content = false
 		}
 
-		if compare && test.op2.claims != nil {
+		if content && test.op2.claims != nil {
 			if !reflect.DeepEqual(claims, *test.op2.claims) {
 				t.Errorf("expected claims: %+v, but got: %+v", test.op2.claims, claims)
 			} else {
 				t.Log("=> claims match (OK)")
 			}
-			claims = *test.op2.claims
 		}
 
-		// no pre-existing content or test claim to write?
-		if test.op2.file == "" || test.op1.claims != nil {
+		if test.op2.file == "" || !content {
 			continue
 		}
 
