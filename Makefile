@@ -63,7 +63,7 @@ endif
 GPU_BINARIES = bin/gpu-controller bin/kubelet-gpu-plugin bin/gas-status-updater bin/alert-webhook bin/intel-gpu-cdi-spec-generator
 COMMON_SRC = \
  Makefile \
- pkg/version/version.go \
+ pkg/gpu/version/version.go \
  pkg/intel.com/resource/gpu/clientset/versioned/*.go \
  pkg/intel.com/resource/gpu/v1alpha2/api/*.go \
  pkg/intel.com/resource/gpu/v1alpha2/*.go \
