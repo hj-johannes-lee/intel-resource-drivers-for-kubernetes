@@ -83,7 +83,7 @@ func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*
 		prepared:    make(ClaimPreparations),
 	}
 
-	preparedClaims, err := state.getOrCreatePreparedClaims(preparedClaimFilePath)
+	preparedClaims, err := getOrCreatePreparedClaims(preparedClaimFilePath)
 	if err != nil {
 		klog.Errorf("Error getting prepared claims: %v", err)
 		return nil, fmt.Errorf("failed to get prepared claims: %v", err)
@@ -158,7 +158,7 @@ func (s *nodeState) FreeClaimDevices(preparedClaimFilePath string, claimUID stri
 
 	delete(s.prepared, claimUID)
 	// write prepared claims to file
-	err = s.writePreparedClaimToFile(preparedClaimFilePath, s.prepared)
+	err = writePreparedClaimsToFile(preparedClaimFilePath, s.prepared)
 	if err != nil {
 		klog.Errorf("Error writing prepared claims to file: %v", err)
 		return nil, fmt.Errorf("failed to write prepared claims to file: %v", err)
@@ -447,7 +447,7 @@ func (s *nodeState) makePreparedClaimAllocation(preparedClaimFilePath string, pe
 	}
 
 	// write prepared claims to file
-	err := s.writePreparedClaimToFile(preparedClaimFilePath, s.prepared)
+	err := writePreparedClaimsToFile(preparedClaimFilePath, s.prepared)
 	if err != nil {
 		klog.Errorf("Error writing prepared claims to file: %v", err)
 		return fmt.Errorf("failed to write prepared claims to file: %v", err)
@@ -457,9 +457,7 @@ func (s *nodeState) makePreparedClaimAllocation(preparedClaimFilePath string, pe
 }
 
 // getOrCreatePreparedClaims reads a PreparedClaim from a file and deserializes it or creates the file.
-func (s *nodeState) getOrCreatePreparedClaims(preparedClaimFilePath string) (ClaimPreparations, error) {
-	preparedClaims := make(ClaimPreparations)
-
+func getOrCreatePreparedClaims(preparedClaimFilePath string) (ClaimPreparations, error) {
 	if _, err := os.Stat(preparedClaimFilePath); os.IsNotExist(err) {
 		klog.V(5).Infof("could not find file %v. Creating file", preparedClaimFilePath)
 		f, err := os.OpenFile(preparedClaimFilePath, os.O_CREATE|os.O_WRONLY, 0600)
@@ -474,8 +472,16 @@ func (s *nodeState) getOrCreatePreparedClaims(preparedClaimFilePath string) (Cla
 
 		klog.V(5).Infof("empty prepared claims file created %v", preparedClaimFilePath)
 
-		return preparedClaims, nil
+		return make(ClaimPreparations), nil
 	}
+
+	return readPreparedClaimsFromFile(preparedClaimFilePath)
+}
+
+// readPreparedClaimToFile returns unmarshaled content for given prepared claims JSON file.
+func readPreparedClaimsFromFile(preparedClaimFilePath string) (ClaimPreparations, error) {
+
+	preparedClaims := make(ClaimPreparations)
 
 	preparedClaimsConfigBytes, err := os.ReadFile(preparedClaimFilePath)
 	if err != nil {
@@ -491,11 +497,11 @@ func (s *nodeState) getOrCreatePreparedClaims(preparedClaimFilePath string) (Cla
 	return preparedClaims, nil
 }
 
-// writePreparedClaimToFile serializes PreparedClaims and writes it to a file.
-func (s *nodeState) writePreparedClaimToFile(preparedClaimFilePath string, preparedClaims ClaimPreparations) error {
+// writePreparedClaimsToFile serializes PreparedClaims and writes it to a file.
+func writePreparedClaimsToFile(preparedClaimFilePath string, preparedClaims ClaimPreparations) error {
 	encodedPreparedClaims, err := json.MarshalIndent(preparedClaims, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed encoding json. Err: %v", err)
+		return fmt.Errorf("prepared claims JSON encoding failed. Err: %v", err)
 	}
 	return os.WriteFile(preparedClaimFilePath, encodedPreparedClaims, 0600)
 }
