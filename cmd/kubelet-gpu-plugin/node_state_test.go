@@ -18,7 +18,6 @@ package main
 
 import (
 	"os"
-	"path"
 	"reflect"
 	"strings"
 	"testing"
@@ -78,11 +77,16 @@ func TestPreparedClaimsFiles(t *testing.T) {
 		op2  testOp
 	}
 
-	claimDir := "claims"
-	tmpClaim := "tmp.json"
-	defer os.RemoveAll(path.Join(claimDir, tmpClaim))
+	tmpFile, err := os.CreateTemp("", "dra-test-*.json")
+	if err != nil {
+		t.Errorf("tmp file creation failed: %v", err)
+	}
+	tmpClaim := tmpFile.Name()
+	defer os.RemoveAll(tmpClaim)
 
+	claimDir := "claims/"
 	missingPath := "non/existing/file"
+
 	multiClaim := ClaimPreparations{
 		"uid1": {{UID: "0000:af:00.1-0xabcd", Model: "0xabcd", CardIdx: 1, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000:af:00.0-0xabcd"}},
 		"uid2": {{UID: "0000:af:00.2-0xabcd", Model: "0xabcd", CardIdx: 2, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 2, ParentUID: "0000:af:00.0-0xabcd"}},
@@ -111,7 +115,7 @@ func TestPreparedClaimsFiles(t *testing.T) {
 		{
 			"invalid JSON returns error",
 			testOp{
-				nil, "invalid.json", "invalid character",
+				nil, claimDir + "invalid.json", "invalid character",
 			},
 			testOp{
 				nil, "", "",
@@ -120,7 +124,7 @@ func TestPreparedClaimsFiles(t *testing.T) {
 		{
 			"empty JSON read OK",
 			testOp{
-				nil, "empty.json", "",
+				nil, claimDir + "empty.json", "",
 			},
 			testOp{
 				&ClaimPreparations{}, "", "",
@@ -138,7 +142,7 @@ func TestPreparedClaimsFiles(t *testing.T) {
 		{
 			"multi-claim JSON read OK",
 			testOp{
-				nil, "multi.json", "",
+				nil, claimDir + "multi.json", "",
 			},
 			testOp{
 				&multiClaim, "", "",
@@ -155,10 +159,7 @@ func TestPreparedClaimsFiles(t *testing.T) {
 		},
 	}
 
-	var (
-		claims ClaimPreparations
-		err    error
-	)
+	var claims ClaimPreparations
 	for _, test := range testcases {
 		t.Log(test.name)
 
@@ -169,13 +170,13 @@ func TestPreparedClaimsFiles(t *testing.T) {
 			if test.op1.file != test.op2.file {
 				t.Errorf("=> different files for round-trip check: '%s' vs. '%s'", test.op1.file, test.op2.file)
 			}
-			err = writePreparedClaimsToFile(path.Join(claimDir, test.op1.file), *test.op1.claims)
+			err = writePreparedClaimsToFile(test.op1.file, *test.op1.claims)
 			errorCheck(t, "writing claims", test.op1.err, err)
-			claims, err = readPreparedClaimsFromFile(path.Join(claimDir, test.op2.file))
+			claims, err = readPreparedClaimsFromFile(test.op2.file)
 			errorCheck(t, "reading claims", test.op2.err, err)
 		case test.op1.file != "":
 			// read pre-existing JSON
-			claims, err = readPreparedClaimsFromFile(path.Join(claimDir, test.op1.file))
+			claims, err = readPreparedClaimsFromFile(test.op1.file)
 			errorCheck(t, "reading claims", test.op1.err, err)
 		default:
 			content = false
@@ -193,7 +194,7 @@ func TestPreparedClaimsFiles(t *testing.T) {
 			continue
 		}
 
-		err = writePreparedClaimsToFile(path.Join(claimDir, test.op2.file), claims)
+		err = writePreparedClaimsToFile(test.op2.file, claims)
 		errorCheck(t, "writing claims", test.op2.err, err)
 
 		// TODO: validate saved JSON against something?
