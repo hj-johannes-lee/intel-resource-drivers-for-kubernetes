@@ -84,7 +84,7 @@ func TestPreparedClaimsFiles(t *testing.T) {
 	tmpClaim := tmpFile.Name()
 	defer os.RemoveAll(tmpClaim)
 
-	claimDir := "claims/"
+	claimDir := "test-claims/"
 	missingPath := "non/existing/file"
 
 	multiClaim := ClaimPreparations{
