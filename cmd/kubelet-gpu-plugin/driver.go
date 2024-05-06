@@ -28,8 +28,8 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
-	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/version"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
+	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
 // compile-time test for implementation conformance with the interface.
@@ -44,12 +44,12 @@ type driver struct {
 func newDriver(ctx context.Context, config *configType) (*driver, error) {
 	var state *nodeState
 
-	driverVersion.PrintDriverVersion()
+	driverVersion.PrintDriverVersion(intelcrd.APIGroupName, intelcrd.APIVersion)
 
 	sysfsDir := device.GetSysfsDir()
 	gas := intelcrd.NewGpuAllocationState(config.crdconfig, config.clientset.intel)
 
-	preparedClaimFilePath := path.Join(config.driverPluginPath, "preparedClaims.json")
+	preparedClaimFilePath := path.Join(config.driverPluginPath, device.PreparedClaimsFileName)
 
 	setupErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		klog.V(3).Info("Creating new GpuAllocationState")

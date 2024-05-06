@@ -36,12 +36,13 @@ const (
 	sysfsDefaultRoot     = "/sys"
 	// driver.sysfsDriverDir and driver.sysfsAccelDir are sysfsDriverPath and sysfsAccelPath
 	// respectively prefixed with $SYSFS_ROOT.
-	SysfsDriverPath = "bus/pci/drivers/habanalabs"
-	SysfsAccelPath  = "class/accel/"
-	CDIRoot         = "/etc/cdi"
-	CDIVendor       = "intel.com"
-	CDIKind         = CDIVendor + "/gaudi"
-	PciDBDFLength   = len("0000:00:00.0")
+	SysfsDriverPath        = "bus/pci/drivers/habanalabs"
+	SysfsAccelPath         = "devices/virtual/accel/"
+	CDIRoot                = "/etc/cdi"
+	CDIVendor              = "intel.com"
+	CDIKind                = CDIVendor + "/gaudi"
+	PciDBDFLength          = len("0000:00:00.0")
+	PreparedClaimsFileName = "preparedClaims.json"
 )
 
 // DeviceInfo is an internal structure type to store info about discovered device.
@@ -75,11 +76,11 @@ func GetDevfsAccelDir() string {
 	devfsAccelDir, found := os.LookupEnv(DevAccelEnvVarName)
 
 	if found {
-		fmt.Printf("using custom devfs accel location: %v", devfsAccelDir)
+		fmt.Printf("using custom devfs accel location: %v\n", devfsAccelDir)
 		return devfsAccelDir
 	}
 
-	fmt.Printf("using default devfs accel location: %v", devfsDefaultAccelDir)
+	fmt.Printf("using default devfs accel location: %v\n", devfsDefaultAccelDir)
 	return devfsDefaultAccelDir
 }
 
@@ -90,12 +91,12 @@ func GetSysfsRoot() string {
 
 	if found {
 		if _, err := os.Stat(path.Join(sysfsPath, SysfsAccelPath)); err == nil {
-			fmt.Printf("using custom sysfs location: %v", sysfsPath)
+			fmt.Printf("using custom sysfs location: %v\n", sysfsPath)
 			return sysfsPath
 		}
 	}
 
-	fmt.Printf("using default sysfs location: %v", sysfsDefaultRoot)
+	fmt.Printf("using default sysfs location: %v\n", sysfsDefaultRoot)
 	// If /sys is not available, devices discovery will fail gracefully.
 	return sysfsDefaultRoot
 }

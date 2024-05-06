@@ -29,10 +29,10 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// SyncDetectedDevicesWithCdiRegistry adds detected devices into cdi registry if they are not yet there.
+// SyncDetectedDevicesWithRegistry adds detected devices into cdi registry if they are not yet there.
 // Update existing registry devices with detected.
 // Remove absent registry devices.
-func SyncDetectedDevicesWithCdiRegistry(registry cdiapi.Registry, detectedDevices device.DevicesInfo, doCleanup bool) error {
+func SyncDetectedDevicesWithRegistry(registry cdiapi.Registry, detectedDevices device.DevicesInfo, doCleanup bool) error {
 
 	vendorSpecs := registry.SpecDB().GetVendorSpecs(device.CDIVendor)
 	devicesToAdd := detectedDevices.DeepCopy()
@@ -86,10 +86,9 @@ func SyncDetectedDevicesWithCdiRegistry(registry cdiapi.Registry, detectedDevice
 		}
 		// update spec if it was changed
 		if specChanged {
-			klog.V(5).Info("Replacing devices in spec with VFs filtered out")
 			vendorSpec.Spec.Devices = filteredDevices
 			specName := path.Base(vendorSpec.GetPath())
-			klog.V(5).Infof("Overwriting spec %v", specName)
+			klog.V(5).Infof("Updating spec %v", specName)
 			err := registry.SpecDB().WriteSpec(vendorSpec.Spec, specName)
 			if err != nil {
 				klog.Errorf("failed writing CDI spec %v: %v", vendorSpec.GetPath(), err)
@@ -102,7 +101,7 @@ func SyncDetectedDevicesWithCdiRegistry(registry cdiapi.Registry, detectedDevice
 		// add devices that were not found in registry to the first existing vendor spec
 		apispec := vendorSpecs[0]
 		klog.V(5).Infof("Adding %d devices to CDI spec", len(devicesToAdd))
-		AddDevicesToCDISpec(devicesToAdd, apispec.Spec)
+		AddDevicesToSpec(devicesToAdd, apispec.Spec)
 		specName := path.Base(apispec.GetPath())
 
 		cdiVersion, err := cdiapi.MinimumRequiredVersion(apispec.Spec)
@@ -145,8 +144,6 @@ func SyncDeviceNodes(
 				klog.V(5).Infof("Fixing card index for CDI device %v", detectedDevice.UID)
 				deviceNode.Path = path.Join(dridevpath, fmt.Sprintf("card%d", detectedDevice.CardIdx))
 				specChanged = true
-			} else {
-				klog.V(5).Info("card index for CDI device is correct")
 			}
 		case renderdregexp.MatchString(driFileName):
 			klog.V(5).Infof("CDI device node %v is a renderD device: %v", deviceNodeIdx, driFileName)
@@ -159,8 +156,6 @@ func SyncDeviceNodes(
 				klog.V(5).Infof("Fixing renderD index for CDI device %v", detectedDevice.UID)
 				deviceNode.Path = path.Join(dridevpath, fmt.Sprintf("renderD%d", detectedDevice.RenderdIdx))
 				specChanged = true
-			} else {
-				klog.V(5).Info("renderD index for CDI device is correct")
 			}
 		default:
 			klog.Warningf("Unexpected device node %v in CDI device %v", deviceNode.Path)
@@ -178,7 +173,7 @@ func AddNewDevicesToNewRegistry(devices device.DevicesInfo) error {
 		Kind: device.CDIKind,
 	}
 
-	AddDevicesToCDISpec(devices, spec)
+	AddDevicesToSpec(devices, spec)
 	klog.V(5).Infof("spec devices length: %v", len(spec.Devices))
 
 	cdiVersion, err := cdiapi.MinimumRequiredVersion(spec)
@@ -202,7 +197,7 @@ func AddNewDevicesToNewRegistry(devices device.DevicesInfo) error {
 	return nil
 }
 
-func AddDevicesToCDISpec(devices device.DevicesInfo, spec *specs.Spec) {
+func AddDevicesToSpec(devices device.DevicesInfo, spec *specs.Spec) {
 	dridevpath := device.GetDevfsDriDir()
 
 	for _, device := range devices {

@@ -118,7 +118,7 @@ func getGPUDevice() error {
 	}
 
 	// syncDetectedDevicesWithCdiRegistry overrides uid in detecteddevices from existing cdi spec
-	err = cdihelpers.SyncDetectedDevicesWithCdiRegistry(cdi, detectedDevices, true)
+	err = cdihelpers.SyncDetectedDevicesWithRegistry(cdi, detectedDevices, true)
 	if err != nil {
 		fmt.Printf("unable to sync detected devices to CDI registry: %v", err)
 	}

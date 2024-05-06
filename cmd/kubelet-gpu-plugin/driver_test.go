@@ -26,26 +26,17 @@ import (
 	"testing"
 
 	"github.com/fsnotify/fsnotify"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/kubelet/pkg/apis/dra/v1alpha3"
+
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	gpucsfake "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned/fake"
 	gpuv1alpha2 "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubefake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/kubelet/pkg/apis/dra/v1alpha3"
+	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
-
-const (
-	testRootPrefix = "test-*"
-)
-
-type testDirsType struct {
-	testRoot         string
-	cdiRoot          string
-	driverPluginRoot string
-	sysfsRoot        string
-}
 
 func TestFakeSysfs(t *testing.T) {
 	fakeSysfsRoot := "/tmp/fakegpusysfs"
@@ -66,44 +57,7 @@ func TestFakeSysfs(t *testing.T) {
 	}
 }
 
-// newTestDirs creates fake CDI root, sysfs, driverPlugin dirs and returns
-// them as a testDirsType or an error.
-func newTestDirs() (testDirsType, error) {
-	testRoot, err := os.MkdirTemp("", testRootPrefix)
-	if err != nil {
-		return testDirsType{}, fmt.Errorf("failed creating test root dir: %v", err)
-	}
-
-	cdiRoot := path.Join(testRoot, "cdi")
-	if err := os.MkdirAll(cdiRoot, 0750); err != nil {
-		return testDirsType{}, fmt.Errorf("failed creating fake CDI root dir: %v", err)
-	}
-
-	fakeSysfsRoot := path.Join(testRoot, "sysfs")
-	if err := os.MkdirAll(fakeSysfsRoot, 0750); err != nil {
-		return testDirsType{}, fmt.Errorf("failed creating fake sysfs root dir: %v", err)
-	}
-
-	driverPluginRoot := path.Join(testRoot, "kubelet-plugin")
-	if err := os.MkdirAll(driverPluginRoot, 0750); err != nil {
-		return testDirsType{}, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
-	}
-
-	return testDirsType{
-		testRoot:         testRoot,
-		cdiRoot:          cdiRoot,
-		sysfsRoot:        fakeSysfsRoot,
-		driverPluginRoot: driverPluginRoot,
-	}, nil
-}
-
-func cleanupTest(t *testing.T, testname string, testRoot string) {
-	if err := os.RemoveAll(testRoot); err != nil {
-		t.Logf("%v: could not cleanup temp directory %v: %v", testname, testRoot, err)
-	}
-}
-
-func getFakeDriver(testDirs testDirsType) (*driver, error) {
+func getFakeDriver(testDirs helpers.TestDirsType) (*driver, error) {
 
 	fakeGas := &gpuv1alpha2.GpuAllocationState{
 		TypeMeta:   metav1.TypeMeta{},
@@ -122,11 +76,11 @@ func getFakeDriver(testDirs testDirsType) (*driver, error) {
 			kubefake.NewSimpleClientset(),
 			fakeDRAClient,
 		},
-		cdiRoot:          testDirs.cdiRoot,
-		driverPluginPath: testDirs.driverPluginRoot,
+		cdiRoot:          testDirs.CdiRoot,
+		driverPluginPath: testDirs.DriverPluginRoot,
 	}
 
-	os.Setenv("SYSFS_ROOT", testDirs.sysfsRoot)
+	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
 
 	return newDriver(context.TODO(), config)
 }
@@ -294,8 +248,8 @@ func TestNodePrepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := newTestDirs()
-		defer cleanupTest(t, testcase.name, testDirs.testRoot)
+		testDirs, err := helpers.NewTestDirs()
+		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("%v: setup error: %v", testcase.name, err)
 			return
@@ -303,7 +257,7 @@ func TestNodePrepareResources(t *testing.T) {
 
 		if err := fakesysfs.FakeSysFsGpuContents(
 			t,
-			testDirs.sysfsRoot,
+			testDirs.SysfsRoot,
 			device.DevicesInfo{
 				"0000:00:02.0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000:00:02.0-0x56c0", MaxVFs: 16},
 				"0000:00:03.0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000:00:03.0-0x56c0", MaxVFs: 16},
@@ -323,14 +277,14 @@ func TestNodePrepareResources(t *testing.T) {
 
 		// dynamically add and remove fake sysfs SR-IOV VFs
 		if testcase.updateFakeSysfs {
-			watcher = fakesysfs.WatchNumvfs(t, testDirs.sysfsRoot)
+			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot)
 		}
 
 		// cleanup and setup GAS
 		gasspec := driver.gas.Spec.DeepCopy()
 		gasspec.AllocatedClaims = testcase.gasSpecAllocations
 
-		if err := writePreparedClaimsToFile(path.Join(testDirs.driverPluginRoot, "preparedClaims.json"), nil); err != nil {
+		if err := writePreparedClaimsToFile(path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName), nil); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
@@ -355,15 +309,15 @@ func TestNodePrepareResources(t *testing.T) {
 }
 
 func TestReuseLeftoverSRIOVResources(t *testing.T) {
-	testDirs, err := newTestDirs()
-	defer cleanupTest(t, "TestReuseLeftoverSRIOVResources", testDirs.testRoot)
+	testDirs, err := helpers.NewTestDirs()
+	defer helpers.CleanupTest(t, "TestReuseLeftoverSRIOVResources", testDirs.TestRoot)
 	if err != nil {
 		t.Errorf("setup error: %v", err)
 		return
 	}
 	if err := fakesysfs.FakeSysFsGpuContents(
 		t,
-		testDirs.sysfsRoot,
+		testDirs.SysfsRoot,
 		device.DevicesInfo{
 			"0000:00:02.0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000:00:02.0-0x56c0", MaxVFs: 16},
 			"0000:00:03.0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000:00:03.0-0x56c0", MaxVFs: 16},
@@ -378,7 +332,7 @@ func TestReuseLeftoverSRIOVResources(t *testing.T) {
 		t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 	}
 
-	expectedToProvision := ClaimAllocations{
+	expectedToProvision := map[string][]*device.DeviceInfo{
 		"0000:00:03.0-0x56c0": {
 			{
 				UID:        "",
@@ -401,7 +355,7 @@ func TestReuseLeftoverSRIOVResources(t *testing.T) {
 		},
 	}
 
-	toProvision := ClaimAllocations{
+	toProvision := map[string][]*device.DeviceInfo{
 		"0000:00:03.0-0x56c0": {
 			{
 				DeviceType: "vf",
@@ -516,15 +470,15 @@ func TestNodeUnprepareResources(t *testing.T) {
 		},
 	}
 
-	testDirs, err := newTestDirs()
-	defer cleanupTest(t, "TestNodeUnprepareResources", testDirs.testRoot)
+	testDirs, err := helpers.NewTestDirs()
+	defer helpers.CleanupTest(t, "TestNodeUnprepareResources", testDirs.TestRoot)
 	if err != nil {
 		t.Errorf("setup error: %v", err)
 		return
 	}
 	if err := fakesysfs.FakeSysFsGpuContents(
 		t,
-		testDirs.sysfsRoot,
+		testDirs.SysfsRoot,
 		device.DevicesInfo{
 			"0000:b3:00.0-0x0bda": {Model: "0x0bda", MemoryMiB: 49136, DeviceType: "gpu", CardIdx: 0, UID: "0000:b3:00.0-0x0bda", MaxVFs: 63},
 			"0000:af:00.0-0x0bda": {Model: "0x0bda", MemoryMiB: 49136, DeviceType: "gpu", CardIdx: 1, UID: "0000:af:00.0-0x0bda", MaxVFs: 63},
@@ -536,7 +490,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 		return
 	}
 
-	preparedClaimFilePath := path.Join(testDirs.driverPluginRoot, "preparedClaims.json")
+	preparedClaimFilePath := path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName)
 
 	var watcher *fsnotify.Watcher
 	for _, testcase := range testcases {
@@ -554,7 +508,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 
 		// dynamically add and remove fake sysfs SR-IOV VFs
 		if testcase.updateFakeSysfs {
-			watcher = fakesysfs.WatchNumvfs(t, testDirs.sysfsRoot)
+			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot)
 		}
 
 		response, err := driver.NodeUnprepareResources(context.TODO(), testcase.request)

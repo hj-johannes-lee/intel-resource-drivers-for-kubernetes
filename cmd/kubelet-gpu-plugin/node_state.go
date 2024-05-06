@@ -33,8 +33,6 @@ import (
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
 )
 
-// ClaimAllocations maps a slice of allocated DeviceInfos to Claim.Uid.
-type ClaimAllocations map[string][]*device.DeviceInfo
 type ClaimPreparations map[string][]*device.DeviceInfo
 
 type nodeState struct {
@@ -62,7 +60,7 @@ func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*
 	}
 
 	// syncDetectedDevicesWithCdiRegistry overrides uid in detecteddevices from existing cdi spec
-	err = cdihelpers.SyncDetectedDevicesWithCdiRegistry(cdi, detectedDevices, true)
+	err = cdihelpers.SyncDetectedDevicesWithRegistry(cdi, detectedDevices, true)
 	if err != nil {
 		return nil, fmt.Errorf("unable to sync detected devices to CDI registry: %v", err)
 	}
@@ -71,7 +69,7 @@ func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*
 		return nil, fmt.Errorf("unable to refresh the CDI registry after populating it: %v", err)
 	}
 
-	klog.V(5).Info("Allocatable after CDI refresh device:")
+	klog.V(5).Info("Allocatable devices after CDI registry refresh:")
 	for duid, ddev := range detectedDevices {
 		klog.V(5).Infof("CDI device: %v : %+v", duid, ddev)
 	}
@@ -208,10 +206,10 @@ func (s *nodeState) GetAllocatedCDINames(claimUID string) []string {
 	for _, device := range s.prepared[claimUID] {
 		cdidev := s.cdi.DeviceDB().GetDevice(device.CDIName())
 		if cdidev == nil {
-			klog.Errorf("CDI Device %v from claim %v not found in cdi DB", device.CDIName(), claimUID)
+			klog.Errorf("CDI Device %v from claim %v not found in CDI DB", device.CDIName(), claimUID)
 			return []string{}
 		}
-		klog.V(5).Infof("Found cdi device %v", cdidev.GetQualifiedName())
+		klog.V(5).Infof("Found CDI device %v", cdidev.GetQualifiedName())
 		devs = append(devs, cdidev.GetQualifiedName())
 	}
 	return devs
@@ -231,10 +229,10 @@ func (s *nodeState) getMonitorCDINames(claimUID string) []string {
 	for _, device := range s.allocatable {
 		cdidev := s.cdi.DeviceDB().GetDevice(device.CDIName())
 		if cdidev == nil {
-			klog.Errorf("CDI Device %v for monitor claim %v not found in cdi DB", device.CDIName(), claimUID)
+			klog.Errorf("CDI Device %v for monitor claim %v not found in CDI DB", device.CDIName(), claimUID)
 			return []string{}
 		}
-		klog.V(5).Infof("Found cdi device %v", cdidev.GetQualifiedName())
+		klog.V(5).Infof("Found CDI device %v", cdidev.GetQualifiedName())
 		devs = append(devs, cdidev.GetQualifiedName())
 	}
 	return devs
@@ -369,7 +367,7 @@ func (s *nodeState) addNewVFs(newVFs device.DevicesInfo) error {
 	}
 
 	klog.V(5).Infof("Adding %v new VFs to CDI", len(newVFs))
-	err = cdihelpers.SyncDetectedDevicesWithCdiRegistry(s.cdi, newVFs, false)
+	err = cdihelpers.SyncDetectedDevicesWithRegistry(s.cdi, newVFs, false)
 	if err != nil {
 		klog.Errorf("failed announcing new VFs: %v", err)
 		return fmt.Errorf("failed announcing new VFs: %v", err)
@@ -501,6 +499,9 @@ func readPreparedClaimsFromFile(preparedClaimFilePath string) (ClaimPreparations
 
 // writePreparedClaimsToFile serializes PreparedClaims and writes it to a file.
 func writePreparedClaimsToFile(preparedClaimFilePath string, preparedClaims ClaimPreparations) error {
+	if preparedClaims == nil {
+		preparedClaims = ClaimPreparations{}
+	}
 	encodedPreparedClaims, err := json.MarshalIndent(preparedClaims, "", "  ")
 	if err != nil {
 		return fmt.Errorf("prepared claims JSON encoding failed. Err: %v", err)
