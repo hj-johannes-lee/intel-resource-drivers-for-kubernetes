@@ -36,10 +36,9 @@ import (
 var _ drav1.NodeServer = (*driver)(nil)
 
 type driver struct {
-	gas                   *intelcrd.GpuAllocationState
-	state                 *nodeState
-	sysfsDir              string
-	preparedClaimFilePath string
+	gas      *intelcrd.GpuAllocationState
+	state    *nodeState
+	sysfsDir string
 }
 
 func newDriver(ctx context.Context, config *configType) (*driver, error) {
@@ -95,10 +94,9 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 	}
 
 	d := &driver{
-		gas:                   gas,
-		state:                 state,
-		sysfsDir:              sysfsDir,
-		preparedClaimFilePath: preparedClaimFilePath,
+		gas:      gas,
+		state:    state,
+		sysfsDir: sysfsDir,
 	}
 	klog.V(3).Info("Finished creating new driver")
 
@@ -189,7 +187,7 @@ func (d *driver) nodePrepareResources(
 		}
 
 		// add resource claim to prepared list
-		err = d.state.makePreparedClaimAllocation(d.preparedClaimFilePath, perClaimDevices)
+		err = d.state.makePreparedClaimAllocation(perClaimDevices)
 		if err != nil {
 			return fmt.Errorf("failed creating prepared claim allocation: %v", err)
 		}
@@ -246,7 +244,7 @@ func (d *driver) nodeUnprepareResource(ctx context.Context, claim *drav1.Claim) 
 			return fmt.Errorf("error freeing devices for claim '%v': %v", claim.Uid, err)
 		}
 
-		parentsToCleanup, err := d.state.FreeClaimDevices(d.preparedClaimFilePath, claim.Uid)
+		parentsToCleanup, err := d.state.FreeClaimDevices(claim.Uid)
 		if err != nil {
 			return fmt.Errorf("error freeing devices for claim '%v': %v", claim.Uid, err)
 		}

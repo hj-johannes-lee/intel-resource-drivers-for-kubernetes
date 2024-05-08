@@ -39,9 +39,10 @@ type ClaimPreparations map[string][]*device.DeviceInfo
 
 type nodeState struct {
 	sync.Mutex
-	cdi         cdiapi.Registry
-	allocatable device.DevicesInfo
-	prepared    ClaimPreparations
+	cdi                   cdiapi.Registry
+	allocatable           device.DevicesInfo
+	prepared              ClaimPreparations
+	preparedClaimFilePath string
 }
 
 func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimFilePath string) (*nodeState, error) {
@@ -78,9 +79,10 @@ func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*
 	klog.V(5).Info("Creating NodeState")
 	// TODO: allocatable should include cdi-described
 	state := &nodeState{
-		cdi:         cdi,
-		allocatable: detectedDevices,
-		prepared:    make(ClaimPreparations),
+		cdi:                   cdi,
+		allocatable:           detectedDevices,
+		prepared:              make(ClaimPreparations),
+		preparedClaimFilePath: preparedClaimFilePath,
 	}
 
 	preparedClaims, err := getOrCreatePreparedClaims(preparedClaimFilePath)
@@ -115,7 +117,7 @@ func (s *nodeState) parentCanHaveVFs(toProvision map[string][]*device.DeviceInfo
 }
 
 // FreeClaimDevices returns slice of gpu IDs where all VFs can be removed.
-func (s *nodeState) FreeClaimDevices(preparedClaimFilePath string, claimUID string) ([]string, error) {
+func (s *nodeState) FreeClaimDevices(claimUID string) ([]string, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -158,7 +160,7 @@ func (s *nodeState) FreeClaimDevices(preparedClaimFilePath string, claimUID stri
 
 	delete(s.prepared, claimUID)
 	// write prepared claims to file
-	err = writePreparedClaimsToFile(preparedClaimFilePath, s.prepared)
+	err = writePreparedClaimsToFile(s.preparedClaimFilePath, s.prepared)
 	if err != nil {
 		klog.Errorf("Error writing prepared claims to file: %v", err)
 		return nil, fmt.Errorf("failed to write prepared claims to file: %v", err)
@@ -430,7 +432,7 @@ func (s *nodeState) removeVFs(parentUID string) error {
 	return nil
 }
 
-func (s *nodeState) makePreparedClaimAllocation(preparedClaimFilePath string, perClaimDevices map[string][]*device.DeviceInfo) error {
+func (s *nodeState) makePreparedClaimAllocation(perClaimDevices map[string][]*device.DeviceInfo) error {
 
 	for claimUID, devices := range perClaimDevices {
 		for _, device := range devices {
@@ -447,7 +449,7 @@ func (s *nodeState) makePreparedClaimAllocation(preparedClaimFilePath string, pe
 	}
 
 	// write prepared claims to file
-	err := writePreparedClaimsToFile(preparedClaimFilePath, s.prepared)
+	err := writePreparedClaimsToFile(s.preparedClaimFilePath, s.prepared)
 	if err != nil {
 		klog.Errorf("Error writing prepared claims to file: %v", err)
 		return fmt.Errorf("failed to write prepared claims to file: %v", err)
