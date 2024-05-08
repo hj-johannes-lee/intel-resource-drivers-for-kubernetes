@@ -201,13 +201,17 @@ func (d *driver) nodePrepareResources(
 		return &drav1.NodePrepareResourceResponse{Error: fmt.Sprintf("error preparing resource: %v", prepareErr)}
 	}
 
-	cdinames = d.state.GetAllocatedCDINames(claim.Uid)
+	return d.cdiDevices(claim.Uid)
+}
+
+func (d *driver) cdiDevices(claimUID string) *drav1.NodePrepareResourceResponse {
+	cdinames := d.state.GetAllocatedCDINames(claimUID)
 	if len(cdinames) == 0 {
-		klog.Errorf("could not find CDI device name from CDI registry for claim %s", claim.Uid)
-		return &drav1.NodePrepareResourceResponse{Error: fmt.Sprintf("error preparing resource: %v", prepareErr)}
+		klog.Errorf("could not find CDI device name from CDI registry for claim %s", claimUID)
+		return &drav1.NodePrepareResourceResponse{Error: "error preparing resource: CDI devices not found in specs"}
 	}
 
-	klog.V(3).Infof("Prepared devices for claim '%v': %s", claim.Uid, cdinames)
+	klog.V(3).Infof("Prepared devices for claim '%v': %s", claimUID, cdinames)
 	return &drav1.NodePrepareResourceResponse{CDIDevices: cdinames}
 }
 
