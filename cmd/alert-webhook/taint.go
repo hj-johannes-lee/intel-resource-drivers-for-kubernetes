@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -153,6 +154,30 @@ func string2map(value *string) (map[string]bool, bool) {
 	return items, true
 }
 
+// if nodes names are specified, return those as a list, otherwise fetch & return list
+// of names for all cluster nodes, and true to indicate success.
+func (t *tainter) expandNodes(value *string) ([]string, bool) {
+	nodes, ok := string2list(value)
+	if !ok || nodes != nil {
+		return nodes, ok
+	}
+
+	items, err := t.clientset.core.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		klog.Errorf("Listing cluster nodes failed: %v", err)
+		return nodes, false
+	}
+
+	i := 0
+	nodes = make([]string, len(items.Items))
+	for _, node := range items.Items {
+		nodes[i] = node.Name
+		i++
+	}
+
+	return nodes, true
+}
+
 type taintInfoType struct {
 	reasons map[string]bool
 	devices int
@@ -178,23 +203,18 @@ func (t *tainter) setTaintsFromFlags(f *cliFlags) error {
 		return fmt.Errorf("invalid CLI action '%s'", action)
 	}
 
-	nodes, ok := string2list(f.nodes)
+	nodes, ok := t.expandNodes(f.nodes)
 	if !ok {
-		return fmt.Errorf("invalid nodes list for CLI action")
-	}
-
-	var err error
-	if nodes, err = t.expandNodes(nodes); err != nil {
-		return err
+		return fmt.Errorf("node list '%v' creation failed for CLI action", f.nodes)
 	}
 
 	args := taintArgsType{}
 	if args.reasons, ok = string2list(f.reasons); !ok {
-		return fmt.Errorf("invalid taint reasons list for CLI action")
+		return fmt.Errorf("invalid taint reasons list '%v' for CLI action", f.reasons)
 	}
 
 	if args.devices, ok = string2map(f.devices); !ok {
-		return fmt.Errorf("invalid devices list for CLI action")
+		return fmt.Errorf("invalid devices list '%v' for CLI action", f.devices)
 	}
 
 	if action == "taint" && args.reasons == nil {
@@ -221,14 +241,23 @@ func taintInfoSummary(info taintInfoType, nodeCount int, action string) {
 	}
 
 	klog.Info("Summary:")
+
+	if info.devices == 0 {
+		klog.Infof("- No (matching) devices on specified %d nodes", nodeCount)
+		return
+	}
 	klog.Infof("- %d devices on %d nodes", info.devices, nodeCount)
 
 	if info.tainted == 0 {
+		if info.reasons != nil && len(info.reasons) > 0 {
+			panic("taint reasons is not empty, although tainted dev count = 0")
+		}
 		klog.Info("- None tainted (matching specified devices/reasons)")
+		return
 	}
 
 	if info.reasons == nil || len(info.reasons) == 0 {
-		panic("reasons list is empty although taint count is non-zero")
+		panic("taint reasons list is empty, although tainted dev count != 0")
 	}
 
 	klog.Infof("- %d of them tainted", info.tainted)
@@ -237,13 +266,6 @@ func taintInfoSummary(info taintInfoType, nodeCount int, action string) {
 	for name := range info.reasons {
 		klog.Infof("- %s", name)
 	}
-}
-
-func (t *tainter) expandNodes(nodes []string) ([]string, error) {
-	if nodes != nil {
-		return nodes, nil
-	}
-	return nil, fmt.Errorf("TODO: support 'all' nodes")
 }
 
 func (t *tainter) handleNodeAction(info *taintInfoType, action, node string, args taintArgsType) error {
@@ -262,7 +284,9 @@ func (t *tainter) handleNodeAction(info *taintInfoType, action, node string, arg
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 
 		if err := gas.Get(t.ctx); err != nil {
-			return err
+			klog.V(3).Infof("%s:", node)
+			klog.V(3).Info("- NO device information (node or its GAS CR missing)")
+			return nil
 		}
 
 		var changed bool
@@ -415,14 +439,11 @@ func (t *tainter) listNodeTaints(info *taintInfoType, spec *intelcrd.GpuAllocati
 		klog.Infof("- %s: %v", uid, names)
 	}
 
-	klog.Infof("=> %d/%d devices tainted, with %d (unique) reasons",
-		tainted, total, len(unique))
-
 	if info.reasons == nil {
 		info.reasons = make(map[string]bool)
 	}
-	maps.Copy(info.reasons, unique)
 
+	maps.Copy(info.reasons, unique)
 	info.tainted += tainted
 	info.devices += total
 
