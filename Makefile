@@ -31,9 +31,9 @@ VERSION ?= v0.4.0
 EXT_LDFLAGS = -static
 LDFLAGS = \
  -s -w -extldflags $(EXT_LDFLAGS) \
- -X ${PKG}/pkg/version.driverVersion=${GPU_IMAGE_VERSION} \
- -X ${PKG}/pkg/version.gitCommit=${GIT_COMMIT} \
- -X ${PKG}/pkg/version.buildDate=${BUILD_DATE}
+ -X ${PKG}/pkg/gpu/version.driverVersion=${GPU_IMAGE_VERSION} \
+ -X ${PKG}/pkg/gpu/version.gitCommit=${GIT_COMMIT} \
+ -X ${PKG}/pkg/gpu/version.buildDate=${BUILD_DATE}
 
 GOLICENSES_VERSION?=v1.6.0
 ifneq ("$(wildcard licenses/)","")
@@ -179,8 +179,15 @@ clean-licenses:
 .PHONY: licenses
 licenses: clean-licenses
 	GO111MODULE=on go run github.com/google/go-licenses@$(GOLICENSES_VERSION) \
-	save "./cmd/gpu-controller" "./cmd/kubelet-gpu-plugin" "./pkg/version/" "./pkg/intel.com/resource/gpu/v1alpha2" \
-	"./pkg/intel.com/resource/gpu/v1alpha2/api" "./pkg/intel.com/resource/gpu/clientset/versioned/" --save_path licenses
+	save "./cmd/gpu-controller" "./cmd/kubelet-gpu-plugin" \
+	"./pkg/gpu/cdihelpers" \
+	"./pkg/gpu/device" \
+	"./pkg/gpu/discovery" \
+	"./pkg/gpu/sriov" \
+	"./pkg/gpu/version" \
+	"./pkg/intel.com/resource/gpu/v1alpha2" \
+	"./pkg/intel.com/resource/gpu/v1alpha2/api" \
+	"./pkg/intel.com/resource/gpu/clientset/versioned/" --save_path licenses
 
 
 # linting targets for Go and other code
