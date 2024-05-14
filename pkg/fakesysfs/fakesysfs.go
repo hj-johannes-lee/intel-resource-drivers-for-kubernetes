@@ -53,24 +53,13 @@ func newPCIAddress(driverDir string, currentAddress string) (string, error) {
 	return "", fmt.Errorf("no addresses left")
 }
 
-// FakeSysFsContents creates new fake sysfs ensuring there wasn't any previously.
-// This should be called in the beginning of the testcase.
-func createFakeSysFsDir(sysfsRootUntrusted string) error {
+// sanitizeFakeSysFsDir ensuring the /tmp location of fake sysfs.
+func sanitizeFakeSysFsDir(sysfsRootUntrusted string) error {
 	// fake sysfsroot should be deletable.
 	// To prevent disaster mistakes, it is enforced to be in /tmp.
 	sysfsRoot := path.Join(sysfsRootUntrusted)
 	if !strings.HasPrefix(sysfsRoot, "/tmp") {
 		return fmt.Errorf("fake sysfsroot can only be in /tmp, got: %v", sysfsRoot)
-	}
-
-	// Fail immediately, if the directory exists to prevent data loss when
-	// fake sysfs would need to be deleted.
-	if _, err := os.Stat(sysfsRoot); err == nil {
-		return fmt.Errorf("cannot create fake sysfs, path exists: %v", sysfsRoot)
-	}
-
-	if err := os.Mkdir(sysfsRoot, 0750); err != nil {
-		return fmt.Errorf("could not create fake sysfs root %v: %v", sysfsRoot, err)
 	}
 
 	return nil

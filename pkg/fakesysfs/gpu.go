@@ -533,7 +533,7 @@ func watchPFnumvfs(t *testing.T, watcher *fsnotify.Watcher) {
 }
 
 func FakeSysFsGpuContents(t *testing.T, sysfsRoot string, gpus device.DevicesInfo) error {
-	if err := createFakeSysFsDir(sysfsRoot); err != nil {
+	if err := sanitizeFakeSysFsDir(sysfsRoot); err != nil {
 		return err
 	}
 
