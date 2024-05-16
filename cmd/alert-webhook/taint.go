@@ -116,26 +116,8 @@ func getClientsetConfig(kubeconfig string) (*rest.Config, error) {
 	return csconfig, nil
 }
 
-// convert string with comma separated items to list, with nil indicating "all" items,
-// returns that and true to indicate success.
-func string2list(value *string) ([]string, bool) {
-	if value == nil || *value == "" {
-		return nil, false
-	}
-	if *value == "all" {
-		return nil, true
-	}
-	items := strings.Split(*value, ",")
-	for _, name := range items {
-		if strings.TrimSpace(name) == "" {
-			return nil, false
-		}
-	}
-	return items, true
-}
-
-// convert string with comma separated items to map, with nil indicating "all" items,
-// returns that and true to indicate success.
+// convert string with comma separated items to map[name]false, with nil indicating "all" items,
+// return that and true to indicate success.
 func string2map(value *string) (map[string]bool, bool) {
 	if value == nil || *value == "" {
 		return nil, false
@@ -149,45 +131,53 @@ func string2map(value *string) (map[string]bool, bool) {
 		if name == "" {
 			return nil, false
 		}
-		items[name] = true
+		items[name] = false
 	}
 	return items, true
 }
 
-// if nodes names are specified, return those as a list, otherwise fetch & return list
-// of names for all cluster nodes, and true to indicate success.
-func (t *tainter) expandNodes(value *string) ([]string, bool) {
-	nodes, ok := string2list(value)
+// if nodes names are specified, return those as a map[name]false,
+// otherwise fetch & return that mapping for all cluster nodes,
+// and bools to indicate whether all were returned, and success.
+func (t *tainter) expandNodes(value *string) (map[string]bool, bool, bool) {
+	all := false
+
+	nodes, ok := string2map(value)
 	if !ok || nodes != nil {
-		return nodes, ok
+		return nodes, all, ok
 	}
+
+	// get all node names from cluster
+	all = true
 
 	items, err := t.clientset.core.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		klog.Errorf("Listing cluster nodes failed: %v", err)
-		return nodes, false
+		return nodes, all, false
 	}
 
-	i := 0
-	nodes = make([]string, len(items.Items))
+	nodes = make(map[string]bool, len(items.Items))
 	for _, node := range items.Items {
-		nodes[i] = node.Name
-		i++
+		nodes[node.Name] = false
 	}
 
-	return nodes, true
+	return nodes, all, true
 }
 
 type taintInfoType struct {
-	reasons map[string]bool
-	devices int
-	tainted int
+	reasons map[string]bool // unique taint reasons
+	devices int             // total devices count
+	tainted int             // tainted devices count
 }
 
-// 'nil' value = all items (both for devices & reasons).
+// initially all map keys are false, and later set to true, if matched.
 type taintArgsType struct {
-	devices map[string]bool
-	reasons []string
+	// 'nil' value = all items
+	devices map[string]bool // which devices to taint/untaint/list
+	reasons map[string]bool // which reasons to use for tainting, or to untaint/list
+	// on which nodes to act
+	nodes    map[string]bool
+	allNodes bool
 }
 
 // Depending on CLI flags, list or update specified (or all) taint reasons for
@@ -204,13 +194,14 @@ func (t *tainter) setTaintsFromFlags(f *cliFlags) error {
 		return fmt.Errorf("invalid CLI action '%s'", action)
 	}
 
-	nodes, ok := t.expandNodes(f.nodes)
-	if !ok {
+	var ok bool
+	args := taintArgsType{}
+
+	if args.nodes, args.allNodes, ok = t.expandNodes(f.nodes); !ok {
 		return fmt.Errorf("node list '%v' creation failed for CLI action", f.nodes)
 	}
 
-	args := taintArgsType{}
-	if args.reasons, ok = string2list(f.reasons); !ok {
+	if args.reasons, ok = string2map(f.reasons); !ok {
 		return fmt.Errorf("invalid taint reasons list '%v' for CLI action", f.reasons)
 	}
 
@@ -226,30 +217,55 @@ func (t *tainter) setTaintsFromFlags(f *cliFlags) error {
 		reasons: make(map[string]bool),
 	}
 
-	for _, node := range nodes {
-		if err := t.handleNodeAction(&info, action, node, args); err != nil {
+	for node := range args.nodes {
+		if err := t.handleNodeAction(&args, &info, action, node); err != nil {
 			return err
 		}
 	}
 
-	taintInfoSummary(info, len(nodes), action)
+	klog.Info("DONE!")
+	taintInfoSummary(args, info, action)
 
 	return nil
 }
 
-func taintInfoSummary(info taintInfoType, nodeCount int, action string) {
+func logMatchInfo(kinds string, items map[string]bool) {
+	if items == nil {
+		return
+	}
+
+	klog.Infof("Specified %s:", kinds)
+	missing := 0
+
+	for name, found := range items {
+		if !found {
+			klog.Infof("- %s: NO MATCH", name)
+			missing++
+		}
+	}
+
+	if missing == 0 {
+		klog.Info("- all matched")
+	}
+}
+
+func taintInfoSummary(args taintArgsType, info taintInfoType, action string) {
+	if !args.allNodes {
+		logMatchInfo("nodes", args.nodes)
+	}
+	logMatchInfo("devices", args.devices)
+	logMatchInfo("reasons", args.reasons)
+
 	if action != "list" {
-		// TODO: collect & output summary info also for other actions?
 		return
 	}
 
 	klog.Info("Summary:")
-
 	if info.devices == 0 {
-		klog.Infof("- No (matching) devices on specified %d nodes", nodeCount)
+		klog.Infof("- No (matching) devices on specified %d nodes", len(args.nodes))
 		return
 	}
-	klog.Infof("- %d devices on %d nodes", info.devices, nodeCount)
+	klog.Infof("- %d devices on %d nodes", info.devices, len(args.nodes))
 
 	if info.tainted == 0 {
 		if len(info.reasons) > 0 {
@@ -271,7 +287,7 @@ func taintInfoSummary(info taintInfoType, nodeCount int, action string) {
 	}
 }
 
-func (t *tainter) handleNodeAction(info *taintInfoType, action, node string, args taintArgsType) error {
+func (t *tainter) handleNodeAction(args *taintArgsType, info *taintInfoType, action, node string) error {
 	// CRD access serialization
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
@@ -287,21 +303,21 @@ func (t *tainter) handleNodeAction(info *taintInfoType, action, node string, arg
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 
 		if err := gas.Get(t.ctx); err != nil {
-			klog.V(3).Infof("%s:", node)
-			klog.V(3).Info("- NO device information (node or its GAS CR missing)")
 			return nil
 		}
+
+		args.nodes[node] = true
 
 		var changed bool
 		switch action {
 		case "list":
-			return t.listNodeTaints(info, &gas.Spec, node, args)
+			return t.listNodeTaints(args, info, &gas.Spec, node)
 		case "taint":
 			klog.V(3).Infof("Taint node '%s' GPUs with specified reasons", node)
-			changed = addNodeTaints(&gas.Spec, node, args)
+			changed = addNodeTaints(args, &gas.Spec, node)
 		case "untaint":
 			klog.V(3).Infof("Remove specified taint reasons from node '%s' GPUs", node)
-			changed = removeNodeTaints(&gas.Spec, node, args)
+			changed = removeNodeTaints(args, &gas.Spec, node)
 		default:
 			panic(fmt.Sprintf("unknown action %v", action)) // bug in caller
 		}
@@ -316,7 +332,7 @@ func (t *tainter) handleNodeAction(info *taintInfoType, action, node string, arg
 }
 
 // add specified taint reasons for specified devices (nil=all) on node.
-func addNodeTaints(spec *intelcrd.GpuAllocationStateSpec, node string, args taintArgsType) bool {
+func addNodeTaints(args *taintArgsType, spec *intelcrd.GpuAllocationStateSpec, node string) bool {
 	changed := false
 	if spec.AllocatableDevices == nil {
 		return changed
@@ -324,16 +340,21 @@ func addNodeTaints(spec *intelcrd.GpuAllocationStateSpec, node string, args tain
 
 	// Add given taint reason to specified GPUs on given node
 	for uid := range spec.AllocatableDevices {
-		if args.devices != nil && !args.devices[uid] {
-			continue
-		}
 		// no need to taint VFs, PFs are enough
 		if spec.AllocatableDevices[uid].Type == intelcrd.VfDeviceType {
 			continue
 		}
 
-		for _, reason := range args.reasons {
+		if args.devices != nil {
+			if !args.devices[uid] {
+				continue
+			}
+			args.devices[uid] = true
+		}
+
+		for reason := range args.reasons {
 			if addGpuTaint(spec, node, uid, reason) {
+				args.reasons[reason] = true
 				changed = true
 			}
 		}
@@ -343,15 +364,18 @@ func addNodeTaints(spec *intelcrd.GpuAllocationStateSpec, node string, args tain
 }
 
 // remove specified taint reasons (nil=all) for specified devices (nil=all) on node.
-func removeNodeTaints(spec *intelcrd.GpuAllocationStateSpec, node string, args taintArgsType) bool {
+func removeNodeTaints(args *taintArgsType, spec *intelcrd.GpuAllocationStateSpec, node string) bool {
 	changed := false
 	if spec.TaintedDevices == nil {
 		return changed
 	}
 
 	for uid := range spec.TaintedDevices {
-		if args.devices != nil && !args.devices[uid] {
-			continue
+		if args.devices != nil {
+			if !args.devices[uid] {
+				continue
+			}
+			args.devices[uid] = true
 		}
 
 		if args.reasons == nil {
@@ -365,8 +389,9 @@ func removeNodeTaints(spec *intelcrd.GpuAllocationStateSpec, node string, args t
 			continue
 		}
 
-		for _, reason := range args.reasons {
+		for reason := range args.reasons {
 			if removeGpuTaint(spec, node, uid, reason) {
+				args.reasons[reason] = true
 				changed = true
 			}
 		}
@@ -377,7 +402,7 @@ func removeNodeTaints(spec *intelcrd.GpuAllocationStateSpec, node string, args t
 
 // list all available devices and their taint reasons on given node, filtered by
 // given devices + reasons lists. Output warnings on invalid taint information.
-func (t *tainter) listNodeTaints(info *taintInfoType, spec *intelcrd.GpuAllocationStateSpec, node string, args taintArgsType) error {
+func (t *tainter) listNodeTaints(args *taintArgsType, info *taintInfoType, spec *intelcrd.GpuAllocationStateSpec, node string) error {
 	klog.Infof("%s:", node)
 
 	checkTaints(spec)
@@ -392,8 +417,11 @@ func (t *tainter) listNodeTaints(info *taintInfoType, spec *intelcrd.GpuAllocati
 	unique := make(map[string]bool)
 
 	for uid := range spec.AllocatableDevices {
-		if args.devices != nil && !args.devices[uid] {
-			continue
+		if args.devices != nil {
+			if !args.devices[uid] {
+				continue
+			}
+			args.devices[uid] = true
 		}
 		total++
 
@@ -415,17 +443,18 @@ func (t *tainter) listNodeTaints(info *taintInfoType, spec *intelcrd.GpuAllocati
 
 		if args.reasons != nil {
 			// filtered list of reasons
-			for _, name := range args.reasons {
-				if _, found := taint.Reasons[name]; found {
-					names = append(names, name)
-					unique[name] = true
+			for reason := range args.reasons {
+				if _, found := taint.Reasons[reason]; found {
+					names = append(names, reason)
+					args.reasons[reason] = true
+					unique[reason] = true
 				}
 			}
 		} else {
 			// all reasons
-			for name := range taint.Reasons {
-				names = append(names, name)
-				unique[name] = true
+			for reason := range taint.Reasons {
+				names = append(names, reason)
+				unique[reason] = true
 			}
 		}
 
