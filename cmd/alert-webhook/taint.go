@@ -222,7 +222,9 @@ func (t *tainter) setTaintsFromFlags(f *cliFlags) error {
 		return fmt.Errorf("no reasons specified for tainting")
 	}
 
-	info := taintInfoType{}
+	info := taintInfoType{
+		reasons: make(map[string]bool),
+	}
 
 	for _, node := range nodes {
 		if err := t.handleNodeAction(&info, action, node, args); err != nil {
@@ -250,15 +252,15 @@ func taintInfoSummary(info taintInfoType, nodeCount int, action string) {
 	klog.Infof("- %d devices on %d nodes", info.devices, nodeCount)
 
 	if info.tainted == 0 {
-		if info.reasons != nil && len(info.reasons) > 0 {
-			panic("taint reasons is not empty, although tainted dev count = 0")
+		if len(info.reasons) > 0 {
+			panic("taint reasons not empty, although tainted dev count = 0")
 		}
 		klog.Info("- None tainted (matching specified devices/reasons)")
 		return
 	}
 
-	if info.reasons == nil || len(info.reasons) == 0 {
-		panic("taint reasons list is empty, although tainted dev count != 0")
+	if len(info.reasons) == 0 {
+		panic("taint reasons is empty, although tainted dev count != 0")
 	}
 
 	klog.Infof("- %d of them tainted", info.tainted)
@@ -434,11 +436,9 @@ func (t *tainter) listNodeTaints(info *taintInfoType, spec *intelcrd.GpuAllocati
 		klog.Infof("- %s: %v", uid, names)
 	}
 
-	if info.reasons == nil {
-		info.reasons = make(map[string]bool)
+	if len(unique) > 0 {
+		maps.Copy(info.reasons, unique)
 	}
-
-	maps.Copy(info.reasons, unique)
 	info.tainted += tainted
 	info.devices += total
 
