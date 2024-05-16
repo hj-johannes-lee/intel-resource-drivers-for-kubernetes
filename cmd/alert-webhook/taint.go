@@ -116,7 +116,7 @@ func getClientsetConfig(kubeconfig string) (*rest.Config, error) {
 	return csconfig, nil
 }
 
-// convert string with comma separate items to list, with nil indicting "all" items,
+// convert string with comma separated items to list, with nil indicating "all" items,
 // returns that and true to indicate success.
 func string2list(value *string) ([]string, bool) {
 	if value == nil || *value == "" {
@@ -134,7 +134,7 @@ func string2list(value *string) ([]string, bool) {
 	return items, true
 }
 
-// convert string with comma separate items to map, with nil indicting "all" items,
+// convert string with comma separated items to map, with nil indicating "all" items,
 // returns that and true to indicate success.
 func string2map(value *string) (map[string]bool, bool) {
 	if value == nil || *value == "" {
@@ -184,6 +184,7 @@ type taintInfoType struct {
 	tainted int
 }
 
+// 'nil' value = all items (both for devices & reasons).
 type taintArgsType struct {
 	devices map[string]bool
 	reasons []string
@@ -278,7 +279,7 @@ func (t *tainter) handleNodeAction(info *taintInfoType, action, node string, arg
 		Name:      node,
 	}
 
-	klog.V(5).Infof("New '%s' action GAS for '%s' node in '%s' ns", action, node, t.nsname)
+	klog.V(5).Infof("New '%s' action for '%s' node in '%s' ns", action, node, t.nsname)
 	gas := intelcrd.NewGpuAllocationState(crdconfig, t.clientset.intel)
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -300,7 +301,7 @@ func (t *tainter) handleNodeAction(info *taintInfoType, action, node string, arg
 			klog.V(3).Infof("Remove specified taint reasons from node '%s' GPUs", node)
 			changed = removeNodeTaints(&gas.Spec, node, args)
 		default:
-			panic("unknown action") // bug in caller
+			panic(fmt.Sprintf("unknown action %v", action)) // bug in caller
 		}
 
 		if !changed {
@@ -308,10 +309,7 @@ func (t *tainter) handleNodeAction(info *taintInfoType, action, node string, arg
 			return nil
 		}
 
-		if err := gas.Update(t.ctx, &gas.Spec); err != nil {
-			return err
-		}
-		return nil
+		return gas.Update(t.ctx, &gas.Spec)
 	})
 }
 
@@ -355,16 +353,13 @@ func removeNodeTaints(spec *intelcrd.GpuAllocationStateSpec, node string, args t
 		}
 
 		if args.reasons == nil {
-			if _, found := spec.TaintedDevices[uid]; found {
-				// remove all reasons
-				delete(spec.TaintedDevices, uid)
-				changed = true
-			}
+			// remove all reasons
+			delete(spec.TaintedDevices, uid)
 
 			if len(spec.TaintedDevices) == 0 {
 				spec.TaintedDevices = nil
-				changed = true
 			}
+			changed = true
 			continue
 		}
 
@@ -480,7 +475,7 @@ func checkTaints(spec *intelcrd.GpuAllocationStateSpec) {
 func (t *tainter) getNodeTaints(node string, start time.Time) gpuTaints {
 	klog.V(5).Info("getNodeTaints()")
 	if node == "" {
-		panic("getNodeTaints: node missing")
+		panic("getNodeTaints: no node specified")
 	}
 
 	// CRD access serialization

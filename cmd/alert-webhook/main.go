@@ -135,7 +135,7 @@ func addFlags(cmd *cobra.Command) *flagsType {
 
 	fs = sharedFlagSets.FlagSet("Manual GPU taint maintenance")
 	flags.cli.action = fs.String("action", "", "list|taint|untaint")
-	flags.cli.nodes = fs.String("nodes", "", "Nodes which device' taints should be listed/updated, 'all' for all")
+	flags.cli.nodes = fs.String("nodes", "", "Nodes where device taints should be listed/updated, 'all' for all")
 	flags.cli.devices = fs.String("devices", "all", "Comma separated list of IDs for node devices which taints should be updated")
 	flags.cli.reasons = fs.String("reasons", "all", "Comma separated list of taint reasons to update")
 
