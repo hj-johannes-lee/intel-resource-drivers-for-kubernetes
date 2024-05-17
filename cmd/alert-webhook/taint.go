@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -116,35 +117,34 @@ func getClientsetConfig(kubeconfig string) (*rest.Config, error) {
 	return csconfig, nil
 }
 
-// convert string with comma separated items to map[name]false, with nil indicating "all" items,
-// return that and true to indicate success.
-func string2map(value *string) (map[string]bool, bool) {
+// convert string with comma separated items to map[name]false, with nil indicating "all" items.
+func string2map(value *string) (map[string]bool, error) {
 	if value == nil || *value == "" {
-		return nil, false
+		return nil, errors.New("invalid (empty) option value")
 	}
 	if *value == "all" {
-		return nil, true
+		return nil, nil
 	}
 	items := make(map[string]bool)
 	for _, name := range strings.Split(*value, ",") {
 		name = strings.TrimSpace(name)
 		if name == "" {
-			return nil, false
+			return nil, errors.New("invalid comma separated (empty) option value")
 		}
 		items[name] = false
 	}
-	return items, true
+	return items, nil
 }
 
 // if nodes names are specified, return those as a map[name]false,
 // otherwise fetch & return that mapping for all cluster nodes,
-// and bools to indicate whether all were returned, and success.
-func (t *tainter) expandNodes(value *string) (map[string]bool, bool, bool) {
+// and a bool to indicate whether all were returned + error.
+func (t *tainter) expandNodes(value *string) (map[string]bool, bool, error) {
 	all := false
 
-	nodes, ok := string2map(value)
-	if !ok || nodes != nil {
-		return nodes, all, ok
+	nodes, err := string2map(value)
+	if nodes != nil || err != nil {
+		return nodes, all, err
 	}
 
 	// get all node names from cluster
@@ -152,8 +152,7 @@ func (t *tainter) expandNodes(value *string) (map[string]bool, bool, bool) {
 
 	items, err := t.clientset.core.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		klog.Errorf("Listing cluster nodes failed: %v", err)
-		return nodes, all, false
+		return nodes, all, fmt.Errorf("cluster nodes List() call failed: %v", err)
 	}
 
 	nodes = make(map[string]bool, len(items.Items))
@@ -161,8 +160,14 @@ func (t *tainter) expandNodes(value *string) (map[string]bool, bool, bool) {
 		nodes[node.Name] = false
 	}
 
-	return nodes, all, true
+	return nodes, all, nil
 }
+
+const (
+	actionList    = "list"
+	actionTaint   = "taint"
+	actionUntaint = "untaint"
+)
 
 type taintInfoType struct {
 	reasons map[string]bool // unique taint reasons
@@ -190,26 +195,26 @@ func (t *tainter) setTaintsFromFlags(f *cliFlags) error {
 	}
 
 	action := *f.action
-	if action != "list" && action != "taint" && action != "untaint" {
+	if action != actionList && action != actionTaint && action != actionUntaint {
 		return fmt.Errorf("invalid CLI action '%s'", action)
 	}
 
-	var ok bool
+	var err error
 	args := taintArgsType{}
 
-	if args.nodes, args.allNodes, ok = t.expandNodes(f.nodes); !ok {
-		return fmt.Errorf("node list '%v' creation failed for CLI action", f.nodes)
+	if args.nodes, args.allNodes, err = t.expandNodes(f.nodes); err != nil {
+		return fmt.Errorf("nodes mapping for action '%s' failed: %v", action, err)
 	}
 
-	if args.reasons, ok = string2map(f.reasons); !ok {
-		return fmt.Errorf("invalid taint reasons list '%v' for CLI action", f.reasons)
+	if args.reasons, err = string2map(f.reasons); err != nil {
+		return fmt.Errorf("taint reasons mapping for action '%s' failed: %v", action, err)
 	}
 
-	if args.devices, ok = string2map(f.devices); !ok {
-		return fmt.Errorf("invalid devices list '%v' for CLI action", f.devices)
+	if args.devices, err = string2map(f.devices); err != nil {
+		return fmt.Errorf("devices mapping for action '%s' failed: %v", action, err)
 	}
 
-	if action == "taint" && args.reasons == nil {
+	if action == actionTaint && args.reasons == nil {
 		return fmt.Errorf("no reasons specified for tainting")
 	}
 
@@ -256,7 +261,7 @@ func taintInfoSummary(args taintArgsType, info taintInfoType, action string) {
 	logMatchInfo("devices", args.devices)
 	logMatchInfo("reasons", args.reasons)
 
-	if action != "list" {
+	if action != actionList {
 		return
 	}
 
@@ -310,12 +315,12 @@ func (t *tainter) handleNodeAction(args *taintArgsType, info *taintInfoType, act
 
 		var changed bool
 		switch action {
-		case "list":
+		case actionList:
 			return t.listNodeTaints(args, info, &gas.Spec, node)
-		case "taint":
+		case actionTaint:
 			klog.V(3).Infof("Taint node '%s' GPUs with specified reasons", node)
 			changed = addNodeTaints(args, &gas.Spec, node)
-		case "untaint":
+		case actionUntaint:
 			klog.V(3).Infof("Remove specified taint reasons from node '%s' GPUs", node)
 			changed = removeNodeTaints(args, &gas.Spec, node)
 		default:
