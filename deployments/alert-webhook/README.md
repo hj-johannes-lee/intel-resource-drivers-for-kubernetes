@@ -154,6 +154,17 @@ verify taint removal:
 $ kubectl exec -it deployment/intel-gpu-dra-alert-webhook \
   -n intel-gpu-resource-driver -- /alert-webhook -v 3 \
   --nodes NODE1 --action list
+I0520 11:57:50.423141 3608388 taint.go:411] NODE1:
+I0520 11:57:50.423301 3608388 taint.go:470] - 0000:03:00.0-0x4905:
+I0520 11:57:50.423268 3608388 taint.go:470] - 0000:0a:00.0-0x4905: [REASON2]
+I0520 11:57:50.423327 3608388 taint.go:231] DONE!
+I0520 11:57:50.423340 3608388 taint.go:242] Specified nodes:
+I0520 11:57:50.423353 3608388 taint.go:253] - all matched
+I0520 11:57:50.423364 3608388 taint.go:268] Summary:
+I0520 11:57:50.423380 3608388 taint.go:273] - 2 devices on 1 nodes
+I0520 11:57:50.423398 3608388 taint.go:287] - 1 of them tainted
+I0520 11:57:50.423415 3608388 taint.go:289] Unique taint reasons:
+I0520 11:57:50.423433 3608388 taint.go:291] - REASON2
 ```
 
 If webhook binary is run directly instead of using its deployment,
