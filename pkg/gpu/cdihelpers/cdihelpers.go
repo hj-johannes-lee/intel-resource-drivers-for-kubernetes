@@ -53,6 +53,10 @@ func SyncDetectedDevicesWithCdiRegistry(registry cdiapi.Registry, detectedDevice
 	// - write spec
 	// add rest of detected devices to first vendor spec
 	for specidx, vendorSpec := range vendorSpecs {
+		if vendorSpec.Kind != device.CDIKind {
+			continue
+		}
+
 		klog.V(5).Infof("checking vendorspec %v", specidx)
 
 		specChanged := false // if devices were updated or deleted

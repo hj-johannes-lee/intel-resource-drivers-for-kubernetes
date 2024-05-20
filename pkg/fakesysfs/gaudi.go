@@ -26,7 +26,7 @@ import (
 )
 
 func FakeSysFsGaudiContents(sysfsRoot string, gaudis device.DevicesInfo) error {
-	if err := createFakeSysFsDir(sysfsRoot); err != nil {
+	if err := sanitizeFakeSysFsDir(sysfsRoot); err != nil {
 		return err
 	}
 
