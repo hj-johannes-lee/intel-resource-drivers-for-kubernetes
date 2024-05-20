@@ -225,9 +225,13 @@ func TestWholeWebhook(t *testing.T) {
 	}
 
 	fakeNode := testNode
-	// CLI flag / pre-existing taint
+	// for CLI tainting/untainting
+	taintAction := "taint"
+	untaintAction := "untaint"
+	// (pre-existing) taint reasons
 	fakeReason := "taintReason"
-	clearReason := "!" + fakeReason
+	// devices & reasons to clear
+	themAll := "all"
 
 	// resolve 1 fakeReason alert for 1st allDevices GPU...
 	fakeResolved := []notification{
@@ -247,7 +251,7 @@ func TestWholeWebhook(t *testing.T) {
 		{
 			testName:    "clear all device taints with cli flags",
 			namespace:   testSpace,
-			cliFlags:    cliFlags{node: &fakeNode, reason: &clearReason},
+			cliFlags:    cliFlags{action: &untaintAction, nodes: &fakeNode, devices: &themAll, reasons: &themAll},
 			filterFlags: defaultFlags,
 			devType:     intelcrd.GpuDeviceType,
 			devices:     allDevices,
@@ -258,7 +262,7 @@ func TestWholeWebhook(t *testing.T) {
 		{
 			testName:    "taint all devices with cli flags",
 			namespace:   testSpace,
-			cliFlags:    cliFlags{node: &fakeNode, reason: &fakeReason},
+			cliFlags:    cliFlags{action: &taintAction, nodes: &fakeNode, devices: &themAll, reasons: &fakeReason},
 			filterFlags: defaultFlags,
 			devType:     intelcrd.GpuDeviceType,
 			devices:     allDevices,
@@ -269,7 +273,7 @@ func TestWholeWebhook(t *testing.T) {
 		{
 			testName:    "cli flags taint PF, not VFs",
 			namespace:   testSpace,
-			cliFlags:    cliFlags{node: &fakeNode, reason: &fakeReason},
+			cliFlags:    cliFlags{action: &taintAction, nodes: &fakeNode, devices: &themAll, reasons: &fakeReason},
 			filterFlags: defaultFlags,
 			devType:     intelcrd.VfDeviceType,
 			devices:     allDevices,
@@ -402,7 +406,7 @@ func TestWholeWebhook(t *testing.T) {
 		{
 			testName:    "one taint reason from CLI, another from notifications",
 			namespace:   testSpace,
-			cliFlags:    cliFlags{node: &fakeNode, reason: &fakeReason},
+			cliFlags:    cliFlags{action: &taintAction, nodes: &fakeNode, devices: &themAll, reasons: &fakeReason},
 			filterFlags: defaultFlags,
 			devType:     intelcrd.GpuDeviceType,
 			devices:     allDevices,
