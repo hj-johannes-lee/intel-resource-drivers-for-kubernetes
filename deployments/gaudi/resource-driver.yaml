@@ -2,24 +2,24 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: intel-gpu-resource-driver-kubelet-plugin
-  namespace: intel-gpu-resource-driver
+  name: intel-gaudi-resource-driver-kubelet-plugin
+  namespace: intel-gaudi-resource-driver
   labels:
-    app: intel-gpu-resource-driver-kubelet-plugin
+    app: intel-gaudi-resource-driver-kubelet-plugin
 spec:
   selector:
     matchLabels:
-      app: intel-gpu-resource-driver-kubelet-plugin
+      app: intel-gaudi-resource-driver-kubelet-plugin
   template:
     metadata:
       labels:
-        app: intel-gpu-resource-driver-kubelet-plugin
+        app: intel-gaudi-resource-driver-kubelet-plugin
     spec:
-      serviceAccount: intel-gpu-resource-driver-service-account
-      serviceAccountName: intel-gpu-resource-driver-service-account
+      serviceAccount: intel-gaudi-resource-driver-service-account
+      serviceAccountName: intel-gaudi-resource-driver-service-account
       initContainers:
       - name: init
-        image: intel/intel-gpu-resource-driver:v0.4.0
+        image: intel/intel-gaudi-resource-driver:v0.1.0
         imagePullPolicy: IfNotPresent
         command: ["/gas-status-updater", "--status", "NotReady"]
         env:
@@ -43,9 +43,9 @@ spec:
             type: RuntimeDefault
       containers:
       - name: kubelet-plugin
-        image: intel/intel-gpu-resource-driver:v0.4.0
+        image: intel/intel-gaudi-resource-driver:v0.1.0
         imagePullPolicy: IfNotPresent
-        command: ["/kubelet-gpu-plugin"]
+        command: ["/kubelet-gaudi-plugin"]
         env:
         - name: NODE_NAME
           valueFrom:
@@ -108,27 +108,27 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: intel-gpu-resource-driver-controller
-  namespace: intel-gpu-resource-driver
+  name: intel-gaudi-resource-driver-controller
+  namespace: intel-gaudi-resource-driver
   labels:
-    app: intel-gpu-resource-driver-controller
+    app: intel-gaudi-resource-driver-controller
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: intel-gpu-resource-driver-controller
+      app: intel-gaudi-resource-driver-controller
   template:
     metadata:
       labels:
-        app: intel-gpu-resource-driver-controller
+        app: intel-gaudi-resource-driver-controller
     spec:
-      serviceAccount: intel-gpu-resource-driver-service-account
-      serviceAccountName: intel-gpu-resource-driver-service-account
+      serviceAccount: intel-gaudi-resource-driver-service-account
+      serviceAccountName: intel-gaudi-resource-driver-service-account
       containers:
       - name: controller
-        image: intel/intel-gpu-resource-driver:v0.4.0
+        image: intel/intel-gaudi-resource-driver:v0.1.0
         imagePullPolicy: IfNotPresent
-        command: ["/gpu-controller"]
+        command: ["/gaudi-controller"]
         env:
         - name: POD_NAMESPACE
           valueFrom:
@@ -156,15 +156,15 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: intel-gpu-resource-driver-service-account
-  namespace: intel-gpu-resource-driver
+  name: intel-gaudi-resource-driver-service-account
+  namespace: intel-gaudi-resource-driver
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: intel-gpu-resource-driver-role
-  namespace: intel-gpu-resource-driver
+  name: intel-gaudi-resource-driver-role
+  namespace: intel-gaudi-resource-driver
 rules:
 - apiGroups: [""]
   resources: ["pods", "nodes", "events"]
@@ -172,7 +172,7 @@ rules:
 - apiGroups: ["resource.k8s.io"]
   resources: ["resourceclaims", "resourceclasses", "podschedulings","resourceclaims/status", "podschedulings/status", "podschedulingcontexts", "podschedulingcontexts/status"]
   verbs: ["get", "update", "list", "watch", "patch"]
-- apiGroups: ["gpu.resource.intel.com"]
+- apiGroups: ["gaudi.resource.intel.com"]
   resources: ["*"]
   verbs: ["*"]
 
@@ -180,13 +180,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: intel-gpu-resource-driver-role-binding
-  namespace: intel-gpu-resource-driver
+  name: intel-gaudi-resource-driver-role-binding
+  namespace: intel-gaudi-resource-driver
 subjects:
 - kind: ServiceAccount
-  name: intel-gpu-resource-driver-service-account
-  namespace: intel-gpu-resource-driver
+  name: intel-gaudi-resource-driver-service-account
+  namespace: intel-gaudi-resource-driver
 roleRef:
   kind: ClusterRole
-  name: intel-gpu-resource-driver-role
+  name: intel-gaudi-resource-driver-role
   apiGroup: rbac.authorization.k8s.io
