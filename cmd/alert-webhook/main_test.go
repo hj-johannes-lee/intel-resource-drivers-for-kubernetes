@@ -40,7 +40,7 @@ const (
 	// labels and their values used in JSON test files.
 	testNode  = "test-node"             // <node>
 	testSpace = "monitoring"            // <namespace>
-	uidFormat = "0000:%02d:00.0-0x56a0" // 0000:<pci_bdf>-<pci_dev>
+	uidFormat = "0000-%02d-00-0-0x56a0" // 0000:<pci_bdf>-<pci_dev>
 	// path to JSON files used in notification tests.
 	jsonPath     = "notifications"
 	singleReason = "GpuNeedsReset"

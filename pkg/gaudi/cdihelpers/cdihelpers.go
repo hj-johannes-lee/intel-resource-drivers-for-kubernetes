@@ -174,7 +174,7 @@ func updateDeviceNodes(specDevice specs.Device, detectedDevice *device.DeviceInf
 		case device.AccelControlRegexp.MatchString(accelFileName):
 			separator = "accel_controlD"
 		default:
-			klog.Warningf("unexpected device node %v in CDI device %v", deviceNode.Path)
+			klog.Warningf("unexpected device node %v in CDI device %v", deviceNode.Path, specDevice.Name)
 
 			continue
 		}

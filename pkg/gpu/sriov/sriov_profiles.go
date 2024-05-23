@@ -347,18 +347,6 @@ var PerDeviceIdDefaultProfiles = map[string]string{
 	"0x0bdb": "max_48g_c8",
 }
 
-var DeviceToModelMap = map[string]string{
-	"0x56c0": "flex170",
-	"0x56c1": "flex140",
-	"0x0b69": "max1550",
-	"0x0bd0": "max1550",
-	"0x0bd5": "max1550",
-	"0x0bd6": "max1450",
-	"0x0bd9": "max1100",
-	"0x0bda": "max1100",
-	"0x0bdb": "max1100",
-}
-
 // profileMemoryMiBNoErr is safe to use internally, the profile tables are unit-tested.
 func profileMemoryMiBNoErr(profileName string, eccOn bool) uint64 {
 	lmemQuotaMiB, _ := ProfileMemoryMiB(profileName, eccOn)

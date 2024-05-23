@@ -88,9 +88,9 @@ func TestPreparedClaimsFiles(t *testing.T) {
 	missingPath := "non/existing/file"
 
 	multiClaim := ClaimPreparations{
-		"uid1": {{UID: "0000:af:00.1-0xabcd", Model: "0xabcd", CardIdx: 1, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000:af:00.0-0xabcd"}},
-		"uid2": {{UID: "0000:af:00.2-0xabcd", Model: "0xabcd", CardIdx: 2, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 2, ParentUID: "0000:af:00.0-0xabcd"}},
-		"uid3": {{UID: "0000:af:00.3-0xabcd", Model: "0xabcd", CardIdx: 3, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 3, ParentUID: "0000:af:00.0-0xabcd"}},
+		"uid1": {{UID: "0000-af-00-1-0xabcd", Model: "0xabcd", CardIdx: 1, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0xabcd"}},
+		"uid2": {{UID: "0000-af-00-2-0xabcd", Model: "0xabcd", CardIdx: 2, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 2, ParentUID: "0000-af-00-0-0xabcd"}},
+		"uid3": {{UID: "0000-af-00-3-0xabcd", Model: "0xabcd", CardIdx: 3, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 3, ParentUID: "0000-af-00-0-0xabcd"}},
 	}
 
 	testcases := []testCase{
@@ -184,7 +184,19 @@ func TestPreparedClaimsFiles(t *testing.T) {
 
 		if content && test.op2.claims != nil {
 			if !reflect.DeepEqual(claims, *test.op2.claims) {
-				t.Errorf("expected claims: %+v, but got: %+v", test.op2.claims, claims)
+				t.Error("unexpected claims")
+				for claimUID, claimDevices := range *test.op2.claims {
+					t.Logf("expected %v:", claimUID)
+					for _, device := range claimDevices {
+						t.Logf("    %+v", *device)
+					}
+				}
+				for claimUID, claimDevices := range claims {
+					t.Logf("found %v:", claimUID)
+					for _, device := range claimDevices {
+						t.Logf("    %+v", *device)
+					}
+				}
 			} else {
 				t.Log("=> claims match (OK)")
 			}

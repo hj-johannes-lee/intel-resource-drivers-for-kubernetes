@@ -158,7 +158,7 @@ func SyncDeviceNodes(
 				specChanged = true
 			}
 		default:
-			klog.Warningf("Unexpected device node %v in CDI device %v", deviceNode.Path)
+			klog.Warningf("Unexpected device node %v in CDI device %v", deviceNode.Path, specDevice.Name)
 		}
 	}
 	return specChanged

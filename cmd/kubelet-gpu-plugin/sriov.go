@@ -40,8 +40,8 @@ const (
 )
 
 // waitUntilNoVFs waits until timeout for all virtfnX symlinks to be gone from parent pci device.
-func (d *driver) waitUntilNoVFs(pciDBDF string) error {
-	filePath := path.Join(d.sysfsDir, device.SysfsI915path, pciDBDF, "virtfn*")
+func (d *driver) waitUntilNoVFs(pciAddress string) error {
+	filePath := path.Join(d.sysfsDir, device.SysfsI915path, pciAddress, "virtfn*")
 
 	for attempt := 0; attempt < attemptsLimitBase; attempt++ {
 		klog.V(5).Infof("waiting until VFs %v are gone, attempt %v", filePath, attempt)
@@ -82,9 +82,8 @@ func (d *driver) removeAllVFsFromParents(parentDevices []string) error {
 // When called, no containers is supposed to be using VFs
 // and VFs can be removed.
 func (d *driver) removeAllVFs(parentDevice *device.DeviceInfo) error {
-	pciDBDF := parentDevice.UID[:device.PciDBDFLength]
-	klog.V(5).Infof("removing all VFs for %v", pciDBDF)
-	sriovNumvfsFile := path.Join(d.sysfsDir, device.SysfsI915path, pciDBDF, "sriov_numvfs")
+	klog.V(5).Infof("removing all VFs for %v", parentDevice.PCIAddress)
+	sriovNumvfsFile := path.Join(d.sysfsDir, device.SysfsI915path, parentDevice.PCIAddress, "sriov_numvfs")
 
 	numvfsInt := parentDevice.MaxVFs
 	numvfsBytes, err := os.ReadFile(sriovNumvfsFile)
@@ -111,11 +110,11 @@ func (d *driver) removeAllVFs(parentDevice *device.DeviceInfo) error {
 	}
 
 	if err = fhandle.Close(); err != nil {
-		klog.Error("(ignored) could not close file %v", sriovNumvfsFile)
+		klog.Errorf("(ignored) could not close file %v", sriovNumvfsFile)
 		// Do not fail here, main job is done by now.
 	}
 
-	if err = d.waitUntilNoVFs(pciDBDF); err != nil {
+	if err = d.waitUntilNoVFs(parentDevice.PCIAddress); err != nil {
 		return fmt.Errorf("failed removing VFs: %v", err)
 	}
 
@@ -158,60 +157,60 @@ func validateVF(drmDir string) error {
 
 // validateVFs ensures that all new VFs were created and DRM devices are created, waits if needed.
 // vf.model has to be set for new UID to be set.
-func (d *driver) validateVFs(pciDBDF string, vfs []*device.DeviceInfo) error {
-	klog.V(5).Infof("validationg %v VFs creation on %v, ignoring profiles (NOT IMPLEMENTED)", len(vfs), pciDBDF)
+func (d *driver) validateVFs(pciAddress string, vfs []*device.DeviceInfo) error {
+	klog.V(5).Infof("validationg %v VFs creation on %v, ignoring profiles (NOT IMPLEMENTED)", len(vfs), pciAddress)
 
 	attemptsLimit := attemptsLimitBase + len(vfs)
 	attempt := 0
-	// Loop through sysfsI915Dir/pciDBDF/virtfn* symlinks, check drm/[cardX, renderDY].
+	// Loop through sysfsI915Dir/<pciAddress>/virtfn* symlinks, check drm/[cardX, renderDY].
 	for _, vf := range vfs {
 		klog.V(5).Infof("Validating vf %v on device %v", vf.VFIndex, vf.ParentUID)
-		virtfnLinkPath := path.Join(d.sysfsDir, device.SysfsI915path, pciDBDF, fmt.Sprintf("virtfn%d", vf.VFIndex))
+		virtfnLinkPath := path.Join(d.sysfsDir, device.SysfsI915path, pciAddress, fmt.Sprintf("virtfn%d", vf.VFIndex))
 		drmDir := path.Join(virtfnLinkPath, "drm")
 		vfOK := false
 		for ; attempt < attemptsLimit; attempt++ {
 			if err := validateVF(drmDir); err == nil {
-				klog.V(5).Infof("vf %v on GPU %v is OK", vf.VFIndex, pciDBDF)
+				klog.V(5).Infof("vf %v on GPU %v is OK", vf.VFIndex, pciAddress)
 
-				newPciDBDF, err := newVFpciDBDF(virtfnLinkPath)
+				newPciAddress, err := newVFpciAddress(virtfnLinkPath)
 				if err != nil {
 					return fmt.Errorf("cannot get new VF PCI address: %v", err)
 				}
 
-				vf.UID = fmt.Sprintf("%v-%v", newPciDBDF, vf.Model)
+				vf.UID = device.DeviceUIDFromPCIinfo(newPciAddress, vf.Model)
 				klog.V(5).Infof("New UID for vf %v on GPU %v is %v", vf.VFIndex, vf.ParentUID, vf.UID)
 				vfOK = true
 				break
 			} else {
-				klog.V(5).Infof("vf %v of GPU %v is NOT OK on attempt %v. ERR: %v", vf.VFIndex, pciDBDF, attempt, err)
+				klog.V(5).Infof("vf %v of GPU %v is NOT OK on attempt %v. ERR: %v", vf.VFIndex, pciAddress, attempt, err)
 			}
 			time.Sleep(attemptDelay)
 		}
 		if !vfOK {
-			klog.Errorf("vf %d of GPU %s is NOT OK, did not check the rest of new VFs", vf.VFIndex, pciDBDF)
-			return fmt.Errorf("vf %d of GPU %s is NOT OK, did not check the rest of new VFs", vf.VFIndex, pciDBDF)
+			klog.Errorf("vf %d of GPU %s is NOT OK, did not check the rest of new VFs", vf.VFIndex, pciAddress)
+			return fmt.Errorf("vf %d of GPU %s is NOT OK, did not check the rest of new VFs", vf.VFIndex, pciAddress)
 		}
 	}
 	return nil
 }
 
-func newVFpciDBDF(virtfnPath string) (string, error) {
+func newVFpciAddress(virtfnPath string) (string, error) {
 	virtfnTarget, err := os.Readlink(virtfnPath)
 	if err != nil {
 		return "", fmt.Errorf("failed reading virtfn symlink %v: %v", virtfnPath, err)
 	}
 
-	// ../0000:00:02.1  # 15 chars
+	// ../0000-00-02-1  # 15 chars
 	if len(virtfnTarget) != 15 {
 		return "", fmt.Errorf("symlink target does not match expected length: %v", virtfnTarget)
 	}
 
-	targetDBDF := virtfnTarget[3:]
-	if !device.PciRegexp.MatchString(targetDBDF) {
-		return "", fmt.Errorf("symlink target does not match PCI DBDF pattern: %v", virtfnTarget)
+	targetPciAddress := virtfnTarget[3:]
+	if !device.PciRegexp.MatchString(targetPciAddress) {
+		return "", fmt.Errorf("symlink target does not match PCI address pattern: %v", virtfnTarget)
 	}
 
-	return targetDBDF, nil
+	return targetPciAddress, nil
 }
 
 // validateVFsToBeProvisioned iterates through the per-GPU lists of VFs to be provisioned
@@ -253,7 +252,7 @@ func (d *driver) provisionVFs(toProvision map[string][]*device.DeviceInfo) (devi
 	provisionedVFs := device.DevicesInfo{}
 
 	for parentUID, vfs := range toProvision {
-		pciDBDF := parentUID[:device.PciDBDFLength]
+		pciAddress, _ := device.PciInfoFromDeviceUID(parentUID)
 		// At least as many VFs as requested has to be provisioned.
 		// It could be possible to create more based on the maximum requested memory for VF.
 		numvfs := len(vfs)
@@ -275,7 +274,7 @@ func (d *driver) provisionVFs(toProvision map[string][]*device.DeviceInfo) (devi
 			}
 		}
 
-		sriovNumvfsFile := path.Join(d.sysfsDir, device.SysfsI915path, pciDBDF, "sriov_numvfs")
+		sriovNumvfsFile := path.Join(d.sysfsDir, device.SysfsI915path, pciAddress, "sriov_numvfs")
 
 		fhandle, err := os.OpenFile(sriovNumvfsFile, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
@@ -295,10 +294,10 @@ func (d *driver) provisionVFs(toProvision map[string][]*device.DeviceInfo) (devi
 		}
 
 		// Wait for VFs and attempt to dismantle the VFs if DRM devices did not come up properly.
-		if err2 := d.validateVFs(pciDBDF, vfs); err2 != nil {
+		if err2 := d.validateVFs(pciAddress, vfs); err2 != nil {
 			cleanupErr := d.removeAllVFs(d.state.allocatable[parentUID])
 			if cleanupErr != nil {
-				klog.Errorf("VFs cleanup failed for %v: %v", pciDBDF, cleanupErr)
+				klog.Errorf("VFs cleanup failed for %v: %v", pciAddress, cleanupErr)
 				return nil, fmt.Errorf("failed to clean up VFs after failed provisioning: %v", cleanupErr)
 			}
 			return nil, fmt.Errorf("failed to validate provisioned VFs: %v, cleaned up successfully", err2)
@@ -549,7 +548,7 @@ func getGpuVFDefaults(deviceId string, eccOn bool) (uint64, uint64, string, erro
 	// from config map and not from hardcoded driver defaults.
 	vfMemMiB, vfMillicores, profileName, err := sriov.PickVFProfile(deviceId, vfMemMiB, 0, eccOn)
 	if err != nil {
-		klog.Errorf("failed getting suitable profile for device %d with %d MiB memory. Err: %v", deviceId, vfMemMiB, err)
+		klog.Errorf("failed getting suitable profile for device %v with %d MiB memory. Err: %v", deviceId, vfMemMiB, err)
 		return 0, 0, "", fmt.Errorf("failed picking VF profile: %v", err)
 	}
 
@@ -557,7 +556,7 @@ func getGpuVFDefaults(deviceId string, eccOn bool) (uint64, uint64, string, erro
 }
 
 func getDefaultVFMemoryFromConfigMap(vfMemConfigFile string, deviceId string, eccOn bool) (uint64, error) {
-	model, found := sriov.DeviceToModelMap[deviceId]
+	model, found := device.SRIOVDeviceToModelMap[deviceId]
 	if !found {
 		klog.V(5).Infof("could not find device model by PCI ID %v", deviceId)
 		return 0, fmt.Errorf("unsupported device %v", deviceId)

@@ -36,6 +36,10 @@ import (
 var _ drav1.NodeServer = (*driver)(nil)
 
 type driver struct {
+	// Resource model publisher uses this channel to know when to send updated model.
+	updateCh chan bool
+	// Resource model publisher uses this channel to know when to stop sending updates to the kubelet and quit.
+	doneCh   chan bool
 	gas      *intelcrd.GpuAllocationState
 	state    *nodeState
 	sysfsDir string
@@ -112,7 +116,11 @@ func (d *driver) NodePrepareResources(ctx context.Context, req *drav1.NodePrepar
 	// should be done outside of the loop, for instance updating the CR could
 	// be done once after all HW was prepared.
 	for _, claim := range req.Claims {
-		preparedResources.Claims[claim.Uid] = d.nodePrepareResources(ctx, claim)
+		if claim.StructuredResourceHandle != nil && len(claim.StructuredResourceHandle) != 0 {
+			preparedResources.Claims[claim.Uid] = d.nodePrepareStructuredResource(ctx, claim)
+		} else {
+			preparedResources.Claims[claim.Uid] = d.nodePrepareResources(ctx, claim)
+		}
 	}
 
 	return preparedResources, nil
@@ -122,11 +130,9 @@ func (d *driver) nodePrepareResources(
 	ctx context.Context, claim *drav1.Claim) *drav1.NodePrepareResourceResponse {
 	klog.V(5).Infof("NodePrepareResource is called: request: %+v", claim)
 
-	var cdinames []string
-
 	// provide all devices for monitoring claims
 	if claim.ResourceHandle == intelcrd.MonitorAllocType {
-		cdinames = d.state.getMonitorCDINames(claim.Uid)
+		cdinames := d.state.getMonitorCDINames(claim.Uid)
 		klog.V(3).Infof("Prepared devices for monitor claim '%v': %s", claim.Uid, cdinames)
 		return &drav1.NodePrepareResourceResponse{CDIDevices: cdinames}
 	}
@@ -250,9 +256,8 @@ func (d *driver) nodeUnprepareResource(ctx context.Context, claim *drav1.Claim) 
 		}
 
 		if len(parentsToCleanup) != 0 {
-
 			// If there are no VFs used in prepared, remove VFs from this Gpu.
-			// uid is pci DBDF with device pci id, e.g. 0000:00:02.0-0x56c0
+			// uid is PCI address with device PCI ID, e.g. 0000-00-02-0-0x56c0
 			if err := d.removeAllVFsFromParents(parentsToCleanup); err != nil {
 				klog.Errorf("failed to remove VFs: %v", err)
 				return fmt.Errorf("failed to remove VFs: %v", err)
@@ -263,7 +268,6 @@ func (d *driver) nodeUnprepareResource(ctx context.Context, claim *drav1.Claim) 
 				klog.V(5).Infof("failed to update GpuAllocationState: %v", err)
 				return err
 			}
-
 		}
 
 		return nil

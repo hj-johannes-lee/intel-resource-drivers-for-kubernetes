@@ -21,9 +21,13 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"sync"
 
+	resourcev1 "k8s.io/api/resource/v1alpha2"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	cdiapi "github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
 	specs "github.com/container-orchestrated-devices/container-device-interface/specs-go"
@@ -33,14 +37,18 @@ import (
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
 )
 
+const (
+	bytesInMiB = 1024 * 1024
+)
+
 type ClaimPreparations map[string][]*device.DeviceInfo
 
 type nodeState struct {
 	sync.Mutex
-	cdi                   cdiapi.Registry
-	allocatable           device.DevicesInfo
-	prepared              ClaimPreparations
-	preparedClaimFilePath string
+	cdi                    cdiapi.Registry
+	allocatable            device.DevicesInfo
+	prepared               ClaimPreparations
+	preparedClaimsFilePath string
 }
 
 func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimFilePath string) (*nodeState, error) {
@@ -77,10 +85,10 @@ func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*
 	klog.V(5).Info("Creating NodeState")
 	// TODO: allocatable should include cdi-described
 	state := &nodeState{
-		cdi:                   cdi,
-		allocatable:           detectedDevices,
-		prepared:              make(ClaimPreparations),
-		preparedClaimFilePath: preparedClaimFilePath,
+		cdi:                    cdi,
+		allocatable:            detectedDevices,
+		prepared:               make(ClaimPreparations),
+		preparedClaimsFilePath: preparedClaimFilePath,
 	}
 
 	preparedClaims, err := getOrCreatePreparedClaims(preparedClaimFilePath)
@@ -158,7 +166,7 @@ func (s *nodeState) FreeClaimDevices(claimUID string) ([]string, error) {
 
 	delete(s.prepared, claimUID)
 	// write prepared claims to file
-	err = writePreparedClaimsToFile(s.preparedClaimFilePath, s.prepared)
+	err = writePreparedClaimsToFile(s.preparedClaimsFilePath, s.prepared)
 	if err != nil {
 		klog.Errorf("Error writing prepared claims to file: %v", err)
 		return nil, fmt.Errorf("failed to write prepared claims to file: %v", err)
@@ -447,13 +455,56 @@ func (s *nodeState) makePreparedClaimAllocation(perClaimDevices map[string][]*de
 	}
 
 	// write prepared claims to file
-	err := writePreparedClaimsToFile(s.preparedClaimFilePath, s.prepared)
+	err := writePreparedClaimsToFile(s.preparedClaimsFilePath, s.prepared)
 	if err != nil {
 		klog.Errorf("Error writing prepared claims to file: %v", err)
 		return fmt.Errorf("failed to write prepared claims to file: %v", err)
 	}
 
 	return nil
+}
+
+func (s *nodeState) getResourceModel() resourcev1.ResourceModel {
+	var devices []resourcev1.NamedResourcesInstance
+
+	for _, device := range s.allocatable {
+		instance := resourcev1.NamedResourcesInstance{
+			Name: strings.ToLower(device.UID),
+			Attributes: []resourcev1.NamedResourcesAttribute{
+				{
+					Name: "uid",
+					NamedResourcesAttributeValue: resourcev1.NamedResourcesAttributeValue{
+						StringValue: &device.UID,
+					},
+				},
+				{
+					Name: "sr-iov",
+					NamedResourcesAttributeValue: resourcev1.NamedResourcesAttributeValue{
+						BoolValue: ptr.To(device.SriovEnabled()),
+					},
+				},
+				{
+					Name: "memory",
+					NamedResourcesAttributeValue: resourcev1.NamedResourcesAttributeValue{
+						QuantityValue: resource.NewQuantity(int64(device.MemoryMiB)*bytesInMiB, resource.BinarySI),
+					},
+				},
+				{
+					Name: "model",
+					NamedResourcesAttributeValue: resourcev1.NamedResourcesAttributeValue{
+						StringValue: ptr.To(device.ModelName()),
+					},
+				},
+			},
+		}
+		devices = append(devices, instance)
+	}
+
+	model := resourcev1.ResourceModel{
+		NamedResources: &resourcev1.NamedResourcesResources{Instances: devices},
+	}
+
+	return model
 }
 
 // getOrCreatePreparedClaims reads a PreparedClaim from a file and deserializes it or creates the file.
@@ -483,13 +534,13 @@ func readPreparedClaimsFromFile(preparedClaimFilePath string) (ClaimPreparations
 
 	preparedClaims := make(ClaimPreparations)
 
-	preparedClaimsConfigBytes, err := os.ReadFile(preparedClaimFilePath)
+	preparedClaimsBytes, err := os.ReadFile(preparedClaimFilePath)
 	if err != nil {
 		klog.V(5).Infof("could not read prepared claims configuration from file %v. Err: %v", preparedClaimFilePath, err)
 		return nil, fmt.Errorf("failed reading file %v. Err: %v", preparedClaimFilePath, err)
 	}
 
-	if err := json.Unmarshal(preparedClaimsConfigBytes, &preparedClaims); err != nil {
+	if err := json.Unmarshal(preparedClaimsBytes, &preparedClaims); err != nil {
 		klog.V(5).Infof("Could not parse default prepared claims configuration from file %v. Err: %v", preparedClaimFilePath, err)
 		return nil, fmt.Errorf("failed parsing file %v. Err: %v", preparedClaimFilePath, err)
 	}
