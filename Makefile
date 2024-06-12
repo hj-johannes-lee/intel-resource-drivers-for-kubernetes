@@ -60,7 +60,7 @@ endif
 
 .EXPORT_ALL_VARIABLES:
 
-GPU_BINARIES = bin/gpu-controller bin/kubelet-gpu-plugin bin/gas-status-updater bin/alert-webhook bin/intel-gpu-cdi-spec-generator
+GPU_BINARIES = bin/gpu-controller bin/kubelet-gpu-plugin bin/gas-status-updater bin/alert-webhook bin/intel-cdi-spec-generator
 COMMON_SRC = \
  Makefile \
  pkg/gpu/version/version.go \
@@ -92,9 +92,9 @@ bin/alert-webhook: cmd/alert-webhook/*.go $(COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/alert-webhook
 
-bin/intel-gpu-cdi-spec-generator: cmd/gpu-cdi-spec-generator/*.go $(COMMON_SRC)
+bin/intel-cdi-spec-generator: cmd/cdi-spec-generator/*.go $(COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/gpu-cdi-spec-generator
+	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/cdi-spec-generator
 
 .PHONY: branch-build
 # test that all commits in $GIT_BRANCH (default=current) build
