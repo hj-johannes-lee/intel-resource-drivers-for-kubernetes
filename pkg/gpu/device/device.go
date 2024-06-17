@@ -34,12 +34,13 @@ const (
 	SysfsEnvVarName  = "SYSFS_ROOT"
 	// driver.sysfsI915Dir and driver.sysfsDRMDir are sysfsI915path and sysfsDRMpath
 	// respectively prefixed with $SYSFS_ROOT.
-	SysfsI915path = "bus/pci/drivers/i915"
-	SysfsDRMpath  = "class/drm/"
-	CDIRoot       = "/etc/cdi"
-	CDIVendor     = "intel.com"
-	CDIKind       = CDIVendor + "/gpu"
-	PciDBDFLength = len("0000:00:00.0")
+	SysfsI915path          = "bus/pci/drivers/i915"
+	SysfsDRMpath           = "class/drm/"
+	CDIRoot                = "/etc/cdi"
+	CDIVendor              = "intel.com"
+	CDIKind                = CDIVendor + "/gpu"
+	PciDBDFLength          = len("0000:00:00.0")
+	PreparedClaimsFileName = "preparedClaims.json"
 )
 
 // DeviceInfo is an internal structure type to store info about discovered device.
