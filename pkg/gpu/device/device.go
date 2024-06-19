@@ -21,6 +21,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strings"
 )
 
 var (
@@ -39,14 +40,29 @@ const (
 	CDIRoot                = "/etc/cdi"
 	CDIVendor              = "intel.com"
 	CDIKind                = CDIVendor + "/gpu"
-	PciDBDFLength          = len("0000:00:00.0")
+	PciAddressLength       = len("0000:00:00.0")
 	PreparedClaimsFileName = "preparedClaims.json"
 )
 
+var SRIOVDeviceToModelMap = map[string]string{
+	"0x56c0": "flex170",
+	"0x56c1": "flex140",
+	"0x0b69": "max1550",
+	"0x0bd0": "max1550",
+	"0x0bd5": "max1550",
+	"0x0bd6": "max1450",
+	"0x0bd9": "max1100",
+	"0x0bda": "max1100",
+	"0x0bdb": "max1100",
+}
+
 // DeviceInfo is an internal structure type to store info about discovered device.
 type DeviceInfo struct {
-	UID        string `json:"uid"`        // unique identifier, pci_DBDF-pci_device_id
-	Model      string `json:"model"`      // pci_device_id
+	// UID is a unique identifier on node, used in ResourceSlice K8s API object as RFC1123-compliant identifier.
+	// Consists of PCIAddress and Model with colons and dots replaced with hyphens, e.g. 0000-01-02-0-0x12345.
+	UID        string `json:"uid"`
+	PCIAddress string `json:"pciaddress"` // PCI address in Linux DBDF notation for use with sysfs, e.g. 0000:00:00.0
+	Model      string `json:"model"`      // PCI device ID
 	CardIdx    uint64 `json:"cardidx"`    // card device number (e.g. 0 for /dev/dri/card0)
 	RenderdIdx uint64 `json:"renderdidx"` // renderD device number (e.g. 128 for /dev/dri/renderD128)
 	MemoryMiB  uint64 `json:"memorymib"`  // in MiB
@@ -72,8 +88,42 @@ func (g *DeviceInfo) DrmVFIndex() uint64 {
 	return g.VFIndex + 1
 }
 
+func (g *DeviceInfo) SriovEnabled() bool {
+	return g.MaxVFs != 0
+}
+
+func (g *DeviceInfo) ParentPCIAddress() string {
+	pciAddress, _ := PciInfoFromDeviceUID(g.ParentUID)
+	return pciAddress
+}
+
+func (g *DeviceInfo) ModelName() string {
+	if modelName, found := SRIOVDeviceToModelMap[g.Model]; found {
+		return modelName
+	}
+	return "Unknown"
+}
+
 // DevicesInfo is a dictionary with DeviceInfo.uid being the key.
 type DevicesInfo map[string]*DeviceInfo
+
+func DeviceUIDFromPCIinfo(pciAddress string, pciid string) string {
+	// 0000:00:01.0, 0x0000 -> 0000-00-01-0-0x0000
+	// Replace colons and the dot in PCI address with hyphens.
+	rfc1123PCIaddress := strings.ReplaceAll(strings.ReplaceAll(pciAddress, ":", "-"), ".", "-")
+	newUID := fmt.Sprintf("%v-%v", rfc1123PCIaddress, pciid)
+
+	return newUID
+}
+
+func PciInfoFromDeviceUID(deviceUID string) (string, string) {
+	// 0000-00-01-0-0x0000 -> 0000:00:01.0, 0x0000
+	rfc1123PCIaddress := deviceUID[:PciAddressLength]
+	pciAddress := strings.Replace(strings.Replace(rfc1123PCIaddress, "-", ":", 2), "-", ".", 1)
+	deviceId := deviceUID[PciAddressLength:]
+
+	return pciAddress, deviceId
+}
 
 func (g *DevicesInfo) DeepCopy() DevicesInfo {
 	devicesInfoCopy := DevicesInfo{}

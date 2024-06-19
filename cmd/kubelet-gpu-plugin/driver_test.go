@@ -45,7 +45,7 @@ func TestFakeSysfs(t *testing.T) {
 		t,
 		fakeSysfsRoot,
 		device.DevicesInfo{
-			"0000:00:02.0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000:00:02.0-0x56c0", MaxVFs: 16},
+			"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
 		},
 	); err != nil {
 		t.Errorf("setup error: could not create fake sysfs: %v", err)
@@ -104,7 +104,7 @@ func TestNodePrepareResources(t *testing.T) {
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{},
 			},
-			preparedClaims:  nil,
+			preparedClaims:  ClaimPreparations{},
 			updateFakeSysfs: false,
 		},
 		{
@@ -116,13 +116,13 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid1": {CDIDevices: []string{"intel.com/gpu=0000:00:02.0-0x56c0"}},
+					"uid1": {CDIDevices: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
 				},
 			},
 			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid1": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000:00:02.0-0x56c0", Type: "gpu", Memory: 4096}}},
+				"uid1": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000-00-02-0-0x56c0", Type: "gpu", Memory: 4096}}},
 			},
-			preparedClaims:  nil,
+			preparedClaims:  ClaimPreparations{},
 			updateFakeSysfs: false,
 		},
 		{
@@ -134,13 +134,13 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid2": {CDIDevices: []string{"intel.com/gpu=0000:00:03.1-0x56c0"}},
+					"uid2": {CDIDevices: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
 				},
 			},
 			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid2": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000:00:03.1-0x56c0", Type: "vf", Memory: 8064, VFIndex: 0, ParentUID: "0000:00:03.0-0x56c0"}}},
+				"uid2": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000-00-03-1-0x56c0", Type: "vf", Memory: 8064, VFIndex: 0, ParentUID: "0000-00-03-0-0x56c0"}}},
 			},
-			preparedClaims:  nil,
+			preparedClaims:  ClaimPreparations{},
 			updateFakeSysfs: false,
 		},
 		// this is a slow test case - validation of created VF is timing out as expected
@@ -157,10 +157,10 @@ func TestNodePrepareResources(t *testing.T) {
 				},
 			},
 			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid3": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000:00:02.0-0x56c0"}}},
-				"uid4": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 1, ParentUID: "0000:00:02.0-0x56c0"}}},
+				"uid3": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000-00-02-0-0x56c0"}}},
+				"uid4": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 1, ParentUID: "0000-00-02-0-0x56c0"}}},
 			},
-			preparedClaims:  nil,
+			preparedClaims:  ClaimPreparations{},
 			updateFakeSysfs: false,
 		},
 		{
@@ -176,9 +176,9 @@ func TestNodePrepareResources(t *testing.T) {
 				},
 			},
 			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid5": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000:00:04.0-0x0000"}}},
+				"uid5": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000-00-04-0-0x0000"}}},
 			},
-			preparedClaims:  nil,
+			preparedClaims:  ClaimPreparations{},
 			updateFakeSysfs: false,
 		},
 		{
@@ -192,16 +192,16 @@ func TestNodePrepareResources(t *testing.T) {
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
 					"uid1": {
 						CDIDevices: []string{
-							"intel.com/gpu=0000:00:02.0-0x56c0",
-							"intel.com/gpu=0000:00:03.0-0x56c0",
-							"intel.com/gpu=0000:00:03.1-0x56c0",
-							"intel.com/gpu=0000:00:04.0-0x0000",
+							"intel.com/gpu=0000-00-02-0-0x56c0",
+							"intel.com/gpu=0000-00-03-0-0x56c0",
+							"intel.com/gpu=0000-00-03-1-0x56c0",
+							"intel.com/gpu=0000-00-04-0-0x0000",
 						},
 					},
 				},
 			},
 			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{},
-			preparedClaims:     nil,
+			preparedClaims:     ClaimPreparations{},
 			updateFakeSysfs:    false,
 		},
 		{
@@ -213,14 +213,14 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid1": {CDIDevices: []string{"intel.com/gpu=0000:00:02.0-0x56c0"}},
+					"uid1": {CDIDevices: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
 				},
 			},
 			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid1": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000:00:02.0-0x56c0", Type: "gpu", Memory: 4096}}},
+				"uid1": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000-00-02-0-0x56c0", Type: "gpu", Memory: 4096}}},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid1": {{UID: "0000:00:00.2-0x56c0", DeviceType: "gpu", MemoryMiB: 4096, Millicores: 1}},
+				"uid1": {{UID: "0000-00-02-0-0x56c0", DeviceType: "gpu", MemoryMiB: 4096, Millicores: 1}},
 			},
 			updateFakeSysfs: false,
 		},
@@ -233,13 +233,13 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid3": {CDIDevices: []string{"intel.com/gpu=0000:00:02.1-0x56c0"}},
+					"uid3": {CDIDevices: []string{"intel.com/gpu=0000-00-02-1-0x56c0"}},
 				},
 			},
 			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid3": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000:00:02.0-0x56c0"}}},
+				"uid3": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000-00-02-0-0x56c0"}}},
 			},
-			preparedClaims:  nil,
+			preparedClaims:  ClaimPreparations{},
 			updateFakeSysfs: true,
 		},
 	}
@@ -259,37 +259,40 @@ func TestNodePrepareResources(t *testing.T) {
 			t,
 			testDirs.SysfsRoot,
 			device.DevicesInfo{
-				"0000:00:02.0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000:00:02.0-0x56c0", MaxVFs: 16},
-				"0000:00:03.0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000:00:03.0-0x56c0", MaxVFs: 16},
-				"0000:00:03.1-0x56c0": {Model: "0x56c0", MemoryMiB: 8064, DeviceType: "vf", CardIdx: 2, RenderdIdx: 130, UID: "0000:00:03.1-0x56c0", VFIndex: 0, VFProfile: "flex170_m2", ParentUID: "0000:00:03.0-0x56c0"},
+				"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
+				"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000-00-03-0-0x56c0", MaxVFs: 16},
+				"0000-00-03-1-0x56c0": {Model: "0x56c0", MemoryMiB: 8064, DeviceType: "vf", CardIdx: 2, RenderdIdx: 130, UID: "0000-00-03-1-0x56c0", VFIndex: 0, VFProfile: "flex170_m2", ParentUID: "0000-00-03-0-0x56c0"},
 				// dummy, no SR-IOV tiles
-				"0000:00:04.0-0x0000": {Model: "0x0000", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 3, RenderdIdx: 131, UID: "0000:00:03.0-0x0000", MaxVFs: 16},
+				"0000-00-04-0-0x0000": {Model: "0x0000", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 3, RenderdIdx: 131, UID: "0000-00-04-0-0x0000", MaxVFs: 16},
 			},
 		); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
 			return
 		}
 
+		preparedClaimFilePath := path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName)
+		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
+			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
+		}
+
 		driver, driverErr := getFakeDriver(testDirs)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
+			continue
 		}
 
 		// dynamically add and remove fake sysfs SR-IOV VFs
 		if testcase.updateFakeSysfs {
 			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot)
+			defer watcher.Close()
 		}
 
 		// cleanup and setup GAS
 		gasspec := driver.gas.Spec.DeepCopy()
 		gasspec.AllocatedClaims = testcase.gasSpecAllocations
-
-		if err := writePreparedClaimsToFile(path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName), nil); err != nil {
-			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
-		}
-
 		if err := driver.gas.Update(context.TODO(), gasspec); err != nil {
 			t.Error("setup error: could not prepare GAS")
+			continue
 		}
 
 		response, err := driver.NodePrepareResources(context.TODO(), testcase.request)
@@ -299,11 +302,6 @@ func TestNodePrepareResources(t *testing.T) {
 
 		if !compareNodePrepareResourcesResponses(testcase.expectedResponse, response) {
 			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, response, testcase.expectedResponse)
-		}
-
-		// dynamically add and remove fake sysfs SR-IOV VFs
-		if testcase.updateFakeSysfs && watcher != nil {
-			watcher.Close()
 		}
 	}
 }
@@ -319,8 +317,8 @@ func TestReuseLeftoverSRIOVResources(t *testing.T) {
 		t,
 		testDirs.SysfsRoot,
 		device.DevicesInfo{
-			"0000:00:02.0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000:00:02.0-0x56c0", MaxVFs: 16},
-			"0000:00:03.0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000:00:03.0-0x56c0", MaxVFs: 16},
+			"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
+			"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000-00-03-0-0x56c0", MaxVFs: 16},
 		},
 	); err != nil {
 		t.Errorf("setup error: could not create fake sysfs: %v", err)
@@ -333,7 +331,7 @@ func TestReuseLeftoverSRIOVResources(t *testing.T) {
 	}
 
 	expectedToProvision := map[string][]*device.DeviceInfo{
-		"0000:00:03.0-0x56c0": {
+		"0000-00-03-0-0x56c0": {
 			{
 				UID:        "",
 				MemoryMiB:  0,
@@ -341,7 +339,7 @@ func TestReuseLeftoverSRIOVResources(t *testing.T) {
 				DeviceType: "vf",
 				VFIndex:    0,
 				VFProfile:  "flex170_m2",
-				ParentUID:  "0000:00:03.0-0x56c0",
+				ParentUID:  "0000-00-03-0-0x56c0",
 			},
 			{
 				UID:        "", // uid is populated after provisioning
@@ -350,29 +348,29 @@ func TestReuseLeftoverSRIOVResources(t *testing.T) {
 				DeviceType: "vf",
 				VFIndex:    1,
 				VFProfile:  "flex170_m2",
-				ParentUID:  "0000:00:03.0-0x56c0",
+				ParentUID:  "0000-00-03-0-0x56c0",
 			},
 		},
 	}
 
 	toProvision := map[string][]*device.DeviceInfo{
-		"0000:00:03.0-0x56c0": {
+		"0000-00-03-0-0x56c0": {
 			{
 				DeviceType: "vf",
 				VFIndex:    0,
 				Model:      "0x56c0",
 				VFProfile:  "flex170_m2",
-				ParentUID:  "0000:00:03.0-0x56c0",
+				ParentUID:  "0000-00-03-0-0x56c0",
 			},
 		},
 	}
 	driver.reuseLeftoverSRIOVResources(toProvision)
 
 	if !reflect.DeepEqual(toProvision, expectedToProvision) {
-		for _, vf := range toProvision["0000:00:03.0-0x56c0"] {
+		for _, vf := range toProvision["0000-00-03-0-0x56c0"] {
 			fmt.Printf("toProvision VF: %+v\n", vf)
 		}
-		for _, vf := range expectedToProvision["0000:00:03.0-0x56c0"] {
+		for _, vf := range expectedToProvision["0000-00-03-0-0x56c0"] {
 			fmt.Printf("expectedtoProvision VF: %+v\n", vf)
 		}
 		t.Errorf("unexpected result after reusing leftovers: %+v; expected: %+v", toProvision, expectedToProvision)
@@ -412,7 +410,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"uid1": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid1": {{UID: "0000:b3:00.0-0x0bda", DeviceType: "gpu", MemoryMiB: 4096}},
+				"uid1": {{UID: "0000-b3-00-0-0x0bda", DeviceType: "gpu", MemoryMiB: 4096}},
 			},
 			expectedPreparedClaims: ClaimPreparations{},
 		},
@@ -427,11 +425,11 @@ func TestNodeUnprepareResources(t *testing.T) {
 				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"uid2": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid2": {{UID: "0000:af:00.1-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 0, ParentUID: "0000:af:00.0-0x0bda"}},
-				"uid3": {{UID: "0000:af:00.2-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000:af:00.0-0x0bda"}},
+				"uid2": {{UID: "0000-af-00-1-0x0bda", PCIAddress: "0000:af:00.1", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 0, ParentUID: "0000-af-00-0-0x0bda"}},
+				"uid3": {{UID: "0000-af-00-2-0x0bda", PCIAddress: "0000:af:00.2", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
 			},
 			expectedPreparedClaims: ClaimPreparations{
-				"uid3": {{UID: "0000:af:00.2-0x0bda", Model: "0x0bda", CardIdx: 3, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000:af:00.0-0x0bda"}},
+				"uid3": {{UID: "0000-af-00-2-0x0bda", PCIAddress: "0000:af:00.2", Model: "0x0bda", CardIdx: 3, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
 			},
 		},
 		// This test is a bit slow because kubelet-plugin waits for VFs to go away, and they never do.
@@ -444,11 +442,11 @@ func TestNodeUnprepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodeUnprepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{
-					"uid3": {Error: "error unpreparing resource: failed to remove VFs: 0000:af:00.0-0x0bda: failed removing VFs: timeout waiting for VFs to be disabled on device"},
+					"uid3": {Error: "error unpreparing resource: failed to remove VFs: 0000-af-00-0-0x0bda: failed removing VFs: timeout waiting for VFs to be disabled on device"},
 				},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid3": {{UID: "0000:af:00.2-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000:af:00.0-0x0bda"}},
+				"uid3": {{UID: "0000-af-00-2-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
 			},
 			expectedPreparedClaims: ClaimPreparations{},
 		},
@@ -463,41 +461,42 @@ func TestNodeUnprepareResources(t *testing.T) {
 				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"uid3": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid3": {{UID: "0000:af:00.2-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000:af:00.0-0x0bda"}},
+				"uid3": {{UID: "0000-af-00-2-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
 			},
 			expectedPreparedClaims: ClaimPreparations{},
 			updateFakeSysfs:        true,
 		},
 	}
 
-	testDirs, err := helpers.NewTestDirs()
-	defer helpers.CleanupTest(t, "TestNodeUnprepareResources", testDirs.TestRoot)
-	if err != nil {
-		t.Errorf("setup error: %v", err)
-		return
-	}
-	if err := fakesysfs.FakeSysFsGpuContents(
-		t,
-		testDirs.SysfsRoot,
-		device.DevicesInfo{
-			"0000:b3:00.0-0x0bda": {Model: "0x0bda", MemoryMiB: 49136, DeviceType: "gpu", CardIdx: 0, UID: "0000:b3:00.0-0x0bda", MaxVFs: 63},
-			"0000:af:00.0-0x0bda": {Model: "0x0bda", MemoryMiB: 49136, DeviceType: "gpu", CardIdx: 1, UID: "0000:af:00.0-0x0bda", MaxVFs: 63},
-			"0000:af:00.1-0x0bda": {Model: "0x0bda", MemoryMiB: 22528, Millicores: 500, DeviceType: "vf", CardIdx: 2, UID: "0000:af:00.1-0x0bda", VFIndex: 0, VFProfile: "max_47g_c2", ParentUID: "0000:af:00.0-0x0bda"},
-			"0000:af:00.2-0x0bda": {Model: "0x0bda", MemoryMiB: 22528, Millicores: 500, DeviceType: "vf", CardIdx: 3, UID: "0000:af:00.2-0x0bda", VFIndex: 1, VFProfile: "max_47g_c2", ParentUID: "0000:af:00.0-0x0bda"},
-		},
-	); err != nil {
-		t.Errorf("setup error: could not create fake sysfs: %v", err)
-		return
-	}
-
-	preparedClaimFilePath := path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName)
-
 	var watcher *fsnotify.Watcher
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
+		testDirs, err := helpers.NewTestDirs()
+		defer helpers.CleanupTest(t, "TestNodeUnprepareResources", testDirs.TestRoot)
+		if err != nil {
+			t.Errorf("setup error: %v", err)
+			return
+		}
+
+		if err := fakesysfs.FakeSysFsGpuContents(
+			t,
+			testDirs.SysfsRoot,
+			device.DevicesInfo{
+				"0000-b3-00-0-0x0bda": {Model: "0x0bda", MemoryMiB: 49136, DeviceType: "gpu", CardIdx: 0, UID: "0000-b3-00-0-0x0bda", MaxVFs: 63},
+				"0000-af-00-0-0x0bda": {Model: "0x0bda", MemoryMiB: 49136, DeviceType: "gpu", CardIdx: 1, UID: "0000-af-00-0-0x0bda", MaxVFs: 63},
+				"0000-af-00-1-0x0bda": {Model: "0x0bda", MemoryMiB: 22528, Millicores: 500, DeviceType: "vf", CardIdx: 2, UID: "0000-af-00-1-0x0bda", VFIndex: 0, VFProfile: "max_47g_c2", ParentUID: "0000-af-00-0-0x0bda"},
+				"0000-af-00-2-0x0bda": {Model: "0x0bda", MemoryMiB: 22528, Millicores: 500, DeviceType: "vf", CardIdx: 3, UID: "0000-af-00-2-0x0bda", VFIndex: 1, VFProfile: "max_47g_c2", ParentUID: "0000-af-00-0-0x0bda"},
+			},
+		); err != nil {
+			t.Errorf("setup error: could not create fake sysfs: %v", err)
+			return
+		}
+
+		preparedClaimsFilePath := path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName)
+		if err := writePreparedClaimsToFile(preparedClaimsFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
+			continue
 		}
 
 		driver, driverErr := getFakeDriver(testDirs)
@@ -509,16 +508,19 @@ func TestNodeUnprepareResources(t *testing.T) {
 		// dynamically add and remove fake sysfs SR-IOV VFs
 		if testcase.updateFakeSysfs {
 			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot)
+			defer watcher.Close()
 		}
 
 		response, err := driver.NodeUnprepareResources(context.TODO(), testcase.request)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
+			continue
 		}
 
-		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
+		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimsFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
+			continue
 		}
 
 		if !reflect.DeepEqual(response, testcase.expectedResponse) {
@@ -529,15 +531,9 @@ func TestNodeUnprepareResources(t *testing.T) {
 			preparedClaimsJSON, _ := json.MarshalIndent(preparedClaims, "", "\t")
 			expectedPreparedClaimsJSON, _ := json.MarshalIndent(testcase.expectedPreparedClaims, "", "\t")
 			t.Errorf(
-				"unexpected PreparedClaims:\n%s\nexpected PreparedClaims:\n%s",
-				preparedClaimsJSON, expectedPreparedClaimsJSON,
+				"%v: unexpected PreparedClaims:\n%s\nexpected PreparedClaims:\n%s",
+				testcase.name, preparedClaimsJSON, expectedPreparedClaimsJSON,
 			)
-			break
-		}
-
-		// dynamically add and remove fake sysfs SR-IOV VFs
-		if testcase.updateFakeSysfs && watcher != nil {
-			watcher.Close()
 		}
 	}
 }

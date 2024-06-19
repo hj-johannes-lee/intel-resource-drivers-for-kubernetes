@@ -59,7 +59,7 @@ func newDriver(config *configType) *driver {
 	driver := driver{
 		lock:                 newPerNodeMutex(),
 		namespace:            config.namespace,
-		clientset:            config.clientset.intel,
+		clientset:            config.clientsets.intel,
 		PendingClaimRequests: newPerNodeClaimRequests(),
 	}
 

@@ -439,7 +439,7 @@ func (t *tainter) listNodeTaints(args *taintArgsType, info *taintInfoType, spec 
 		if !found || len(taint.Reasons) == 0 {
 			klog.Infof("- %s", uid)
 			if found {
-				klog.Infof("  - WARN: empty (instead of missing) taint reasons", node)
+				klog.Info("  - WARN: empty (instead of missing) taint reasons")
 			}
 			continue
 		}

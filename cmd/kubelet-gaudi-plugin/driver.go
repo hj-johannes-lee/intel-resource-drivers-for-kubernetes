@@ -35,6 +35,10 @@ import (
 var _ drav1.NodeServer = (*driver)(nil)
 
 type driver struct {
+	// Resource model publisher uses this channel to know when to send updated model.
+	updateCh chan bool
+	// Resource model publisher uses this channel to know when to stop sending updates to the kubelet and quit.
+	doneCh   chan bool
 	gas      *intelcrd.GaudiAllocationState
 	state    *nodeState
 	sysfsDir string
