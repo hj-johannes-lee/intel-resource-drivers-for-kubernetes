@@ -47,7 +47,7 @@ func createFakeDriver(t *testing.T, coreclient *kubefake.Clientset, intelclient 
 	config := &configType{
 		csconfig:  csconfig,
 		namespace: testNamespace,
-		clientset: &clientsetType{
+		clientsets: &clientsetType{
 			coreclient,
 			intelclient,
 		},

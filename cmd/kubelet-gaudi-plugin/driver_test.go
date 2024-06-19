@@ -42,7 +42,7 @@ func TestFakeSysfs(t *testing.T) {
 	if err := fakesysfs.FakeSysFsGaudiContents(
 		fakeSysfsRoot,
 		device.DevicesInfo{
-			"0000:0f:00.0-0x1020": {Model: "0x1020", DeviceIdx: 0, UID: "0000:0f:00.0-0x1020"},
+			"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, UID: "0000-0f-00-0-0x1020"},
 		},
 	); err != nil {
 		t.Errorf("setup error: could not create fake sysfs: %v", err)
@@ -111,11 +111,11 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid1": {CDIDevices: []string{"intel.com/gaudi=0000:00:02.0-0x1020"}},
+					"uid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020"}},
 				},
 			},
 			gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
-				"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000:00:02.0-0x1020"}}},
+				"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000-00-02-0-0x1020"}}},
 			},
 			preparedClaims: nil,
 		},
@@ -130,8 +130,8 @@ func TestNodePrepareResources(t *testing.T) {
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
 					"uid1": {
 						CDIDevices: []string{
-							"intel.com/gaudi=0000:00:02.0-0x1020",
-							"intel.com/gaudi=0000:00:03.0-0x1020",
+							"intel.com/gaudi=0000-00-02-0-0x1020",
+							"intel.com/gaudi=0000-00-03-0-0x1020",
 						},
 					},
 				},
@@ -148,14 +148,14 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid1": {CDIDevices: []string{"intel.com/gaudi=0000:00:02.0-0x1020"}},
+					"uid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020"}},
 				},
 			},
 			gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
-				"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000:00:02.0-0x1020"}}},
+				"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000-00-02-0-0x1020"}}},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid1": {{UID: "0000:00:02.0-0x1020"}},
+				"uid1": {{UID: "0000-00-02-0-0x1020"}},
 			},
 		},
 		{
@@ -167,11 +167,11 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid1": {Error: "failed validating devices to prepare: allocated device 0000:00:04.0-0x1020 not found in API"},
+					"uid1": {Error: "failed validating devices to prepare: allocated device 0000-00-04-0-0x1020 not found in API"},
 				},
 			},
 			gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
-				"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000:00:04.0-0x1020"}}},
+				"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000-00-04-0-0x1020"}}},
 			},
 			preparedClaims: nil,
 		},
@@ -188,7 +188,7 @@ func TestNodePrepareResources(t *testing.T) {
 				},
 			},
 			gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
-				"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000:00:04.0-0x1020"}}},
+				"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000-00-04-0-0x1020"}}},
 			},
 			preparedClaims: nil,
 		},
@@ -209,8 +209,8 @@ func TestNodePrepareResources(t *testing.T) {
 		if err := fakesysfs.FakeSysFsGaudiContents(
 			testDirs.SysfsRoot,
 			device.DevicesInfo{
-				"0000:00:02.0-0x1020": {Model: "0x1020", DeviceIdx: 0, UID: "0000:00:02.0-0x1020"},
-				"0000:00:03.0-0x1020": {Model: "0x1020", DeviceIdx: 1, UID: "0000:00:03.0-0x1020"},
+				"0000-00-02-0-0x1020": {Model: "0x1020", PCIAddress: "0000:00:02.0", DeviceIdx: 0, UID: "0000-00-02-0-0x1020"},
+				"0000-00-03-0-0x1020": {Model: "0x1020", PCIAddress: "0000:00:03.0", DeviceIdx: 1, UID: "0000-00-03-0-0x1020"},
 			},
 		); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
@@ -278,7 +278,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"cuid1": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"cuid1": {{UID: "0000:b3:00.0-0x1020"}},
+				"cuid1": {{UID: "0000-b3-00-0-0x1020"}},
 			},
 			expectedPreparedClaims: ClaimPreparations{},
 		},
@@ -293,11 +293,11 @@ func TestNodeUnprepareResources(t *testing.T) {
 				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"cuid2": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"cuid1": {{UID: "0000:af:00.0-0x1020"}},
-				"cuid2": {{UID: "0000:b3:00.0-0x1020"}},
+				"cuid1": {{UID: "0000-af-00-0-0x1020"}},
+				"cuid2": {{UID: "0000-b3-00-0-0x1020"}},
 			},
 			expectedPreparedClaims: ClaimPreparations{
-				"cuid1": {{UID: "0000:af:00.0-0x1020", DeviceIdx: 1, Model: "0x1020"}},
+				"cuid1": {{UID: "0000-af-00-0-0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, Model: "0x1020"}},
 			},
 		},
 		{
@@ -311,10 +311,10 @@ func TestNodeUnprepareResources(t *testing.T) {
 				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"cuid1": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"cuid2": {{UID: "0000:b3:00.0-0x1020"}},
+				"cuid2": {{UID: "0000-b3-00-0-0x1020"}},
 			},
 			expectedPreparedClaims: ClaimPreparations{
-				"cuid2": {{UID: "0000:b3:00.0-0x1020"}},
+				"cuid2": {{UID: "0000-b3-00-0-0x1020"}},
 			},
 		},
 	}
@@ -332,8 +332,8 @@ func TestNodeUnprepareResources(t *testing.T) {
 		if err := fakesysfs.FakeSysFsGaudiContents(
 			testDirs.SysfsRoot,
 			device.DevicesInfo{
-				"0000:b3:00.0-0x1020": {Model: "0x1020", DeviceIdx: 0, UID: "0000:b3:00.0-0x1020"},
-				"0000:af:00.0-0x1020": {Model: "0x1020", DeviceIdx: 1, UID: "0000:af:00.0-0x1020"},
+				"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020"},
+				"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020"},
 			},
 		); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)

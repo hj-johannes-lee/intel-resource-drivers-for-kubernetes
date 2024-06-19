@@ -107,14 +107,17 @@ func (d *driver) NodePrepareResources(ctx context.Context, req *drav1.NodePrepar
 	preparedResources := &drav1.NodePrepareResourcesResponse{Claims: map[string]*drav1.NodePrepareResourceResponse{}}
 
 	for _, claim := range req.Claims {
-		preparedResources.Claims[claim.Uid] = d.nodePrepareResources(ctx, claim)
+		if claim.StructuredResourceHandle != nil && len(claim.StructuredResourceHandle) != 0 {
+			preparedResources.Claims[claim.Uid] = d.nodePrepareStructuredResource(claim)
+		} else {
+			preparedResources.Claims[claim.Uid] = d.nodePrepareResources(ctx, claim)
+		}
 	}
 
 	return preparedResources, nil
 }
 
-func (d *driver) nodePrepareResources(
-	ctx context.Context, claim *drav1.Claim) *drav1.NodePrepareResourceResponse {
+func (d *driver) nodePrepareResources(ctx context.Context, claim *drav1.Claim) *drav1.NodePrepareResourceResponse {
 	klog.V(5).Infof("NodePrepareResource is called: request: %+v", claim)
 
 	var cdinames []string

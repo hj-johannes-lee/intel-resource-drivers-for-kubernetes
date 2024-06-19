@@ -56,7 +56,7 @@ func newDriver(config *configType) *driver {
 	driver := driver{
 		lock:                 newPerNodeMutex(),
 		namespace:            config.namespace,
-		clientset:            config.clientset.intel,
+		clientset:            config.clientsets.intel,
 		PendingClaimRequests: newPerNodeClaimRequests(),
 	}
 
@@ -173,7 +173,7 @@ func (d driver) allocateMultiplePendingClaims(ctx context.Context, claims []*con
 
 		gasNeedsUpdate := false
 		for _, ca := range claims {
-			allocation, error := d.allocateSinglePendingClaim(ctx, ca, gas)
+			allocation, error := d.allocateSinglePendingClaim(ca, gas)
 			if error != nil {
 				ca.Error = error
 				continue
@@ -206,21 +206,12 @@ func (d driver) allocateMultiplePendingClaims(ctx context.Context, claims []*con
 	}
 }
 
-func (d driver) allocateSinglePendingClaim(
-	ctx context.Context,
-	ca *controller.ClaimAllocation,
-	gas *intelcrd.GaudiAllocationState) (*resourcev1.AllocationResult, error) {
-
+func (d driver) allocateSinglePendingClaim(ca *controller.ClaimAllocation, gas *intelcrd.GaudiAllocationState) (*resourcev1.AllocationResult, error) {
 	nodename := gas.Name
 
 	classParams, ok := ca.ClassParameters.(*intelcrd.GaudiClassParametersSpec)
 	if !ok {
 		return nil, fmt.Errorf("error parsing Resource Class Parameters")
-	}
-
-	claimParams, ok := ca.ClaimParameters.(*intelcrd.GaudiClaimParametersSpec)
-	if !ok {
-		return nil, fmt.Errorf("error parsing Resource Claim Parameters")
 	}
 
 	claimUID := string(ca.Claim.UID)
@@ -239,7 +230,7 @@ func (d driver) allocateSinglePendingClaim(
 		return nil, fmt.Errorf("no allocation requests generated for claim '%v' on node '%v' yet", claimUID, nodename)
 	}
 
-	if !d.pendingClaimStillValid(gas, claimParams, classParams, claimUID, nodename) {
+	if !d.pendingClaimStillValid(gas, claimUID, nodename) {
 		newAllocation, err := d.selectDevices(gas, []*controller.ClaimAllocation{ca})
 		if err != nil {
 			klog.V(5).Infof("Insufficient resource for claim %v on node %v", claimUID, nodename)
@@ -553,8 +544,6 @@ func orderedDeviceIds(devices map[string]intelcrd.AllocatableDevice) []string {
 // pendingClaimStillValid ensures that previously selected devices are still available resources.
 func (d *driver) pendingClaimStillValid(
 	gas *intelcrd.GaudiAllocationState,
-	claimParams *intelcrd.GaudiClaimParametersSpec,
-	classParams *intelcrd.GaudiClassParametersSpec,
 	pendingClaimUID string,
 	selectedNode string) bool {
 	klog.V(5).Infof("pendingClaimStillValid called for claim %v", pendingClaimUID)

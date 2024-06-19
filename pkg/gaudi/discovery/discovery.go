@@ -17,7 +17,6 @@
 package discovery
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"strconv"
@@ -68,32 +67,33 @@ func DiscoverDevices(sysfsDir string) map[string]*device.DeviceInfo {
 
 	accelIndexes := getAccelIndexes(sysfsAccelDir)
 
-	for _, pciDBDF := range driverDirFiles {
-		deviceDBDF := pciDBDF.Name()
-		// check if file is pci device
-		if !device.PciRegexp.MatchString(deviceDBDF) {
+	for _, pciAddress := range driverDirFiles {
+		devicePCIAddress := pciAddress.Name()
+		// check if file is PCI device
+		if !device.PciRegexp.MatchString(devicePCIAddress) {
 			continue
 		}
-		klog.V(5).Infof("Found Gaudi PCI device: " + deviceDBDF)
+		klog.V(5).Infof("Found Gaudi PCI device: " + devicePCIAddress)
 
-		deviceIdFile := path.Join(sysfsDriverDir, deviceDBDF, "device")
+		deviceIdFile := path.Join(sysfsDriverDir, devicePCIAddress, "device")
 		deviceIdBytes, err := os.ReadFile(deviceIdFile)
 		if err != nil {
 			klog.Errorf("Failed reading device file (%s): %+v", deviceIdFile, err)
 			continue
 		}
 		deviceId := strings.TrimSpace(string(deviceIdBytes))
-		uid := fmt.Sprintf("%v-%v", deviceDBDF, deviceId)
-		klog.V(5).Infof("New gpu UID: %v", uid)
+		uid := device.DeviceUIDFromPCIinfo(devicePCIAddress, deviceId)
+		klog.V(5).Infof("New gaudi UID: %v", uid)
 		newDeviceInfo := &device.DeviceInfo{
-			UID:       uid,
-			Model:     deviceId,
-			DeviceIdx: 0,
+			UID:        uid,
+			PCIAddress: devicePCIAddress,
+			Model:      deviceId,
+			DeviceIdx:  0,
 		}
 
-		deviceIdx, found := accelIndexes[deviceDBDF]
+		deviceIdx, found := accelIndexes[devicePCIAddress]
 		if !found {
-			klog.V(5).Infof("Could not find device %v Accel index", deviceDBDF)
+			klog.V(5).Infof("Could not find device %v Accel index", devicePCIAddress)
 			continue
 		}
 
