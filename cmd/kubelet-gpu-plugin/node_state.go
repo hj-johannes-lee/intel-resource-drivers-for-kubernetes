@@ -23,6 +23,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	resourcev1 "k8s.io/api/resource/v1alpha2"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -72,6 +73,8 @@ func newNodeState(gas *intelcrd.GpuAllocationState, detectedDevices map[string]*
 	if err != nil {
 		return nil, fmt.Errorf("unable to sync detected devices to CDI registry: %v", err)
 	}
+	// hack for tests on slow machines
+	time.Sleep(250 * time.Millisecond)
 	err = cdi.Refresh()
 	if err != nil {
 		return nil, fmt.Errorf("unable to refresh the CDI registry after populating it: %v", err)
@@ -203,13 +206,6 @@ func (s *nodeState) DeviceInfoFromAllocated(allocatedGpu intelcrd.AllocatedGpu) 
 func (s *nodeState) GetAllocatedCDINames(claimUID string) []string {
 	devs := []string{}
 	klog.V(5).Info("getAllocatedCDINames is called")
-
-	klog.V(5).Info("Refreshing CDI registry")
-	err := s.cdi.Refresh()
-	if err != nil {
-		klog.Errorf("Unable to refresh the CDI registry: %v", err)
-		return []string{}
-	}
 
 	for _, device := range s.prepared[claimUID] {
 		cdidev := s.cdi.DeviceDB().GetDevice(device.CDIName())
