@@ -21,7 +21,6 @@ GPU_IMAGE_TAG ?= $(REGISTRY)/$(GPU_IMAGE_NAME):$(GPU_IMAGE_VERSION)
 GPU_BINARIES = \
 bin/gpu-controller \
 bin/kubelet-gpu-plugin \
-bin/gas-status-updater \
 bin/alert-webhook \
 bin/intel-cdi-spec-generator
 
@@ -45,10 +44,6 @@ bin/kubelet-gpu-plugin: cmd/kubelet-gpu-plugin/*.go $(GPU_COMMON_SRC)
 bin/gpu-controller: cmd/gpu-controller/*.go $(GPU_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/gpu-controller
-
-bin/gas-status-updater: cmd/gas-status-updater/*.go $(GPU_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/gas-status-updater
 
 bin/alert-webhook: cmd/alert-webhook/*.go $(GPU_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \

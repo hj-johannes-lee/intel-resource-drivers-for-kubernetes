@@ -193,9 +193,9 @@ func addFlags(cmd *cobra.Command, logsconfig *logsapi.LoggingConfiguration) *fla
 
 	fs = sharedFlagSets.FlagSet("Kubernetes client")
 	flags.kubeconfig = fs.String("kubeconfig", "", "Absolute path to the kube.config file")
-	flags.status = fs.String("status", "", "The status to set [Ready | NotReady].")
 	flags.kubeAPIQPS = fs.Float32("kube-api-qps", 15, "QPS to use while communicating with the kubernetes apiserver.")
 	flags.kubeAPIBurst = fs.Int("kube-api-burst", 45, "Burst to use while communicating with the kubernetes apiserver.")
+	flags.status = fs.String("status", "", "The status to set [Ready | NotReady].")
 
 	fs = cmd.PersistentFlags()
 	for _, f := range sharedFlagSets.FlagSets {
