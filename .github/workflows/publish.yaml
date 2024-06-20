@@ -3,7 +3,7 @@ name: Build-and-push-container
 on:
   push:
     branches:
-      - master
+      - main
 
 permissions:
   contents: read
@@ -28,4 +28,9 @@ jobs:
         password: ${{ secrets.SYS_GACO2 }}
     - name: Build and push GPU resource driver image
       run: |
-        GPU_IMAGE_TAG=ger-is-registry.caas.intel.com/dgpu-orchestration/intel-gpu-resource-driver:devel make container-push
+        make cleanall
+        GPU_IMAGE_TAG=ger-is-registry.caas.intel.com/dgpu-orchestration/intel-gpu-resource-driver:devel make gpu-container-push
+    - name: Build and push Gaudi resource driver image
+      run: |
+        make cleanall
+        GAUDI_IMAGE_TAG=ger-is-registry.caas.intel.com/dgpu-orchestration/intel-gaudi-resource-driver:devel make gaudi-container-push
