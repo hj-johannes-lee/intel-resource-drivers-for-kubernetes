@@ -1,4 +1,4 @@
-# Copyright 2017 The Kubernetes Authors.
+# Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 .PHONY: list-targets
 list-targets:
-	@echo -e "\nTargets:\n$$(grep '^[-a-zA-Z/]*:' Makefile | sort | sed -e 's/^/- /' -e 's/:$$//')\n"
+	@echo "\nTargets:\n$$(grep -h '^[-a-zA-Z/]*:' Makefile *.mk | sort | sed -e 's/^/- /' -e 's/:.*//')\n"
 
 ARCH=amd64
 PKG = github.com/intel/intel-resource-drivers-for-kubernetes
