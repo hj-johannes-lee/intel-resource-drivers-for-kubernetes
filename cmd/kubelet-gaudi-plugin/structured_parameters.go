@@ -17,9 +17,13 @@
 package main
 
 import (
+	"fmt"
+
 	resourcev1 "k8s.io/api/resource/v1alpha2"
 	"k8s.io/klog/v2"
 	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha3"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 )
 
 func (d *driver) NodeListAndWatchResources(req *drav1.NodeListAndWatchResourcesRequest, stream drav1.Node_NodeListAndWatchResourcesServer) error {
@@ -42,8 +46,9 @@ func (d *driver) NodeListAndWatchResources(req *drav1.NodeListAndWatchResourcesR
 }
 
 func (d *driver) sendResourceModel(stream drav1.Node_NodeListAndWatchResourcesServer) error {
+	model := d.state.getResourceModel()
 	resp := &drav1.NodeListAndWatchResourcesResponse{
-		Resources: []*resourcev1.ResourceModel{},
+		Resources: []*resourcev1.ResourceModel{&model},
 	}
 
 	if err := stream.Send(resp); err != nil {
@@ -51,4 +56,46 @@ func (d *driver) sendResourceModel(stream drav1.Node_NodeListAndWatchResourcesSe
 	}
 
 	return nil
+}
+
+func (d *driver) nodePrepareStructuredResource(claim *drav1.Claim) *drav1.NodePrepareResourceResponse {
+	klog.V(5).Infof("NodePrepareResource is called: request: %+v", claim)
+
+	// FIXME: TODO: Add monitoring support, K8s 1.31 might have it in structured parameters,
+	// for now rely on resource class.
+
+	if _, found := d.state.prepared[claim.Uid]; found {
+		klog.V(3).Infof("Claim %s was already prepared, nothing to do", claim.Uid)
+		return d.cdiDevices(claim.Uid)
+	}
+
+	claimDevices, err := d.structuredClaimDevices(claim)
+	if err != nil {
+		return &drav1.NodePrepareResourceResponse{Error: fmt.Sprintf("error preparing resource: %v", err)}
+	}
+
+	// add resource claim to prepared list
+	if err := d.state.makePreparedClaimAllocation(claim.Uid, claimDevices); err != nil {
+		return &drav1.NodePrepareResourceResponse{Error: fmt.Sprintf("failed creating prepared claim: %v", err)}
+	}
+
+	return d.cdiDevices(claim.Uid)
+}
+
+func (d *driver) structuredClaimDevices(claim *drav1.Claim) ([]*device.DeviceInfo, error) {
+	allocatedDevices := []*device.DeviceInfo{}
+
+	for _, handle := range claim.StructuredResourceHandle {
+		for _, result := range handle.Results {
+			deviceUID := result.AllocationResultModel.NamedResources.Name
+			device, found := d.state.allocatable[deviceUID]
+			if !found {
+				return nil, fmt.Errorf("allocated device %v not found", deviceUID)
+			}
+
+			allocatedDevices = append(allocatedDevices, device)
+		}
+	}
+
+	return allocatedDevices, nil
 }

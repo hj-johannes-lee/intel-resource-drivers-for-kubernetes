@@ -20,10 +20,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
+	resourcev1 "k8s.io/api/resource/v1alpha2"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	cdiapi "github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
 	cdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/cdihelpers"
@@ -31,7 +34,6 @@ import (
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gaudi/v1alpha1/api"
 )
 
-type ClaimAllocations map[string][]*device.DeviceInfo
 type ClaimPreparations map[string][]*device.DeviceInfo
 
 type nodeState struct {
@@ -277,4 +279,35 @@ func writePreparedClaimsToFile(preparedClaimsFilePath string, preparedClaims Cla
 		return fmt.Errorf("failed encoding json. Err: %v", err)
 	}
 	return os.WriteFile(preparedClaimsFilePath, encodedPreparedClaims, 0600)
+}
+
+func (s *nodeState) getResourceModel() resourcev1.ResourceModel {
+	var devices []resourcev1.NamedResourcesInstance
+
+	for _, device := range s.allocatable {
+		instance := resourcev1.NamedResourcesInstance{
+			Name: strings.ToLower(device.UID),
+			Attributes: []resourcev1.NamedResourcesAttribute{
+				{
+					Name: "uid",
+					NamedResourcesAttributeValue: resourcev1.NamedResourcesAttributeValue{
+						StringValue: &device.UID,
+					},
+				},
+				{
+					Name: "model",
+					NamedResourcesAttributeValue: resourcev1.NamedResourcesAttributeValue{
+						StringValue: ptr.To(device.ModelName()),
+					},
+				},
+			},
+		}
+		devices = append(devices, instance)
+	}
+
+	model := resourcev1.ResourceModel{
+		NamedResources: &resourcev1.NamedResourcesResources{Instances: devices},
+	}
+
+	return model
 }

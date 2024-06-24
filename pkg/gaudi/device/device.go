@@ -21,12 +21,19 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strings"
 )
 
 var (
 	PciRegexp          = regexp.MustCompile(`[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$`)
 	AccelRegexp        = regexp.MustCompile(`^accel[0-9]+$`)
 	AccelControlRegexp = regexp.MustCompile(`^accel_controlD[0-9]+$`)
+	ModelNames         = map[string]string{
+		"0x1000": "Gaudi",
+		"0x1010": "Gaudi",
+		"0x1020": "Gaudi2",
+		"0x1030": "Gaudi3",
+	}
 )
 
 const (
@@ -41,15 +48,18 @@ const (
 	CDIRoot                = "/etc/cdi"
 	CDIVendor              = "intel.com"
 	CDIKind                = CDIVendor + "/gaudi"
-	PciDBDFLength          = len("0000:00:00.0")
+	PCIAddressLength       = len("0000:00:00.0")
 	PreparedClaimsFileName = "preparedClaims.json"
 )
 
 // DeviceInfo is an internal structure type to store info about discovered device.
 type DeviceInfo struct {
-	UID       string `json:"uid"`       // unique identifier, pci_DBDF-pci_device_id
-	Model     string `json:"model"`     // pci_device_id
-	DeviceIdx uint64 `json:"deviceidx"` // accel device number (e.g. 0 for /dev/accel/accel0)
+	// UID is a unique identifier on node, used in ResourceSlice K8s API object as RFC1123-compliant identifier.
+	// Consists of PCIAddress and Model with colons and dots replaced with hyphens, e.g. 0000-01-02-0-0x12345.
+	UID        string `json:"uid"`
+	PCIAddress string `json:"pciaddress"` // PCI address in Linux DBDF notation for use with sysfs, e.g. 0000:00:00.0
+	Model      string `json:"model"`      // PCI device ID
+	DeviceIdx  uint64 `json:"deviceidx"`  // accel device number (e.g. 0 for /dev/accel/accel0)
 }
 
 func (g DeviceInfo) CDIName() string {
@@ -59,6 +69,31 @@ func (g DeviceInfo) CDIName() string {
 func (g *DeviceInfo) DeepCopy() *DeviceInfo {
 	di := *g
 	return &di
+}
+
+func (g *DeviceInfo) ModelName() string {
+	if model, found := ModelNames[g.Model]; found {
+		return model
+	}
+	return "Unknown"
+}
+
+func DeviceUIDFromPCIinfo(pciAddress string, pciid string) string {
+	// 0000:00:01.0, 0x0000 -> 0000-00-01-0-0x0000
+	// Replace colons and the dot in PCI address with hyphens.
+	rfc1123PCIaddress := strings.ReplaceAll(strings.ReplaceAll(pciAddress, ":", "-"), ".", "-")
+	newUID := fmt.Sprintf("%v-%v", rfc1123PCIaddress, pciid)
+
+	return newUID
+}
+
+func PciInfoFromDeviceUID(deviceUID string) (string, string) {
+	// 0000-00-01-0-0x0000 -> 0000:00:01.0, 0x0000
+	rfc1123PCIaddress := deviceUID[:PCIAddressLength]
+	pciAddress := strings.Replace(strings.Replace(rfc1123PCIaddress, "-", ":", 2), "-", ".", 1)
+	deviceId := deviceUID[PCIAddressLength:]
+
+	return pciAddress, deviceId
 }
 
 // DevicesInfo is a dictionary with DeviceInfo.uid being the key.

@@ -37,9 +37,9 @@ func FakeSysFsGaudiContents(sysfsRoot string, gaudis device.DevicesInfo) error {
 // This will be called when fake sysfs is being created and when more devices added
 // to existing fake sysfs.
 func fakeSysFsGaudiDevices(sysfsRoot string, gaudis device.DevicesInfo) error {
-	for deviceUID, gaudi := range gaudis {
+	for _, gaudi := range gaudis {
 		// bus/pci/driver/<device> setup
-		pciDriverDevDir := path.Join(sysfsRoot, "bus/pci/drivers/habanalabs/", deviceUID[:device.PciDBDFLength])
+		pciDriverDevDir := path.Join(sysfsRoot, "bus/pci/drivers/habanalabs/", gaudi.PCIAddress)
 		if err := os.MkdirAll(pciDriverDevDir, 0750); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
@@ -57,7 +57,7 @@ func fakeSysFsGaudiDevices(sysfsRoot string, gaudis device.DevicesInfo) error {
 		}
 		// $ cat /sys/devices/virtual/accel/accel0/device/pci_addr
 		// 0000:0f:00.0
-		if writeErr := testhelpers.WriteFile(path.Join(dirPath, "pci_addr"), deviceUID[:device.PciDBDFLength]); writeErr != nil {
+		if writeErr := testhelpers.WriteFile(path.Join(dirPath, "pci_addr"), gaudi.PCIAddress); writeErr != nil {
 			return fmt.Errorf("creating fake sysfs dir, err: %v", writeErr)
 		}
 

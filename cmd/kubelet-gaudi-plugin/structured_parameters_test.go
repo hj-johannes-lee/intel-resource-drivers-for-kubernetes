@@ -29,9 +29,8 @@ import (
 	resourcev1 "k8s.io/api/resource/v1alpha2"
 	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha3"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
@@ -65,82 +64,77 @@ func TestNodePrepareStructuredResources(t *testing.T) {
 		expectedResponse       *drav1.NodePrepareResourcesResponse
 		preparedClaims         ClaimPreparations
 		expectedPreparedClaims ClaimPreparations
-		updateFakeSysfs        bool
 	}
 
 	testcases := []testCase{
 		{
-			name: "one gpu success",
+			name: "one Gaudi success",
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
 					{
 						Uid:                      "cuid1",
-						StructuredResourceHandle: newStructuredHandle([]string{"0000-00-02-0-0x56c0"}),
+						StructuredResourceHandle: newStructuredHandle([]string{"0000-00-02-0-0x1020"}),
 					},
 				},
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"cuid1": {CDIDevices: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
+					"cuid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020"}},
 				},
 			},
 			preparedClaims: nil,
 			expectedPreparedClaims: ClaimPreparations{
 				"cuid1": {
-					{UID: "0000-00-02-0-0x56c0", PCIAddress: "0000:00:02.0", Model: "0x56c0", CardIdx: 0, RenderdIdx: 128, MemoryMiB: 16256, Millicores: 1000, DeviceType: "gpu", MaxVFs: 16},
+					{UID: "0000-00-02-0-0x1020", PCIAddress: "0000:00:02.0", Model: "0x1020", DeviceIdx: 0},
 				},
 			},
-			updateFakeSysfs: false,
 		},
 		{
-			name: "one gpu not found error",
+			name: "one Gaudi not found error",
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
 					{
 						Uid:                      "cuid1",
-						StructuredResourceHandle: newStructuredHandle([]string{"0000-00-06-0-0x56c0"}),
+						StructuredResourceHandle: newStructuredHandle([]string{"0000-00-06-0-0x1020"}),
 					},
 				},
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"cuid1": {Error: "error preparing resource: allocated device 0000-00-06-0-0x56c0 not found"},
+					"cuid1": {Error: "error preparing resource: allocated device 0000-00-06-0-0x1020 not found"},
 				},
 			},
 			preparedClaims:         nil,
 			expectedPreparedClaims: ClaimPreparations{},
-			updateFakeSysfs:        false,
 		},
 		{
-			name: "one gpu already prepared claim success",
+			name: "one Gaudi already prepared claim success",
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
 					{
 						Uid:                      "cuid1",
-						StructuredResourceHandle: newStructuredHandle([]string{"0000-00-02-0-0x56c0"}),
+						StructuredResourceHandle: newStructuredHandle([]string{"0000-00-02-0-0x1020"}),
 					},
 				},
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"cuid1": {CDIDevices: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
+					"cuid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020"}},
 				},
 			},
 			preparedClaims: ClaimPreparations{
 				"cuid1": {
-					{UID: "0000-00-02-0-0x56c0", PCIAddress: "0000:00:02.0", Model: "0x56c0", CardIdx: 0, RenderdIdx: 128, MemoryMiB: 16256, Millicores: 1000, DeviceType: "gpu", MaxVFs: 16},
+					{UID: "0000-00-02-0-0x1020", PCIAddress: "0000:00:02.0", Model: "0x1020", DeviceIdx: 0},
 				},
 			},
 			expectedPreparedClaims: ClaimPreparations{
 				"cuid1": {
-					{UID: "0000-00-02-0-0x56c0", PCIAddress: "0000:00:02.0", Model: "0x56c0", CardIdx: 0, RenderdIdx: 128, MemoryMiB: 16256, Millicores: 1000, DeviceType: "gpu", MaxVFs: 16},
+					{UID: "0000-00-02-0-0x1020", PCIAddress: "0000:00:02.0", Model: "0x1020", DeviceIdx: 0},
 				},
 			},
-			updateFakeSysfs: false,
 		},
 	}
 
-	var watcher *fsnotify.Watcher
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
@@ -151,15 +145,12 @@ func TestNodePrepareStructuredResources(t *testing.T) {
 			return
 		}
 
-		if err := fakesysfs.FakeSysFsGpuContents(
-			t,
+		if err := fakesysfs.FakeSysFsGaudiContents(
 			testDirs.SysfsRoot,
 			device.DevicesInfo{
-				"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
-				"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000-00-03-0-0x56c0", MaxVFs: 16},
-				"0000-00-03-1-0x56c0": {Model: "0x56c0", MemoryMiB: 8064, DeviceType: "vf", CardIdx: 2, RenderdIdx: 130, UID: "0000-00-03-1-0x56c0", VFIndex: 0, VFProfile: "flex170_m2", ParentUID: "0000-00-03-0-0x56c0"},
-				// dummy, no SR-IOV tiles
-				"0000-00-04-0-0x0000": {Model: "0x0000", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 3, RenderdIdx: 131, UID: "0000-00-04-0-0x0000", MaxVFs: 16},
+				"0000-00-02-0-0x1020": {Model: "0x1020", DeviceIdx: 0, PCIAddress: "0000:00:02.0", UID: "0000-00-02-0-0x1020"},
+				"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020"},
+				"0000-00-04-0-0x1020": {Model: "0x1020", DeviceIdx: 2, PCIAddress: "0000:00:04.0", UID: "0000-00-04-0-0x1020"},
 			},
 		); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
@@ -174,12 +165,6 @@ func TestNodePrepareStructuredResources(t *testing.T) {
 		driver, driverErr := getFakeDriver(testDirs)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
-		}
-
-		// dynamically add and remove fake sysfs SR-IOV VFs
-		if testcase.updateFakeSysfs {
-			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot)
-			defer watcher.Close()
 		}
 
 		response, err := driver.NodePrepareResources(context.TODO(), testcase.request)
@@ -243,15 +228,12 @@ func TestNodeListAndWatchResources(t *testing.T) {
 		return
 	}
 
-	if err := fakesysfs.FakeSysFsGpuContents(
-		t,
+	if err := fakesysfs.FakeSysFsGaudiContents(
 		testDirs.SysfsRoot,
 		device.DevicesInfo{
-			"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
-			"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000-00-03-0-0x56c0", MaxVFs: 16},
-			"0000-00-03-1-0x56c0": {Model: "0x56c0", MemoryMiB: 8064, DeviceType: "vf", CardIdx: 2, RenderdIdx: 130, UID: "0000-00-03-1-0x56c0", VFIndex: 0, VFProfile: "flex170_m2", ParentUID: "0000-00-03-0-0x56c0"},
-			// dummy, no SR-IOV tiles
-			"0000-00-04-0-0x0000": {Model: "0x0000", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 3, RenderdIdx: 131, UID: "0000-00-04-0-0x0000", MaxVFs: 16},
+			"0000-00-02-0-0x1020": {Model: "0x1020", DeviceIdx: 0, PCIAddress: "0000:00:02.0", UID: "0000-00-02-0-0x1020"},
+			"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020"},
+			"0000-00-04-0-0x1020": {Model: "0x1020", DeviceIdx: 2, PCIAddress: "0000:00:04.0", UID: "0000-00-04-0-0x1020"},
 		},
 	); err != nil {
 		t.Errorf("setup error: could not create fake sysfs: %v", err)
@@ -281,8 +263,8 @@ func TestNodeListAndWatchResources(t *testing.T) {
 		return
 	}
 
-	if len(response.Resources) != 1 || len(response.Resources[0].NamedResources.Instances) != 4 {
-		t.Errorf("unexpected amount of resources: %d, expected 4", len(response.Resources[0].NamedResources.Instances))
+	if len(response.Resources) != 1 || len(response.Resources[0].NamedResources.Instances) != 3 {
+		t.Errorf("unexpected amount of resources: %d, expected 3", len(response.Resources[0].NamedResources.Instances))
 	}
 
 	t.Logf("Response from driver: %+v", response.Resources)

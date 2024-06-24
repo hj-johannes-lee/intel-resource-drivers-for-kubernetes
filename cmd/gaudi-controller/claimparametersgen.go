@@ -34,7 +34,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
-	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
+	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gaudi/v1alpha1/api"
 )
 
 func startClaimParametersGenerator(ctx context.Context, config *configType) error {
@@ -46,23 +46,23 @@ func startClaimParametersGenerator(ctx context.Context, config *configType) erro
 
 	klog.Info("Starting ResourceClaimParamaters generator")
 
-	// Watch GpuClaimParameters objects
-	gpuClaimParametersInformer := newGpuClaimParametersInformer(ctx, dynamicClient)
-	if _, err := gpuClaimParametersInformer.AddEventHandler(newGpuClaimParametersHandler(ctx, config.clientsets.core)); err != nil {
-		return fmt.Errorf("error creating GpuClaimParameters informer: error adding event handler: %v", err)
+	// Watch GaudiClaimParameters objects
+	gaudiClaimParametersInformer := newGaudiClaimParametersInformer(ctx, dynamicClient)
+	if _, err := gaudiClaimParametersInformer.AddEventHandler(newGaudiClaimParametersHandler(ctx, config.clientsets.core)); err != nil {
+		return fmt.Errorf("error creating GaudiClaimParameters informer: error adding event handler: %v", err)
 	}
 
 	// Start informer
-	go gpuClaimParametersInformer.Run(ctx.Done())
+	go gaudiClaimParametersInformer.Run(ctx.Done())
 
 	return nil
 }
 
-func newGpuClaimParametersInformer(ctx context.Context, dynamicClient dynamic.Interface) cache.SharedIndexInformer {
+func newGaudiClaimParametersInformer(ctx context.Context, dynamicClient dynamic.Interface) cache.SharedIndexInformer {
 	resource := schema.GroupVersionResource{
 		Group:    intelcrd.APIGroupName,
 		Version:  intelcrd.APIVersion,
-		Resource: strings.ToLower(intelcrd.GpuClaimParametersKind),
+		Resource: strings.ToLower(intelcrd.GaudiClaimParametersKind),
 	}
 
 	informer := cache.NewSharedIndexInformer(
@@ -82,7 +82,7 @@ func newGpuClaimParametersInformer(ctx context.Context, dynamicClient dynamic.In
 	return informer
 }
 
-func newGpuClaimParametersHandler(ctx context.Context, clientset kubernetes.Interface) cache.ResourceEventHandler {
+func newGaudiClaimParametersHandler(ctx context.Context, clientset kubernetes.Interface) cache.ResourceEventHandler {
 	resourceUpdateHandlerFunction := func(oldObj any, newObj any) {
 		unstructured, ok := newObj.(*unstructured.Unstructured)
 		if !ok {
@@ -90,14 +90,14 @@ func newGpuClaimParametersHandler(ctx context.Context, clientset kubernetes.Inte
 			return
 		}
 
-		var gpuClaimParameters intelcrd.GpuClaimParameters
-		err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured.Object, &gpuClaimParameters)
+		var gaudiClaimParameters intelcrd.GaudiClaimParameters
+		err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured.Object, &gaudiClaimParameters)
 		if err != nil {
-			klog.Errorf("error converting *unstructured.Unstructured to GpuClaimParameters: %v", err)
+			klog.Errorf("error converting *unstructured.Unstructured to GaudiClaimParameters: %v", err)
 			return
 		}
 
-		if err := createOrUpdateResourceClaimParameters(ctx, clientset, &gpuClaimParameters); err != nil {
+		if err := createOrUpdateResourceClaimParameters(ctx, clientset, &gaudiClaimParameters); err != nil {
 			klog.Errorf("error updating ResourceClaimParameters: %v", err)
 			return
 		}
@@ -113,13 +113,13 @@ func newGpuClaimParametersHandler(ctx context.Context, clientset kubernetes.Inte
 	}
 }
 
-func makeResourceClaimParameters(gpuClaimParameters *intelcrd.GpuClaimParameters) (*resourceapi.ResourceClaimParameters, error) {
-	rawSpec, err := json.Marshal(gpuClaimParameters.Spec)
+func makeResourceClaimParameters(gaudiClaimParameters *intelcrd.GaudiClaimParameters) (*resourceapi.ResourceClaimParameters, error) {
+	rawSpec, err := json.Marshal(gaudiClaimParameters.Spec)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling GpuClaimParamaters to JSON: %w", err)
 	}
 
-	resourceCount := gpuClaimParameters.Spec.Count
+	resourceCount := gaudiClaimParameters.Spec.Count
 
 	shareable := false
 	selector := "true"
@@ -139,21 +139,21 @@ func makeResourceClaimParameters(gpuClaimParameters *intelcrd.GpuClaimParameters
 	resourceClaimParameters := &resourceapi.ResourceClaimParameters{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "resource-claim-parameters-",
-			Namespace:    gpuClaimParameters.Namespace,
+			Namespace:    gaudiClaimParameters.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         gpuClaimParameters.APIVersion,
-					Kind:               gpuClaimParameters.Kind,
-					Name:               gpuClaimParameters.Name,
-					UID:                gpuClaimParameters.UID,
+					APIVersion:         gaudiClaimParameters.APIVersion,
+					Kind:               gaudiClaimParameters.Kind,
+					Name:               gaudiClaimParameters.Name,
+					UID:                gaudiClaimParameters.UID,
 					BlockOwnerDeletion: ptr.To(true),
 				},
 			},
 		},
 		GeneratedFrom: &resourceapi.ResourceClaimParametersReference{
 			APIGroup: intelcrd.APIGroupName,
-			Kind:     gpuClaimParameters.Kind,
-			Name:     gpuClaimParameters.Name,
+			Kind:     gaudiClaimParameters.Kind,
+			Name:     gaudiClaimParameters.Name,
 		},
 		DriverRequests: []resourceapi.DriverRequests{
 			{
@@ -168,27 +168,27 @@ func makeResourceClaimParameters(gpuClaimParameters *intelcrd.GpuClaimParameters
 	return resourceClaimParameters, nil
 }
 
-func createOrUpdateResourceClaimParameters(ctx context.Context, clientset kubernetes.Interface, gpuClaimParameters *intelcrd.GpuClaimParameters) error {
-	namespace := gpuClaimParameters.Namespace
+func createOrUpdateResourceClaimParameters(ctx context.Context, clientset kubernetes.Interface, gaudiClaimParameters *intelcrd.GaudiClaimParameters) error {
+	namespace := gaudiClaimParameters.Namespace
 
-	// Build a new ResourceClaimParameters object from the incoming GpuClaimParameters object
-	resourceClaimParameters, err := makeResourceClaimParameters(gpuClaimParameters)
+	// Build a new ResourceClaimParameters object from the incoming GaudiClaimParameters object
+	resourceClaimParameters, err := makeResourceClaimParameters(gaudiClaimParameters)
 	if err != nil {
 		return fmt.Errorf("error building new ResourceClaimParameters object: %w", err)
 	}
 
-	// Get a list of existing ResourceClaimParameters in the same namespace as the incoming GpuClaimParameters
+	// Get a list of existing ResourceClaimParameters in the same namespace as the incoming GaudiClaimParameters
 	existing, err := clientset.ResourceV1alpha2().ResourceClaimParameters(namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("error listing existing ResourceClaimParameters: %w", err)
 	}
 
-	// If there is an existing ResourceClaimParameters generated from the incoming GpuClaimParameters object, then update it
+	// If there is an existing ResourceClaimParameters generated from the incoming GaudiClaimParameters object, then update it
 	for _, item := range existing.Items {
 		if (item.GeneratedFrom.APIGroup == intelcrd.APIGroupName) &&
-			(item.GeneratedFrom.Kind == gpuClaimParameters.Kind) &&
-			(item.GeneratedFrom.Name == gpuClaimParameters.Name) {
-			klog.Infof("ResourceClaimParameters already exists for GpuClaimParameters %s/%s, updating it", namespace, gpuClaimParameters.Name)
+			(item.GeneratedFrom.Kind == gaudiClaimParameters.Kind) &&
+			(item.GeneratedFrom.Name == gaudiClaimParameters.Name) {
+			klog.Infof("ResourceClaimParameters already exists for GaudiClaimParameters %s/%s, updating it", namespace, gaudiClaimParameters.Name)
 
 			// Copy the matching ResourceClaimParameters metadata into the new ResourceClaimParameters object before updating it
 			resourceClaimParameters.ObjectMeta = *item.ObjectMeta.DeepCopy()
@@ -208,6 +208,6 @@ func createOrUpdateResourceClaimParameters(ctx context.Context, clientset kubern
 		return fmt.Errorf("error creating ResourceClaimParameters: %w", err)
 	}
 
-	klog.Infof("Created ResourceClaimParameters %s/%s", namespace, gpuClaimParameters.Name)
+	klog.Infof("Created ResourceClaimParameters %s/%s", namespace, gaudiClaimParameters.Name)
 	return nil
 }

@@ -56,7 +56,7 @@ func DiscoverDevices(sysfsDir string) map[string]*device.DeviceInfo {
 
 	for _, pciAddress := range files {
 		devicePCIAddress := pciAddress.Name()
-		// check if file is pci device
+		// check if file is PCI device
 		if !device.PciRegexp.MatchString(devicePCIAddress) {
 			continue
 		}

@@ -40,7 +40,7 @@ const (
 	CDIRoot                = "/etc/cdi"
 	CDIVendor              = "intel.com"
 	CDIKind                = CDIVendor + "/gpu"
-	PciAddressLength       = len("0000:00:00.0")
+	PCIAddressLength       = len("0000:00:00.0")
 	PreparedClaimsFileName = "preparedClaims.json"
 )
 
@@ -118,9 +118,9 @@ func DeviceUIDFromPCIinfo(pciAddress string, pciid string) string {
 
 func PciInfoFromDeviceUID(deviceUID string) (string, string) {
 	// 0000-00-01-0-0x0000 -> 0000:00:01.0, 0x0000
-	rfc1123PCIaddress := deviceUID[:PciAddressLength]
+	rfc1123PCIaddress := deviceUID[:PCIAddressLength]
 	pciAddress := strings.Replace(strings.Replace(rfc1123PCIaddress, "-", ":", 2), "-", ".", 1)
-	deviceId := deviceUID[PciAddressLength:]
+	deviceId := deviceUID[PCIAddressLength:]
 
 	return pciAddress, deviceId
 }
