@@ -23,23 +23,23 @@ import (
 	"strconv"
 	"strings"
 
-	cdiapi "github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
-	specs "github.com/container-orchestrated-devices/container-device-interface/specs-go"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"k8s.io/klog/v2"
+	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
+	specs "tags.cncf.io/container-device-interface/specs-go"
 )
 
 // SyncDetectedDevicesWithRegistry adds detected devices into cdi registry if they are not yet there.
 // Update existing registry devices with detected.
 // Remove absent registry devices.
-func SyncDetectedDevicesWithRegistry(registry cdiapi.Registry, detectedDevices device.DevicesInfo, doCleanup bool) error {
+func SyncDetectedDevicesWithRegistry(cdiCache *cdiapi.Cache, detectedDevices device.DevicesInfo, doCleanup bool) error {
 
-	vendorSpecs := registry.SpecDB().GetVendorSpecs(device.CDIVendor)
+	vendorSpecs := cdiCache.GetVendorSpecs(device.CDIVendor)
 	devicesToAdd := detectedDevices.DeepCopy()
 
 	if len(vendorSpecs) == 0 {
 		klog.V(5).Infof("No existing specs found for vendor %v, creating new", device.CDIVendor)
-		if err := AddNewDevicesToNewRegistry(devicesToAdd); err != nil {
+		if err := addNewDevicesToNewRegistry(cdiCache, devicesToAdd); err != nil {
 			klog.V(5).Infof("Failed adding card to cdi registry: %v", err)
 			return err
 		}
@@ -89,7 +89,7 @@ func SyncDetectedDevicesWithRegistry(registry cdiapi.Registry, detectedDevices d
 			vendorSpec.Spec.Devices = filteredDevices
 			specName := path.Base(vendorSpec.GetPath())
 			klog.V(5).Infof("Updating spec %v", specName)
-			err := registry.SpecDB().WriteSpec(vendorSpec.Spec, specName)
+			err := cdiCache.WriteSpec(vendorSpec.Spec, specName)
 			if err != nil {
 				klog.Errorf("failed writing CDI spec %v: %v", vendorSpec.GetPath(), err)
 				return fmt.Errorf("failed writing CDI spec %v: %v", vendorSpec.GetPath(), err)
@@ -114,7 +114,7 @@ func SyncDetectedDevicesWithRegistry(registry cdiapi.Registry, detectedDevices d
 		}
 
 		klog.V(5).Infof("Overwriting spec %v", specName)
-		err = registry.SpecDB().WriteSpec(apispec.Spec, specName)
+		err = cdiCache.WriteSpec(apispec.Spec, specName)
 		if err != nil {
 			klog.Errorf("failed to write CDI spec %v: %v", apispec.GetPath(), err)
 			return fmt.Errorf("failed write CDI spec %v: %v", apispec.GetPath(), err)
@@ -164,10 +164,9 @@ func SyncDeviceNodes(
 	return specChanged
 }
 
-// AddNewDevicesToNewRegistry writes devices into new vendor-specific CDI spec, should only be called if such spec does not exist.
-func AddNewDevicesToNewRegistry(devices device.DevicesInfo) error {
+// addNewDevicesToNewRegistry writes devices into new vendor-specific CDI spec, should only be called if such spec does not exist.
+func addNewDevicesToNewRegistry(cdiCache *cdiapi.Cache, devices device.DevicesInfo) error {
 	klog.V(5).Infof("Adding %v devices to new spec", len(devices))
-	registry := cdiapi.GetRegistry()
 
 	spec := &specs.Spec{
 		Kind: device.CDIKind,
@@ -189,7 +188,7 @@ func AddNewDevicesToNewRegistry(devices device.DevicesInfo) error {
 	}
 	klog.V(5).Infof("new name for new CDI spec: %v", specname)
 
-	err = registry.SpecDB().WriteSpec(spec, specname)
+	err = cdiCache.WriteSpec(spec, specname)
 	if err != nil {
 		return fmt.Errorf("failed to write CDI spec %v: %v", specname, err)
 	}

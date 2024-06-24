@@ -10,7 +10,7 @@ CAUTION: This is an beta / non-production software, do not use on production clu
 ## Glossary
 
 - DRA https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/3063-dynamic-resource-allocation
-- CDI https://github.com/container-orchestrated-devices/container-device-interface/
+- CDI https://github.com/cncf-tags/container-device-interface/
 - K8s https://github.com/kubernetes/kubernetes.git
 
 ## About resource drivers

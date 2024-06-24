@@ -28,17 +28,17 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
-	cdiapi "github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
 	cdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/cdihelpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gaudi/v1alpha1/api"
+	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 )
 
 type ClaimPreparations map[string][]*device.DeviceInfo
 
 type nodeState struct {
 	sync.Mutex
-	cdi                    cdiapi.Registry
+	cdiCache               *cdiapi.Cache
 	allocatable            device.DevicesInfo
 	prepared               ClaimPreparations
 	preparedClaimsFilePath string
@@ -49,27 +49,19 @@ func newNodeState(gas *intelcrd.GaudiAllocationState, detectedDevices map[string
 		klog.V(3).Infof("new device: %+v", ddev)
 	}
 
-	klog.V(5).Info("Getting CDI registry")
-	cdi := cdiapi.GetRegistry(
-		cdiapi.WithSpecDirs(cdiRoot),
-	)
-
-	klog.V(5).Info("Got CDI registry, refreshing it")
-	err := cdi.Refresh()
-	if err != nil {
+	klog.V(5).Info("Refreshing CDI registry")
+	if err := cdiapi.Configure(cdiapi.WithSpecDirs(cdiRoot)); err != nil {
 		return nil, fmt.Errorf("unable to refresh the CDI registry: %v", err)
 	}
 
-	// syncDetectedDevicesWithCdiRegistry overrides uid in detecteddevices from existing cdi spec
-	err = cdihelpers.SyncDetectedDevicesWithRegistry(cdi, detectedDevices, true)
-	if err != nil {
+	cdiCache := cdiapi.GetDefaultCache()
+
+	// syncDetectedDevicesWithRegistry overrides uid in detecteddevices from existing cdi spec
+	if err := cdihelpers.SyncDetectedDevicesWithRegistry(cdiCache, detectedDevices, true); err != nil {
 		return nil, fmt.Errorf("unable to sync detected devices to CDI registry: %v", err)
 	}
+
 	time.Sleep(250 * time.Millisecond)
-	err = cdi.Refresh()
-	if err != nil {
-		return nil, fmt.Errorf("unable to refresh the CDI registry after populating it: %v", err)
-	}
 
 	klog.V(5).Info("Allocatable devices after CDI registry refresh:")
 	for duid, ddev := range detectedDevices {
@@ -79,7 +71,7 @@ func newNodeState(gas *intelcrd.GaudiAllocationState, detectedDevices map[string
 	klog.V(5).Info("Creating NodeState")
 	// TODO: allocatable should include cdi-described
 	state := &nodeState{
-		cdi:                    cdi,
+		cdiCache:               cdiCache,
 		allocatable:            detectedDevices,
 		prepared:               make(ClaimPreparations),
 		preparedClaimsFilePath: preparedClaimsFilePath,
@@ -138,7 +130,7 @@ func (s *nodeState) GetAllocatedCDINames(claimUID string) []string {
 	klog.V(5).Info("getAllocatedCDINames is called")
 
 	for _, device := range s.prepared[claimUID] {
-		cdidev := s.cdi.DeviceDB().GetDevice(device.CDIName())
+		cdidev := s.cdiCache.GetDevice(device.CDIName())
 		if cdidev == nil {
 			klog.Errorf("CDI Device %v from claim %v not found in CDI DB", device.CDIName(), claimUID)
 			return []string{}
@@ -153,7 +145,7 @@ func (s *nodeState) getMonitorCDINames(claimUID string) []string {
 	klog.V(5).Info("getMonitorCDINames is called")
 
 	klog.V(5).Info("Refreshing CDI registry")
-	err := s.cdi.Refresh()
+	err := s.cdiCache.Refresh()
 	if err != nil {
 		klog.Errorf("Unable to refresh the CDI registry: %v", err)
 		return []string{}
@@ -161,7 +153,7 @@ func (s *nodeState) getMonitorCDINames(claimUID string) []string {
 
 	devs := []string{}
 	for _, device := range s.allocatable {
-		cdidev := s.cdi.DeviceDB().GetDevice(device.CDIName())
+		cdidev := s.cdiCache.GetDevice(device.CDIName())
 		if cdidev == nil {
 			klog.Errorf("CDI Device %v for monitor claim %v not found in CDI DB", device.CDIName(), claimUID)
 			return []string{}
