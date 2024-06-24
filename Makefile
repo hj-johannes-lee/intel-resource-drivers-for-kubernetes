@@ -1,4 +1,4 @@
-# Copyright 2017 The Kubernetes Authors.
+# Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 .PHONY: list-targets
 list-targets:
-	@echo -e "\nTargets:\n$$(grep '^[-a-zA-Z/]*:' Makefile | sort | sed -e 's/^/- /' -e 's/:$$//')\n"
+	@echo "\nTargets:\n$$(grep -h '^[-a-zA-Z/]*:' Makefile *.mk | sort | sed -e 's/^/- /' -e 's/:.*//')\n"
 
 ARCH=amd64
 PKG = github.com/intel/intel-resource-drivers-for-kubernetes
@@ -43,16 +43,6 @@ MODULE = github.com/intel/intel-resource-drivers-for-kubernetes
 
 REGISTRY ?= registry.local
 
-# Use a custom version for E2E tests if we are testing in CI
-GPU_VERSION ?= v0.4.0
-GPU_IMAGE_NAME ?= intel-gpu-resource-driver
-GPU_IMAGE_VERSION ?= $(GPU_VERSION)
-GPU_IMAGE_TAG ?= $(REGISTRY)/$(GPU_IMAGE_NAME):$(GPU_IMAGE_VERSION)
-
-GAUDI_VERSION ?= v0.1.0
-GAUDI_IMAGE_NAME ?= intel-gaudi-resource-driver
-GAUDI_IMAGE_VERSION ?= $(GAUDI_VERSION)
-GAUDI_IMAGE_TAG ?= $(REGISTRY)/$(GAUDI_IMAGE_NAME):$(GAUDI_IMAGE_VERSION)
 
 ifndef DOCKER
 	PODMAN_VERSION := $(shell command podman version 2>/dev/null)
@@ -64,77 +54,25 @@ ifndef DOCKER
 	endif
 endif
 
-.EXPORT_ALL_VARIABLES:
-
-GPU_BINARIES = \
-bin/gpu-controller \
-bin/kubelet-gpu-plugin \
-bin/gas-status-updater \
-bin/alert-webhook \
-bin/intel-cdi-spec-generator
-
-GAUDI_BINARIES = \
-bin/gaudi-controller \
-bin/kubelet-gaudi-plugin
 
 COMMON_SRC = \
 pkg/version/*.go \
 pkg/controllerhelpers/*.go
 
-GPU_COMMON_SRC = \
-$(COMMON_SRC) \
-pkg/intel.com/resource/gpu/clientset/versioned/*.go \
-pkg/intel.com/resource/gpu/v1alpha2/api/*.go \
-pkg/intel.com/resource/gpu/v1alpha2/*.go \
-pkg/gpu/cdihelpers/*.go \
-pkg/gpu/device/*.go \
-pkg/gpu/discovery/*.go \
-pkg/gpu/sriov/*.go
+include $(CURDIR)/gpu.mk
+include $(CURDIR)/gaudi.mk
+
+.EXPORT_ALL_VARIABLES:
 
 
-GAUDI_COMMON_SRC = \
-$(COMMON_SRC) \
-pkg/intel.com/resource/gaudi/clientset/versioned/*.go \
-pkg/intel.com/resource/gaudi/v1alpha1/api/*.go \
-pkg/intel.com/resource/gaudi/v1alpha1/*.go \
-pkg/gaudi/cdihelpers/*.go \
-pkg/gaudi/device/*.go \
-pkg/gaudi/discovery/*.go
-
-.PHONY: build gpu gaudi
+.PHONY: build
 build: gpu gaudi
 
-gpu: $(GPU_BINARIES)
-
-gaudi: $(GAUDI_BINARIES)
-
-bin/kubelet-gpu-plugin: cmd/kubelet-gpu-plugin/*.go $(GPU_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/kubelet-gpu-plugin
-
-bin/gpu-controller: cmd/gpu-controller/*.go $(GPU_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/gpu-controller
-
-bin/gas-status-updater: cmd/gas-status-updater/*.go $(GPU_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/gas-status-updater
-
-bin/alert-webhook: cmd/alert-webhook/*.go $(GPU_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/alert-webhook
 
 bin/intel-cdi-spec-generator: cmd/cdi-spec-generator/*.go $(GPU_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/cdi-spec-generator
 
-bin/gaudi-controller: cmd/gaudi-controller/*.go $(GAUDI_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/gaudi-controller
-
-bin/kubelet-gaudi-plugin: cmd/kubelet-gaudi-plugin/*.go $(GAUDI_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/kubelet-gpu-plugin
 
 .PHONY: branch-build
 # test that all commits in $GIT_BRANCH (default=current) build
@@ -144,18 +82,8 @@ branch-build:
 		echo "Building: '$$commit'..."; git checkout $$commit && make build; done; \
 	git checkout $$current
 
-.PHONY: containers-build gpu-container-build gaudi-container-build
+.PHONY: containers-build
 containers-build: gpu-container-build gaudi-container-build
-
-gpu-container-build: vendor
-	@echo "Building GPU resource drivers container..."
-	$(DOCKER) build --pull --platform="linux/$(ARCH)" -t $(GPU_IMAGE_TAG) \
-	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.gpu .
-
-gaudi-container-build: vendor
-	@echo "Building Gaudi resource driver container..."
-	$(DOCKER) build --pull --platform="linux/$(ARCH)" -t $(GAUDI_IMAGE_TAG) \
-	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.gaudi .
 
 .PHONY: container-local
 container-local: container-build
@@ -165,87 +93,26 @@ container-local: container-build
 	sudo ctr -n k8s.io image import /tmp/temp_image.tar
 	rm /tmp/temp_image.tar
 
-.PHONY: containers-push gpu-container-push gaudi-container-push
+.PHONY: containers-push
 containers-push: containers-build gpu-container-push gaudi-container-push
-
-gpu-container-push: gpu-container-build
-	$(DOCKER) push $(GPU_IMAGE_TAG)
-
-gaudi-container-push: gaudi-container-build
-	$(DOCKER) push $(GAUDI_IMAGE_TAG)
 
 .PHONY: clean cleanall
 clean:
-	rm -rf $(GPU_BINARIES) $(GAUDI_BINARIES)
+	rm -rf bin/*
 cleanall: clean
 	rm -rf vendor/* bin/*
 
-.PHONY: rm-clientsets rm-gpu-clientset rm-gaudi-clientset
+.PHONY: rm-clientsets
 rm-clientsets: rm-gpu-clientset rm-gaudi-clientset
 
-rm-gpu-clientset:
-	rm -rf "$(CURDIR)/pkg/intel.com/resource/gpu/clientset/"
-
-rm-gaudi-clientset:
-	rm -rf  "$(CURDIR)/pkg/intel.com/resource/gaudi/clientset/"
-
 .PHONY: generate
-generate: generate-crds
-
-.PHONY: generate-crds
-generate-crds: generate-deepcopy
-	controller-gen \
-		crd:crdVersions=v1 \
-		paths=$(CURDIR)/pkg/intel.com/resource/gpu/v1alpha2/ \
-		output:crd:dir=$(CURDIR)/deployments/gpu/static/crds
-	controller-gen \
-		crd:crdVersions=v1 \
-		paths=$(CURDIR)/pkg/intel.com/resource/gaudi/v1alpha1/ \
-		output:crd:dir=$(CURDIR)/deployments/gaudi/static/crds
+generate: generate-gpu-crd generate-gaudi-crd
 
 .PHONY: generate-deepcopy
-generate-deepcopy: generate-clientsets
-	controller-gen \
-		object:headerFile=$(CURDIR)/hack/boilerplate.go.txt,year=$(shell date +"%Y") \
-		paths=$(CURDIR)/pkg/intel.com/resource/gpu/v1alpha2/ \
-		output:object:dir=$(CURDIR)/pkg/intel.com/resource/gpu/v1alpha2
-	controller-gen \
-		object:headerFile=$(CURDIR)/hack/boilerplate.go.txt,year=$(shell date +"%Y") \
-		paths=$(CURDIR)/pkg/intel.com/resource/gaudi/v1alpha1/ \
-		output:object:dir=$(CURDIR)/pkg/intel.com/resource/gaudi/v1alpha1
+generate-deepcopy: generate-gpu-deepcopy generate-gaudi-deepcopy
 
-.PHONY: generate-clientsets generate-gpu-clientset generate-gaudi-clientset
+.PHONY: generate-clientsets
 generate-clientsets: generate-gpu-clientset generate-gaudi-clientset
-
-generate-gpu-clientset: rm-gpu-clientset
-	client-gen \
-		--go-header-file=$(CURDIR)/hack/boilerplate.go.txt \
-		--clientset-name "versioned" \
-		--build-tag "ignore_autogenerated" \
-		--output-package "$(MODULE)/pkg/intel.com/resource/gpu/clientset" \
-		--input-base "$(MODULE)/pkg/intel.com/resource" \
-		--output-base "$(CURDIR)/pkg/tmp_clientset" \
-		--input "gpu/v1alpha2" \
-		--plural-exceptions "GpuClassParameters:GpuClassParameters,GpuClaimParameters:GpuClaimParameters"
-	mkdir -p $(CURDIR)/pkg/intel.com/resource/
-	mv $(CURDIR)/pkg/tmp_clientset/$(MODULE)/pkg/intel.com/resource/gpu/clientset \
-		$(CURDIR)/pkg/intel.com/resource/gpu/
-	rm -rf $(CURDIR)/pkg/tmp_clientset
-
-generate-gaudi-clientset: rm-gaudi-clientset
-	client-gen \
-		--go-header-file=$(CURDIR)/hack/boilerplate.go.txt \
-		--clientset-name "versioned" \
-		--build-tag "ignore_autogenerated" \
-		--output-package "$(MODULE)/pkg/intel.com/resource/gaudi/clientset" \
-		--input-base "$(MODULE)/pkg/intel.com/resource" \
-		--output-base "$(CURDIR)/pkg/tmp_clientset" \
-		--input "gaudi/v1alpha1" \
-		--plural-exceptions "GaudiClassParameters:GaudiClassParameters,GaudiClaimParameters:GaudiClaimParameters"
-	mkdir -p $(CURDIR)/pkg/intel.com/resource/
-	mv $(CURDIR)/pkg/tmp_clientset/$(MODULE)/pkg/intel.com/resource/gaudi/clientset \
-		$(CURDIR)/pkg/intel.com/resource/gaudi/
-	rm -rf $(CURDIR)/pkg/tmp_clients
 
 .PHONY: vendor
 vendor:
