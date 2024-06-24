@@ -21,12 +21,12 @@ import (
 	"os"
 	"strings"
 
-	cdiapi "github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/cdihelpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
 	"github.com/spf13/cobra"
 	cliflag "k8s.io/component-base/cli/flag"
+	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 )
 
 // Flags holds input parameter flags.
@@ -105,21 +105,15 @@ func getGPUDevice() error {
 		fmt.Println("No supported devices detected")
 	}
 
-	fmt.Println("Getting CDI registry")
-	cdi := cdiapi.GetRegistry(
-		cdiapi.WithSpecDirs(device.CDIRoot),
-	)
-
-	fmt.Println("Got CDI registry, refreshing it")
-	err := cdi.Refresh()
-	if err != nil {
+	fmt.Println("Refreshing CDI registry")
+	if err := cdiapi.Configure(cdiapi.WithSpecDirs(device.CDIRoot)); err != nil {
 		fmt.Printf("unable to refresh the CDI registry: %v", err)
 		return err
 	}
+	cdiCache := cdiapi.GetDefaultCache()
 
 	// syncDetectedDevicesWithCdiRegistry overrides uid in detecteddevices from existing cdi spec
-	err = cdihelpers.SyncDetectedDevicesWithRegistry(cdi, detectedDevices, true)
-	if err != nil {
+	if err := cdihelpers.SyncDetectedDevicesWithRegistry(cdiCache, detectedDevices, true); err != nil {
 		fmt.Printf("unable to sync detected devices to CDI registry: %v", err)
 	}
 

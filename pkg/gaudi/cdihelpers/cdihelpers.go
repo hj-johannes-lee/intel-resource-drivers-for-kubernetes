@@ -22,15 +22,15 @@ import (
 	"strconv"
 	"strings"
 
-	cdiapi "github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
-	specs "github.com/container-orchestrated-devices/container-device-interface/specs-go"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	"k8s.io/klog/v2"
+	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
+	specs "tags.cncf.io/container-device-interface/specs-go"
 )
 
-func getGaudiSpecs(registry cdiapi.Registry) []*cdiapi.Spec {
+func getGaudiSpecs(cdiCache *cdiapi.Cache) []*cdiapi.Spec {
 	gaudiSpecs := []*cdiapi.Spec{}
-	for _, cdiSpec := range registry.SpecDB().GetVendorSpecs(device.CDIVendor) {
+	for _, cdiSpec := range cdiCache.GetVendorSpecs(device.CDIVendor) {
 		if cdiSpec.Kind == device.CDIKind {
 			gaudiSpecs = append(gaudiSpecs, cdiSpec)
 		}
@@ -41,19 +41,19 @@ func getGaudiSpecs(registry cdiapi.Registry) []*cdiapi.Spec {
 // SyncDetectedDevicesWithRegistry adds detected devices into cdi registry if they are not yet there.
 // Update existing registry devices with detected.
 // Remove absent registry devices.
-func SyncDetectedDevicesWithRegistry(registry cdiapi.Registry, detectedDevices device.DevicesInfo, doCleanup bool) error {
-	gaudiSpecs := getGaudiSpecs(registry)
+func SyncDetectedDevicesWithRegistry(cdiCache *cdiapi.Cache, detectedDevices device.DevicesInfo, doCleanup bool) error {
+	gaudiSpecs := getGaudiSpecs(cdiCache)
 	if len(gaudiSpecs) == 0 {
 		klog.V(5).Infof("No existing specs found for vendor %v of kind %v, creating new", device.CDIVendor, device.CDIKind)
 
-		if err := addDevicesToNewSpec(registry, detectedDevices); err != nil {
+		if err := addDevicesToNewSpec(cdiCache, detectedDevices); err != nil {
 			return fmt.Errorf("failed adding devices to new CID spec: %v", err)
 		}
 
 		return nil
 	}
 
-	devicesToAdd, err := updateDevicesInSpecsAndWrite(registry, detectedDevices, gaudiSpecs)
+	devicesToAdd, err := updateDevicesInSpecsAndWrite(cdiCache, detectedDevices, gaudiSpecs)
 	if err != nil {
 		return fmt.Errorf("failed updating CDI specs: %v", err)
 	}
@@ -64,15 +64,15 @@ func SyncDetectedDevicesWithRegistry(registry cdiapi.Registry, detectedDevices d
 
 		klog.V(5).Infof("Adding %d new devices to CDI spec", len(devicesToAdd))
 
-		return addDevicesToSpecAndWrite(registry, devicesToAdd, apispec.Spec, specName)
+		return addDevicesToSpecAndWrite(cdiCache, devicesToAdd, apispec.Spec, specName)
 	}
 
 	return nil
 }
 
-// updateDevicesInCDISpec updates existing devices with potentially new data in devicesToAdd
+// updateDevicesInSpecsAndWrite updates existing devices with potentially new data in devicesToAdd
 // and returns leftover devices that were not found in spec and need plain adding.
-func updateDevicesInSpecsAndWrite(registry cdiapi.Registry, devicesToAdd device.DevicesInfo, vendorSpecs []*cdiapi.Spec) (device.DevicesInfo, error) {
+func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.DevicesInfo, vendorSpecs []*cdiapi.Spec) (device.DevicesInfo, error) {
 	// loop through each Gaudi spec's devices
 	// - remove from spec not detected devices
 	// - update found devices with accel and accel_controlD indexes
@@ -116,7 +116,7 @@ func updateDevicesInSpecsAndWrite(registry cdiapi.Registry, devicesToAdd device.
 			vendorSpec.Spec.Devices = filteredDevices
 			specName := path.Base(vendorSpec.GetPath())
 			klog.V(5).Infof("Updating spec %v", specName)
-			if err := writeSpec(registry, vendorSpec.Spec, specName); err != nil {
+			if err := writeSpec(cdCache, vendorSpec.Spec, specName); err != nil {
 				return nil, fmt.Errorf("failed to save CDI spec %v: %v", specName, err)
 			}
 		}
@@ -126,7 +126,7 @@ func updateDevicesInSpecsAndWrite(registry cdiapi.Registry, devicesToAdd device.
 }
 
 // writeSpec sets latest cdiVersion for spec and writes it.
-func writeSpec(registry cdiapi.Registry, spec *specs.Spec, specName string) error {
+func writeSpec(cdiCache *cdiapi.Cache, spec *specs.Spec, specName string) error {
 	cdiVersion, err := cdiapi.MinimumRequiredVersion(spec)
 	if err != nil {
 		return fmt.Errorf("failed to get minimum required CDI spec version: %v", err)
@@ -134,7 +134,7 @@ func writeSpec(registry cdiapi.Registry, spec *specs.Spec, specName string) erro
 	spec.Version = cdiVersion
 
 	klog.V(5).Infof("Writing spec %v", specName)
-	err = registry.SpecDB().WriteSpec(spec, specName)
+	err = cdiCache.WriteSpec(spec, specName)
 	if err != nil {
 		return fmt.Errorf("failed to write CDI spec %v: %v", specName, err)
 	}
@@ -142,7 +142,7 @@ func writeSpec(registry cdiapi.Registry, spec *specs.Spec, specName string) erro
 	return nil
 }
 
-func addDevicesToSpecAndWrite(registry cdiapi.Registry, devices device.DevicesInfo, spec *specs.Spec, specName string) error {
+func addDevicesToSpecAndWrite(cdiCache *cdiapi.Cache, devices device.DevicesInfo, spec *specs.Spec, specName string) error {
 	for _, device := range devices {
 		// primary / control node (for modesetting)
 		newDevice := specs.Device{
@@ -155,7 +155,7 @@ func addDevicesToSpecAndWrite(registry cdiapi.Registry, devices device.DevicesIn
 		spec.Devices = append(spec.Devices, newDevice)
 	}
 
-	if err := writeSpec(registry, spec, specName); err != nil {
+	if err := writeSpec(cdiCache, spec, specName); err != nil {
 		return fmt.Errorf("failed to save new CDI spec %v: %v", specName, err)
 	}
 
@@ -203,7 +203,7 @@ func updateDeviceNodes(specDevice specs.Device, detectedDevice *device.DeviceInf
 
 // addDevicesToNewSpec creates new CDI spec, adds devices to it and calls writeSpec.
 // Should only be called if no vendor spec not exists.
-func addDevicesToNewSpec(registry cdiapi.Registry, devices device.DevicesInfo) error {
+func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) error {
 	klog.V(5).Infof("Adding %v devices to new spec", len(devices))
 
 	spec := &specs.Spec{
@@ -216,7 +216,7 @@ func addDevicesToNewSpec(registry cdiapi.Registry, devices device.DevicesInfo) e
 	}
 	klog.V(5).Infof("New name for new CDI spec: %v", specName)
 
-	return addDevicesToSpecAndWrite(registry, devices, spec, specName)
+	return addDevicesToSpecAndWrite(cdiCache, devices, spec, specName)
 }
 
 func newContainerEditsDeviceNodes(deviceIdx uint64) []*specs.DeviceNode {

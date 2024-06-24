@@ -74,7 +74,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 		}
 
 		klog.V(3).Info("Creating new NodeState")
-		state, err = newNodeState(gas, detectedDevices, config.cdiRoot, preparedClaimFilePath)
+		state, err = newNodeState(detectedDevices, config.cdiRoot, preparedClaimFilePath)
 		if err != nil {
 			return fmt.Errorf("failed to create new NodeState: %v", err)
 		}

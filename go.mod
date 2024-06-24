@@ -5,7 +5,6 @@ go 1.22.0
 toolchain go1.22.4
 
 require (
-	github.com/container-orchestrated-devices/container-device-interface v0.5.4
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/spf13/cobra v1.7.0
@@ -19,6 +18,8 @@ require (
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/kubelet v0.30.1
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
+	tags.cncf.io/container-device-interface v0.7.2
+	tags.cncf.io/container-device-interface/specs-go v0.7.0
 )
 
 require (
@@ -51,9 +52,9 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/opencontainers/runc v1.1.12 // indirect
-	github.com/opencontainers/runtime-spec v1.0.3-0.20220825212826-86290f6a00fb // indirect
+	github.com/opencontainers/runtime-spec v1.1.0 // indirect
 	github.com/opencontainers/runtime-tools v0.9.1-0.20221107153022-2802ff9ff545 // indirect
+	github.com/opencontainers/selinux v1.10.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
