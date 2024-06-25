@@ -132,7 +132,6 @@ licenses: clean-licenses
 	GO111MODULE=on go run github.com/google/go-licenses@$(GOLICENSES_VERSION) \
 	save \
 	"./cmd/alert-webhook" \
-	"./cmd/gas-status-updater" \
 	"./cmd/gaudi-controller" \
 	"./cmd/cdi-spec-generator" \
 	"./cmd/gpu-controller" \
