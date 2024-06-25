@@ -66,12 +66,12 @@ include $(CURDIR)/gaudi.mk
 
 
 .PHONY: build
-build: gpu gaudi
+build: gpu gaudi bin/intel-cdi-specs-generator
 
 
-bin/intel-cdi-spec-generator: cmd/cdi-spec-generator/*.go $(GPU_COMMON_SRC)
+bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/cdi-spec-generator
+	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/cdi-specs-generator
 
 
 .PHONY: branch-build
@@ -133,7 +133,7 @@ licenses: clean-licenses
 	save \
 	"./cmd/alert-webhook" \
 	"./cmd/gaudi-controller" \
-	"./cmd/cdi-spec-generator" \
+	"./cmd/cdi-specs-generator" \
 	"./cmd/gpu-controller" \
 	"./cmd/kubelet-gaudi-plugin" \
 	"./cmd/kubelet-gpu-plugin" \

@@ -21,8 +21,7 @@ GPU_IMAGE_TAG ?= $(REGISTRY)/$(GPU_IMAGE_NAME):$(GPU_IMAGE_VERSION)
 GPU_BINARIES = \
 bin/gpu-controller \
 bin/kubelet-gpu-plugin \
-bin/alert-webhook \
-bin/intel-cdi-spec-generator
+bin/alert-webhook
 
 GPU_COMMON_SRC = \
 $(COMMON_SRC) \

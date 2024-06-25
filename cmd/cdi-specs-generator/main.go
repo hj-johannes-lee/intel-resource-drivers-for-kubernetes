@@ -25,14 +25,15 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
 	"github.com/spf13/cobra"
-	cliflag "k8s.io/component-base/cli/flag"
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 )
 
-// Flags holds input parameter flags.
-type flagsType struct {
-	deviceType *string
-}
+var (
+	supportedDevices = map[string]bool{
+		"gpu":   true,
+		"gaudi": true,
+	}
+)
 
 func main() {
 	command := newCommand()
@@ -45,59 +46,44 @@ func main() {
 
 func newCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "CDI Spec Generator",
+		Use:   "intel-cdi-specs-generator <gpu | gaudi>",
 		Short: "Intel CDI Spec Generator",
-	}
+		Long:  "Intel CDI Specs Generator detects supported accelerators and creates CDI specs for them.",
+		Args: func(cmd *cobra.Command, args []string) error {
+			// arguments validation
+			if err := cobra.MinimumNArgs(1)(cmd, args); err != nil {
+				return err
+			}
 
-	flags := addFlags(cmd)
+			for _, argx := range args {
+				if _, found := supportedDevices[strings.ToLower(argx)]; !found {
+					return fmt.Errorf("invalid device type specified: %s", argx)
+				}
+			}
 
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		err := validateFlags(flags)
-		if err != nil {
-			return fmt.Errorf("failed parsing parameters: %v", err)
-		}
-
-		switch strings.ToLower(*flags.deviceType) {
-		case "gpu":
-			return getGPUDevice()
-		case "gaudi":
-			return getGaudiDevice()
-		default:
-			return fmt.Errorf("invalid device type specified: %s", *flags.deviceType)
-		}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			for _, argx := range args {
+				switch strings.ToLower(argx) {
+				case "gpu":
+					if err := handleGPUDevices(); err != nil {
+						return err
+					}
+				case "gaudi":
+					if err := handleGaudiDevices(); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		},
 	}
 
 	return cmd
 }
 
-func addFlags(cmd *cobra.Command) *flagsType {
-	flags := &flagsType{}
-	sharedFlagSets := cliflag.NamedFlagSets{}
-
-	fs := sharedFlagSets.FlagSet("CDI spec generator devices")
-	flags.deviceType = fs.String("device type", "", "specify the type of device (e.g., 'gpu', 'gaudi')")
-
-	fs = cmd.PersistentFlags()
-	for _, f := range sharedFlagSets.FlagSets {
-		fs.AddFlagSet(f)
-	}
-	return flags
-}
-
-func validateFlags(f *flagsType) error {
-	if *f.deviceType == "" {
-		return fmt.Errorf("device type must be specified")
-	}
-
-	switch strings.ToLower(*f.deviceType) {
-	case "gpu", "gaudi":
-		return nil
-	default:
-		return fmt.Errorf("unknown device type: %v", *f.deviceType)
-	}
-}
-
-func getGPUDevice() error {
+func handleGPUDevices() error {
 	sysfsDir := device.GetSysfsDir()
 
 	detectedDevices := discovery.DiscoverDevices(sysfsDir)
@@ -120,6 +106,6 @@ func getGPUDevice() error {
 	return nil
 }
 
-func getGaudiDevice() error {
+func handleGaudiDevices() error {
 	return fmt.Errorf("not implemented")
 }
