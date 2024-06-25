@@ -31,16 +31,18 @@ pkg/gaudi/cdihelpers/*.go \
 pkg/gaudi/device/*.go \
 pkg/gaudi/discovery/*.go
 
+GAUDI_LDFLAGS = ${LDFLAGS} -X ${PKG}/pkg/version.driverVersion=${GPU_VERSION}
+
 .PHONY: gaudi
 gaudi: $(GAUDI_BINARIES)
 
 bin/gaudi-controller: cmd/gaudi-controller/*.go $(GAUDI_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/gaudi-controller
+	  go build -a -ldflags "${GAUDI_LDFLAGS}" -mod vendor -o $@ ./cmd/gaudi-controller
 
 bin/kubelet-gaudi-plugin: cmd/kubelet-gaudi-plugin/*.go $(GAUDI_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/kubelet-gpu-plugin
+	  go build -a -ldflags "${GAUDI_LDFLAGS}" -mod vendor -o $@ ./cmd/kubelet-gpu-plugin
 
 .PHONY: gaudi-container-build
 gaudi-container-build: cleanall vendor
