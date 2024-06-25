@@ -8,15 +8,6 @@ on:
 permissions:
   contents: read
 
-secrets:
-  values:
-  - name: REGISTRY_USER
-    vault-name: k8s-resource-drivers
-    vault-secret-name: registry-user
-  - name: REGISTRY_PASSWORD
-    vault-name: k8s-resource-drivers
-    vault-secret-name: registry-password
-
 jobs:
   build-container:
     runs-on: "self-hosted"
