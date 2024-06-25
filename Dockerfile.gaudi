@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG GOLANG_VERSION=1.22
-
-FROM golang:${GOLANG_VERSION} as build
+FROM golang:1.22@sha256:a66eda637829ce891e9cf61ff1ee0edf544e1f6c5b0e666c7310dce231a66f28 as build
 ARG LOCAL_LICENSES
 WORKDIR /build
 COPY . .
