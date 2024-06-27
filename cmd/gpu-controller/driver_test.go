@@ -41,6 +41,8 @@ import (
 const (
 	testNameSpace = "nsname"
 	fakeNodeName  = "fakeNode"
+	fakeNodeName2 = "fakeNode2"
+	fakeNodeName3 = "fakeNode3"
 )
 
 type keyValue struct {
