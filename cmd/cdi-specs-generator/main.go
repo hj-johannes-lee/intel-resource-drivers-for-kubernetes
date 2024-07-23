@@ -21,11 +21,15 @@ import (
 	"os"
 	"strings"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/cdihelpers"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
+	gpuCdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/cdihelpers"
+	gpuDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
+	gpuDiscovery "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
 	"github.com/spf13/cobra"
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
+
+	gaudiCdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/cdihelpers"
+	gaudiDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
+	gaudiDiscovery "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/discovery"
 )
 
 var (
@@ -84,28 +88,49 @@ func newCommand() *cobra.Command {
 }
 
 func handleGPUDevices() error {
-	sysfsDir := device.GetSysfsDir()
+	sysfsDir := gpuDevice.GetSysfsDir()
 
-	detectedDevices := discovery.DiscoverDevices(sysfsDir)
+	detectedDevices := gpuDiscovery.DiscoverDevices(sysfsDir)
 	if len(detectedDevices) == 0 {
 		fmt.Println("No supported devices detected")
 	}
 
 	fmt.Println("Refreshing CDI registry")
-	if err := cdiapi.Configure(cdiapi.WithSpecDirs(device.CDIRoot)); err != nil {
+	if err := cdiapi.Configure(cdiapi.WithSpecDirs(gpuDevice.CDIRoot)); err != nil {
 		fmt.Printf("unable to refresh the CDI registry: %v", err)
 		return err
 	}
 	cdiCache := cdiapi.GetDefaultCache()
 
 	// syncDetectedDevicesWithCdiRegistry overrides uid in detecteddevices from existing cdi spec
-	if err := cdihelpers.SyncDetectedDevicesWithRegistry(cdiCache, detectedDevices, true); err != nil {
+	if err := gpuCdihelpers.SyncDetectedDevicesWithRegistry(cdiCache, detectedDevices, true); err != nil {
 		fmt.Printf("unable to sync detected devices to CDI registry: %v", err)
+		return err
 	}
 
 	return nil
 }
 
 func handleGaudiDevices() error {
-	return fmt.Errorf("not implemented")
+	sysfsDir := gaudiDevice.GetSysfsRoot()
+
+	detectedDevices := gaudiDiscovery.DiscoverDevices(sysfsDir)
+	if len(detectedDevices) == 0 {
+		fmt.Println("No supported devices detected")
+	}
+
+	fmt.Println("Refreshing CDI registry")
+	if err := cdiapi.Configure(cdiapi.WithSpecDirs(gaudiDevice.CDIRoot)); err != nil {
+		fmt.Printf("unable to refresh the CDI registry: %v", err)
+		return err
+	}
+	cdiCache := cdiapi.GetDefaultCache()
+
+	// syncDetectedDevicesWithCdiRegistry overrides uid in detecteddevices from existing cdi spec
+	if err := gaudiCdihelpers.SyncDetectedDevicesWithRegistry(cdiCache, detectedDevices, true); err != nil {
+		fmt.Printf("unable to sync detected devices to CDI registry: %v", err)
+		return err
+	}
+
+	return nil
 }
