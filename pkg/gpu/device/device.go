@@ -37,6 +37,7 @@ const (
 	// respectively prefixed with $SYSFS_ROOT.
 	SysfsI915path          = "bus/pci/drivers/i915"
 	SysfsDRMpath           = "class/drm/"
+	sysfsDefaultRoot       = "/sys"
 	CDIRoot                = "/etc/cdi"
 	CDIVendor              = "intel.com"
 	CDIKind                = CDIVendor + "/gpu"
@@ -147,7 +148,7 @@ func GetDevfsDriDir() string {
 
 // GetSysfsDir tries to get path where sysfs is mounted from
 // env var, or fallback to hardcoded path.
-func GetSysfsDir() string {
+func GetSysfsRoot() string {
 	sysfsPath, found := os.LookupEnv(SysfsEnvVarName)
 
 	if found {
@@ -157,7 +158,7 @@ func GetSysfsDir() string {
 		}
 	}
 
-	fmt.Println("using default sysfs location: /sys")
+	fmt.Printf("using default sysfs location: %v\n", sysfsDefaultRoot)
 	// If /sys is not available, devices discovery will fail gracefully.
-	return "/sys"
+	return sysfsDefaultRoot
 }

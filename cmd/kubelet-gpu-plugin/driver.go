@@ -50,7 +50,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 
 	driverVersion.PrintDriverVersion(intelcrd.APIGroupName, intelcrd.APIVersion)
 
-	sysfsDir := device.GetSysfsDir()
+	sysfsDir := device.GetSysfsRoot()
 	gas := intelcrd.NewGpuAllocationState(config.crdconfig, config.clientset.intel)
 
 	preparedClaimFilePath := path.Join(config.driverPluginPath, device.PreparedClaimsFileName)

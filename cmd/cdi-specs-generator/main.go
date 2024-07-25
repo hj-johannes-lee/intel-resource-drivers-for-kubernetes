@@ -88,7 +88,7 @@ func newCommand() *cobra.Command {
 }
 
 func handleGPUDevices() error {
-	sysfsDir := gpuDevice.GetSysfsDir()
+	sysfsDir := gpuDevice.GetSysfsRoot()
 
 	detectedDevices := gpuDiscovery.DiscoverDevices(sysfsDir)
 	if len(detectedDevices) == 0 {
