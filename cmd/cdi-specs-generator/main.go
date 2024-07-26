@@ -37,6 +37,7 @@ var (
 		"gpu":   true,
 		"gaudi": true,
 	}
+	version = "v0.1.0"
 )
 
 func main() {
@@ -83,6 +84,10 @@ func newCommand() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Version = version
+	cmd.Flags().BoolP("version", "v", false, "Show the version of the binary")
+	cmd.SetVersionTemplate("Intel CDI Specs Generator Version: {{.Version}}\n")
 
 	return cmd
 }
