@@ -68,7 +68,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 			return fmt.Errorf("failed to set GpuAllocationState as NotReady: %v", err)
 		}
 
-		detectedDevices := discovery.DiscoverDevices(sysfsDir)
+		detectedDevices := discovery.DiscoverDevices(sysfsDir, device.DefaultNamingStyle)
 		if len(detectedDevices) == 0 {
 			klog.Info("No supported devices detected")
 		}

@@ -199,10 +199,10 @@ func addNewDevicesToNewRegistry(cdiCache *cdiapi.Cache, devices device.DevicesIn
 func AddDevicesToSpec(devices device.DevicesInfo, spec *specs.Spec) {
 	dridevpath := device.GetDevfsDriDir()
 
-	for _, device := range devices {
+	for name, device := range devices {
 		// primary / control node (for modesetting)
 		newDevice := specs.Device{
-			Name: device.UID,
+			Name: name,
 			ContainerEdits: specs.ContainerEdits{
 				DeviceNodes: []*specs.DeviceNode{
 					{Path: path.Join(dridevpath, fmt.Sprintf("card%d", device.CardIdx)), Type: "c"},

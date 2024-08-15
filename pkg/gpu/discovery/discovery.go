@@ -36,7 +36,7 @@ const (
 )
 
 // Detect devices from sysfs. Only i915 KMD is supported at the moment.
-func DiscoverDevices(sysfsDir string) map[string]*device.DeviceInfo {
+func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo {
 
 	sysfsI915Dir := path.Join(sysfsDir, device.SysfsI915path)
 	sysfsDRMDir := path.Join(sysfsDir, device.SysfsDRMpath)
@@ -99,10 +99,19 @@ func DiscoverDevices(sysfsDir string) map[string]*device.DeviceInfo {
 		if newDeviceInfo.DeviceType == intelcrd.GpuDeviceType {
 			newDeviceInfo.EccOn = detectEcc(deviceId, newDeviceInfo.MemoryMiB)
 		}
-		devices[newDeviceInfo.UID] = newDeviceInfo
 
+		devices[determineDeviceName(newDeviceInfo, namingStyle)] = newDeviceInfo
 	}
+
 	return devices
+}
+
+func determineDeviceName(info *device.DeviceInfo, namingStyle string) string {
+	if namingStyle == "classic" {
+		return "card" + strconv.FormatUint(info.CardIdx, 10)
+	}
+
+	return info.UID
 }
 
 func detectEcc(deviceId string, detectedMemoryInMiB uint64) bool {
