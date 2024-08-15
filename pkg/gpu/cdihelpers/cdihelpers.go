@@ -18,7 +18,9 @@ package cdihelpers
 
 import (
 	"fmt"
+	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -219,7 +221,29 @@ func AddDevicesToSpec(devices device.DevicesInfo, spec *specs.Spec) {
 				},
 			)
 		}
-		// TODO: add /dev/dri/by-path entries
+
+		addBypathMounts(device, &newDevice, dridevpath)
+
 		spec.Devices = append(spec.Devices, newDevice)
+	}
+}
+
+// Add GPU specific by-path mounts to the spec.
+func addBypathMounts(info *device.DeviceInfo, spec *specs.Device, dridevPath string) {
+	bypathPath := filepath.Join(dridevPath, "by-path")
+
+	basename := filepath.Join(bypathPath, fmt.Sprintf("pci-%s-", info.PCIAddress))
+
+	gpuFiles := []string{basename + "card", basename + "render"}
+
+	for _, gpuFile := range gpuFiles {
+		if _, err := os.Stat(gpuFile); err == nil {
+			spec.ContainerEdits.Mounts = append(spec.ContainerEdits.Mounts, &specs.Mount{
+				HostPath:      gpuFile,
+				ContainerPath: gpuFile,
+				Type:          "none",
+				Options:       []string{"bind", "rw"},
+			})
+		}
 	}
 }
