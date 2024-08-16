@@ -61,6 +61,10 @@ func fakeSysFsGaudiDevices(sysfsRoot string, gaudis device.DevicesInfo) error {
 			return fmt.Errorf("creating fake sysfs dir, err: %v", writeErr)
 		}
 
+		if writeErr := testhelpers.WriteFile(path.Join(dirPath, "module_id"), fmt.Sprintf("%v", gaudi.DeviceIdx)); writeErr != nil {
+			return fmt.Errorf("creating fake sysfs dir, err: %v", writeErr)
+		}
+
 		dirPath = path.Join(sysfsRoot, "devices/virtual/accel", controlDeviceDirName)
 		if err := os.MkdirAll(dirPath, 0755); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
