@@ -31,8 +31,13 @@ var (
 	ModelNames         = map[string]string{
 		"0x1000": "Gaudi",
 		"0x1010": "Gaudi",
+		"0x1001": "Gaudi",
+		"0x1011": "Gaudi",
 		"0x1020": "Gaudi2",
 		"0x1030": "Gaudi3",
+		"0x1060": "Gaudi3",
+		"0x1061": "Gaudi3",
+		"0x1062": "Gaudi3",
 	}
 )
 
