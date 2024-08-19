@@ -42,10 +42,13 @@ var (
 )
 
 const (
-	DevAccelEnvVarName   = "DEV_ACCEL_PATH"
-	devfsDefaultAccelDir = "/dev/accel"
-	SysfsEnvVarName      = "SYSFS_ROOT"
-	sysfsDefaultRoot     = "/sys"
+	DevfsEnvVarName  = "DEVFS_ROOT"
+	devfsDefaultRoot = "/dev"
+	DevfsAccelPath   = "accel"
+
+	SysfsEnvVarName  = "SYSFS_ROOT"
+	sysfsDefaultRoot = "/sys"
+
 	// driver.sysfsDriverDir and driver.sysfsAccelDir are sysfsDriverPath and sysfsAccelPath
 	// respectively prefixed with $SYSFS_ROOT.
 	SysfsDriverPath          = "bus/pci/drivers/habanalabs"
@@ -115,16 +118,20 @@ func (g *DevicesInfo) DeepCopy() DevicesInfo {
 	return devicesInfoCopy
 }
 
-func GetDevfsAccelDir() string {
-	devfsAccelDir, found := os.LookupEnv(DevAccelEnvVarName)
+func GetDevfsRoot() string {
+	devfsRoot, found := os.LookupEnv(DevfsEnvVarName)
 
 	if found {
-		fmt.Printf("using custom devfs accel location: %v\n", devfsAccelDir)
-		return devfsAccelDir
+		if _, err := os.Stat(path.Join(devfsRoot, DevfsAccelPath)); err == nil {
+			fmt.Printf("using custom devfs location: %v\n", devfsRoot)
+			return devfsRoot
+		} else {
+			fmt.Printf("could not find devfs at '%v' from %v env var: %v\n", devfsRoot, DevfsEnvVarName, err)
+		}
 	}
 
-	fmt.Printf("using default devfs accel location: %v\n", devfsDefaultAccelDir)
-	return devfsDefaultAccelDir
+	fmt.Printf("using default devfs accel location: %v\n", devfsDefaultRoot)
+	return devfsDefaultRoot
 }
 
 // GetSysfsRoot tries to get path where sysfs is mounted from
@@ -136,6 +143,8 @@ func GetSysfsRoot() string {
 		if _, err := os.Stat(path.Join(sysfsPath, SysfsAccelPath)); err == nil {
 			fmt.Printf("using custom sysfs location: %v\n", sysfsPath)
 			return sysfsPath
+		} else {
+			fmt.Printf("could not find sysfs at '%v' from %v env var: %v\n", sysfsPath, SysfsEnvVarName, err)
 		}
 	}
 
