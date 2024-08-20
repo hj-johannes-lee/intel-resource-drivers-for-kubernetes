@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,8 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gaudi/v1alpha1/api"
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
+	cdiparser "tags.cncf.io/container-device-interface/pkg/parser"
+	cdiSpecs "tags.cncf.io/container-device-interface/specs-go"
 )
 
 type ClaimPreparations map[string][]*device.DeviceInfo
@@ -113,7 +116,7 @@ func (s *nodeState) FreeClaimDevices(claimUID string) error {
 		return fmt.Errorf("failed to write prepared claims to file: %v", err)
 	}
 
-	return nil
+	return cdihelpers.DeleteDeviceAndWrite(s.cdiCache, claimUID)
 }
 
 func (s *nodeState) GetUpdatedSpec(inspec *intelcrd.GaudiAllocationStateSpec) *intelcrd.GaudiAllocationStateSpec {
@@ -129,6 +132,10 @@ func (s *nodeState) GetAllocatedCDINames(claimUID string) []string {
 	devs := []string{}
 	klog.V(5).Info("getAllocatedCDINames is called")
 
+	visibleDevices := device.VisibleDevicesEnvVarName + "="
+
+	var cdiSpec *cdiapi.Spec
+
 	for _, device := range s.prepared[claimUID] {
 		cdidev := s.cdiCache.GetDevice(device.CDIName())
 		if cdidev == nil {
@@ -137,8 +144,65 @@ func (s *nodeState) GetAllocatedCDINames(claimUID string) []string {
 		}
 		klog.V(5).Infof("Found CDI device %v", cdidev.GetQualifiedName())
 		devs = append(devs, cdidev.GetQualifiedName())
+
+		if cdiSpec == nil {
+			cdiSpec = cdidev.GetSpec()
+		}
+
+		if len(devs) > 1 {
+			visibleDevices += ","
+		}
+		visibleDevices += fmt.Sprintf("%v", device.DeviceIdx)
 	}
+
+	// Add Habana Runtime specific device that only has env vars.
+	if len(devs) != 0 {
+		err := s.cdiHabanaEnvVar(claimUID, visibleDevices, cdiSpec)
+		if err != nil {
+			klog.Errorf("failed ensuring Habana Runtime specific CDI device: %v", err)
+			return []string{}
+		}
+
+		devs = append(devs, cdiparser.QualifiedName(device.CDIVendor, device.CDIClass, claimUID))
+	}
+
 	return devs
+}
+
+// cdiHabanaEnvVar ensures there is a CDI device with name == claimUID, that has
+// only env vars for Habana Runtime, without device nodes.
+func (s *nodeState) cdiHabanaEnvVar(claimUID string, visibleDevices string, cdiSpec *cdiapi.Spec) error {
+	cdidev := s.cdiCache.GetDevice(claimUID)
+	if cdidev != nil {
+		cdidev.Device.ContainerEdits = cdiSpecs.ContainerEdits{
+			Env: []string{visibleDevices},
+		}
+
+		// Save into the same spec where the device was found.
+		deviceSpec := cdidev.GetSpec()
+		specName := path.Base(deviceSpec.GetPath())
+		if err := s.cdiCache.WriteSpec(cdiSpec.Spec, specName); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	// Create new CDI device and save into requested cdiSpec.
+	newDevice := cdiSpecs.Device{
+		Name: claimUID,
+		ContainerEdits: cdiSpecs.ContainerEdits{
+			Env: []string{visibleDevices},
+		},
+	}
+
+	cdiSpec.Devices = append(cdiSpec.Devices, newDevice)
+	specName := path.Base(cdiSpec.GetPath())
+	if err := s.cdiCache.WriteSpec(cdiSpec.Spec, specName); err != nil {
+		return fmt.Errorf("failed to updateCDI spec %v: %v", specName, err)
+	}
+
+	return nil
 }
 
 func (s *nodeState) getMonitorCDINames(claimUID string) []string {

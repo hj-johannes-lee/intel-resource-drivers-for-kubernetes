@@ -79,7 +79,7 @@ func TestNodePrepareStructuredResources(t *testing.T) {
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"cuid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020"}},
+					"cuid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=cuid1"}},
 				},
 			},
 			preparedClaims: nil,
@@ -119,7 +119,7 @@ func TestNodePrepareStructuredResources(t *testing.T) {
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"cuid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020"}},
+					"cuid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=cuid1"}},
 				},
 			},
 			preparedClaims: ClaimPreparations{

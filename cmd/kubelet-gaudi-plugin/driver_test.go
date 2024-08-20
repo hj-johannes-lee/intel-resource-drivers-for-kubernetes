@@ -111,7 +111,7 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020"}},
+					"uid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid1"}},
 				},
 			},
 			gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
@@ -148,7 +148,7 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
 				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
-					"uid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020"}},
+					"uid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid1"}},
 				},
 			},
 			gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
@@ -297,7 +297,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 				"cuid2": {{UID: "0000-b3-00-0-0x1020"}},
 			},
 			expectedPreparedClaims: ClaimPreparations{
-				"cuid1": {{UID: "0000-af-00-0-0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, Model: "0x1020"}},
+				"cuid1": {{UID: "0000-af-00-0-0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, ModuleIdx: 1, Model: "0x1020"}},
 			},
 		},
 		{

@@ -25,7 +25,8 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	"k8s.io/klog/v2"
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
-	specs "tags.cncf.io/container-device-interface/specs-go"
+	cdiparser "tags.cncf.io/container-device-interface/pkg/parser"
+	cdiSpecs "tags.cncf.io/container-device-interface/specs-go"
 )
 
 func getGaudiSpecs(cdiCache *cdiapi.Cache) []*cdiapi.Spec {
@@ -88,7 +89,7 @@ func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.Dev
 		klog.V(5).Infof("checking vendorspec %v", specIdx)
 
 		specChanged := false // if devices were updated or deleted
-		filteredDevices := []specs.Device{}
+		filteredDevices := []cdiSpecs.Device{}
 
 		for specDeviceIdx, specDevice := range vendorSpec.Devices {
 			klog.V(5).Infof("checking device %v: %v", specDeviceIdx, specDevice)
@@ -126,7 +127,7 @@ func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.Dev
 }
 
 // writeSpec sets latest cdiVersion for spec and writes it.
-func writeSpec(cdiCache *cdiapi.Cache, spec *specs.Spec, specName string) error {
+func writeSpec(cdiCache *cdiapi.Cache, spec *cdiSpecs.Spec, specName string) error {
 	cdiVersion, err := cdiapi.MinimumRequiredVersion(spec)
 	if err != nil {
 		return fmt.Errorf("failed to get minimum required CDI spec version: %v", err)
@@ -142,12 +143,12 @@ func writeSpec(cdiCache *cdiapi.Cache, spec *specs.Spec, specName string) error 
 	return nil
 }
 
-func addDevicesToSpecAndWrite(cdiCache *cdiapi.Cache, devices device.DevicesInfo, spec *specs.Spec, specName string) error {
+func addDevicesToSpecAndWrite(cdiCache *cdiapi.Cache, devices device.DevicesInfo, spec *cdiSpecs.Spec, specName string) error {
 	for name, device := range devices {
 		// primary / control node (for modesetting)
-		newDevice := specs.Device{
+		newDevice := cdiSpecs.Device{
 			Name: name,
-			ContainerEdits: specs.ContainerEdits{
+			ContainerEdits: cdiSpecs.ContainerEdits{
 				DeviceNodes: newContainerEditsDeviceNodes(device.DeviceIdx),
 			},
 		}
@@ -162,7 +163,30 @@ func addDevicesToSpecAndWrite(cdiCache *cdiapi.Cache, devices device.DevicesInfo
 	return nil
 }
 
-func updateDeviceNodes(specDevice specs.Device, detectedDevice *device.DeviceInfo) bool {
+func DeleteDeviceAndWrite(cdiCache *cdiapi.Cache, claimUID string) error {
+	qualifiedName := cdiparser.QualifiedName(device.CDIVendor, device.CDIClass, claimUID)
+	cdidev := cdiCache.GetDevice(qualifiedName)
+	if cdidev == nil {
+		return nil
+	}
+
+	filteredDevices := make([]cdiSpecs.Device, len(cdidev.GetSpec().Devices)-1)
+	filterIdx := 0
+	cdiSpec := cdidev.GetSpec()
+
+	for _, device := range cdiSpec.Devices {
+		if device.Name != claimUID {
+			filteredDevices[filterIdx] = device
+			filterIdx++
+		}
+	}
+	cdiSpec.Devices = filteredDevices
+	specName := path.Base(cdiSpec.GetPath())
+
+	return writeSpec(cdiCache, cdiSpec.Spec, specName)
+}
+
+func updateDeviceNodes(specDevice cdiSpecs.Device, detectedDevice *device.DeviceInfo) bool {
 	replaceDeviceNodes := false
 
 	for deviceNodeIdx, deviceNode := range specDevice.ContainerEdits.DeviceNodes {
@@ -206,7 +230,7 @@ func updateDeviceNodes(specDevice specs.Device, detectedDevice *device.DeviceInf
 func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) error {
 	klog.V(5).Infof("Adding %v devices to new spec", len(devices))
 
-	spec := &specs.Spec{
+	spec := &cdiSpecs.Spec{
 		Kind: device.CDIKind,
 	}
 
@@ -219,9 +243,9 @@ func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) err
 	return addDevicesToSpecAndWrite(cdiCache, devices, spec, specName)
 }
 
-func newContainerEditsDeviceNodes(deviceIdx uint64) []*specs.DeviceNode {
+func newContainerEditsDeviceNodes(deviceIdx uint64) []*cdiSpecs.DeviceNode {
 	accelDevPath := device.GetDevfsAccelDir()
-	return []*specs.DeviceNode{
+	return []*cdiSpecs.DeviceNode{
 		{Path: path.Join(accelDevPath, fmt.Sprintf("accel%d", deviceIdx)), Type: "c"},
 		{Path: path.Join(accelDevPath, fmt.Sprintf("accel_controlD%d", deviceIdx)), Type: "c"},
 	}

@@ -48,13 +48,15 @@ const (
 	sysfsDefaultRoot     = "/sys"
 	// driver.sysfsDriverDir and driver.sysfsAccelDir are sysfsDriverPath and sysfsAccelPath
 	// respectively prefixed with $SYSFS_ROOT.
-	SysfsDriverPath        = "bus/pci/drivers/habanalabs"
-	SysfsAccelPath         = "devices/virtual/accel/"
-	CDIVendor              = "intel.com"
-	CDIKind                = CDIVendor + "/gaudi"
-	PCIAddressLength       = len("0000:00:00.0")
-	PreparedClaimsFileName = "preparedClaims.json"
-	DefaultNamingStyle     = "machine"
+	SysfsDriverPath          = "bus/pci/drivers/habanalabs"
+	SysfsAccelPath           = "devices/virtual/accel/"
+	CDIVendor                = "intel.com"
+	CDIClass                 = "gaudi"
+	CDIKind                  = CDIVendor + "/" + CDIClass
+	PCIAddressLength         = len("0000:00:00.0")
+	PreparedClaimsFileName   = "preparedClaims.json"
+	DefaultNamingStyle       = "machine"
+	VisibleDevicesEnvVarName = "HABANA_VISIBLE_DEVICES"
 )
 
 // DeviceInfo is an internal structure type to store info about discovered device.
@@ -65,6 +67,7 @@ type DeviceInfo struct {
 	PCIAddress string `json:"pciaddress"` // PCI address in Linux DBDF notation for use with sysfs, e.g. 0000:00:00.0
 	Model      string `json:"model"`      // PCI device ID
 	DeviceIdx  uint64 `json:"deviceidx"`  // accel device number (e.g. 0 for /dev/accel/accel0)
+	ModuleIdx  uint64 `json:"moduleidx"`  // OAM slot number, needed for Habana Runtime to set networking
 }
 
 func (g DeviceInfo) CDIName() string {
