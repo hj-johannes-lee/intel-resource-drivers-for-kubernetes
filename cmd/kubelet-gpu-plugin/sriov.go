@@ -305,7 +305,7 @@ func (d *driver) provisionVFs(toProvision map[string][]*device.DeviceInfo) (devi
 	}
 
 	// If no errors - discover all new VFs.
-	allDevices := discovery.DiscoverDevices(d.sysfsDir)
+	allDevices := discovery.DiscoverDevices(d.sysfsDir, device.DefaultNamingStyle)
 
 	// Amount of provisioned VFs on device might be more than requested, announce all VFs, not only
 	// requested.

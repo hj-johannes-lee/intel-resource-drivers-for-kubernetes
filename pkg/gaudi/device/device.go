@@ -50,11 +50,11 @@ const (
 	// respectively prefixed with $SYSFS_ROOT.
 	SysfsDriverPath        = "bus/pci/drivers/habanalabs"
 	SysfsAccelPath         = "devices/virtual/accel/"
-	CDIRoot                = "/etc/cdi"
 	CDIVendor              = "intel.com"
 	CDIKind                = CDIVendor + "/gaudi"
 	PCIAddressLength       = len("0000:00:00.0")
 	PreparedClaimsFileName = "preparedClaims.json"
+	DefaultNamingStyle     = "machine"
 )
 
 // DeviceInfo is an internal structure type to store info about discovered device.

@@ -38,11 +38,11 @@ const (
 	SysfsI915path          = "bus/pci/drivers/i915"
 	SysfsDRMpath           = "class/drm/"
 	sysfsDefaultRoot       = "/sys"
-	CDIRoot                = "/etc/cdi"
 	CDIVendor              = "intel.com"
 	CDIKind                = CDIVendor + "/gpu"
 	PCIAddressLength       = len("0000:00:00.0")
 	PreparedClaimsFileName = "preparedClaims.json"
+	DefaultNamingStyle     = "machine"
 )
 
 var SRIOVDeviceToModelMap = map[string]string{

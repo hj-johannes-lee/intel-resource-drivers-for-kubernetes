@@ -48,7 +48,7 @@ accel_controlD7
 */
 
 // Detect devices from sysfs.
-func DiscoverDevices(sysfsDir string) map[string]*device.DeviceInfo {
+func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo {
 
 	sysfsDriverDir := path.Join(sysfsDir, device.SysfsDriverPath)
 	sysfsAccelDir := path.Join(sysfsDir, device.SysfsAccelPath)
@@ -98,10 +98,18 @@ func DiscoverDevices(sysfsDir string) map[string]*device.DeviceInfo {
 		}
 
 		newDeviceInfo.DeviceIdx = deviceIdx
-		devices[newDeviceInfo.UID] = newDeviceInfo
-
+		devices[determineDeviceName(newDeviceInfo, namingStyle)] = newDeviceInfo
 	}
+
 	return devices
+}
+
+func determineDeviceName(info *device.DeviceInfo, namingStyle string) string {
+	if namingStyle == "classic" {
+		return "accel" + strconv.FormatUint(info.DeviceIdx, 10)
+	}
+
+	return info.UID
 }
 
 func getAccelIndexes(sysfsAccelDir string) map[string]uint64 {

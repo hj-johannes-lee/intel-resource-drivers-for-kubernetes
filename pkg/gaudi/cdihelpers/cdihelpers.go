@@ -143,10 +143,10 @@ func writeSpec(cdiCache *cdiapi.Cache, spec *specs.Spec, specName string) error 
 }
 
 func addDevicesToSpecAndWrite(cdiCache *cdiapi.Cache, devices device.DevicesInfo, spec *specs.Spec, specName string) error {
-	for _, device := range devices {
+	for name, device := range devices {
 		// primary / control node (for modesetting)
 		newDevice := specs.Device{
-			Name: device.UID,
+			Name: name,
 			ContainerEdits: specs.ContainerEdits{
 				DeviceNodes: newContainerEditsDeviceNodes(device.DeviceIdx),
 			},
