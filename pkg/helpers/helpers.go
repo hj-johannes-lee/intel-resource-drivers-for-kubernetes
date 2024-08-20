@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package testhelpers
+package helpers
 
 import (
 	"fmt"
@@ -24,11 +24,11 @@ import (
 func WriteFile(filePath string, fileContents string) error {
 	fhandle, err := os.Create(filePath)
 	if err != nil {
-		return fmt.Errorf("could not create test file %v: %v", filePath, err)
+		return fmt.Errorf("could not create file %v: %v", filePath, err)
 	}
 
 	if _, err = fhandle.WriteString(fileContents); err != nil {
-		return fmt.Errorf("could not write to test file %v: %v", filePath, err)
+		return fmt.Errorf("could not write to file %v: %v", filePath, err)
 	}
 
 	if err := fhandle.Close(); err != nil {

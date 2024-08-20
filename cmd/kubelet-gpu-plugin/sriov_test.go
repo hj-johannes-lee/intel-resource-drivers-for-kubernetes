@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/testhelpers"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
 func TestGetDefaultVFMemoryFromConfigMap(t *testing.T) {
@@ -101,7 +101,7 @@ func TestGetDefaultVFMemoryFromConfigMap(t *testing.T) {
 		// loop through file contents that should trigger same outcome
 		for _, filecontents := range testcase.filecontents {
 
-			if writeErr := testhelpers.WriteFile(testcase.arguments.filepath, filecontents); writeErr != nil {
+			if writeErr := helpers.WriteFile(testcase.arguments.filepath, filecontents); writeErr != nil {
 				t.Errorf("failed writing file %v, err: %v", testcase.arguments.filepath, writeErr)
 				return
 			}
@@ -149,7 +149,7 @@ func FuzzGetDefaultVFMemoryFromConfigMap(f *testing.F) {
 	f.Add("{\"flex170\":16348}")
 	f.Fuzz(func(t *testing.T, fileContents string) {
 		testfileName := "/tmp/getDefaultVFMemoryFromConfigMap"
-		if writeErr := testhelpers.WriteFile(testfileName, fileContents); writeErr != nil {
+		if writeErr := helpers.WriteFile(testfileName, fileContents); writeErr != nil {
 			t.Errorf("creating fake sysfs, err: %v", writeErr)
 			return
 		}

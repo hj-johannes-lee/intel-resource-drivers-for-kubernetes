@@ -22,71 +22,97 @@ import (
 	"path"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/testhelpers"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
-func FakeSysFsGaudiContents(sysfsRoot string, gaudis device.DevicesInfo) error {
+func FakeSysFsGaudiContents(sysfsRoot string, devfsRoot string, gaudis device.DevicesInfo) error {
 	if err := sanitizeFakeSysFsDir(sysfsRoot); err != nil {
 		return err
 	}
 
-	return fakeSysFsGaudiDevices(sysfsRoot, gaudis)
+	return fakeSysFsGaudiDevices(sysfsRoot, devfsRoot, gaudis)
 }
 
 // fakeSysFsGaudiDevices creates PCI and DRM devices layout in existing fake sysfsRoot.
 // This will be called when fake sysfs is being created and when more devices added
 // to existing fake sysfs.
-func fakeSysFsGaudiDevices(sysfsRoot string, gaudis device.DevicesInfo) error {
+func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.DevicesInfo) error {
 	for _, gaudi := range gaudis {
 		// bus/pci/driver/<device> setup
 		pciDriverDevDir := path.Join(sysfsRoot, "bus/pci/drivers/habanalabs/", gaudi.PCIAddress)
-		if err := os.MkdirAll(pciDriverDevDir, 0750); err != nil {
+		if err := os.MkdirAll(pciDriverDevDir, 0777); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
 
-		if writeErr := testhelpers.WriteFile(path.Join(pciDriverDevDir, "device"), gaudi.Model); writeErr != nil {
+		if writeErr := helpers.WriteFile(path.Join(pciDriverDevDir, "device"), gaudi.Model); writeErr != nil {
 			return fmt.Errorf("creating fake sysfs dir, err: %v", writeErr)
 		}
 
-		deviceDirName := fmt.Sprintf("accel%v", gaudi.DeviceIdx)
-		controlDeviceDirName := fmt.Sprintf("accel_controlD%v", gaudi.DeviceIdx)
+		deviceName := fmt.Sprintf("accel%v", gaudi.DeviceIdx)
+		controlDeviceName := fmt.Sprintf("accel_controlD%v", gaudi.DeviceIdx)
 		// devices/virtual/accel/<device> setup
-		dirPath := path.Join(sysfsRoot, "devices/virtual/accel", deviceDirName, "device")
-		if err := os.MkdirAll(dirPath, 0755); err != nil {
+		dirPath := path.Join(sysfsRoot, "devices/virtual/accel", deviceName, "device")
+		if err := os.MkdirAll(dirPath, 0777); err != nil {
 			return fmt.Errorf("creating fake sysfs dir, err: %v", err)
 		}
 		// $ cat /sys/devices/virtual/accel/accel0/device/pci_addr
 		// 0000:0f:00.0
-		if writeErr := testhelpers.WriteFile(path.Join(dirPath, "pci_addr"), gaudi.PCIAddress); writeErr != nil {
+		if writeErr := helpers.WriteFile(path.Join(dirPath, "pci_addr"), gaudi.PCIAddress); writeErr != nil {
 			return fmt.Errorf("creating fake sysfs dir, err: %v", writeErr)
 		}
 
-		if writeErr := testhelpers.WriteFile(path.Join(dirPath, "module_id"), fmt.Sprintf("%v", gaudi.DeviceIdx)); writeErr != nil {
+		if writeErr := helpers.WriteFile(path.Join(dirPath, "module_id"), fmt.Sprintf("%v", gaudi.DeviceIdx)); writeErr != nil {
 			return fmt.Errorf("creating fake sysfs dir, err: %v", writeErr)
 		}
 
-		dirPath = path.Join(sysfsRoot, "devices/virtual/accel", controlDeviceDirName)
-		if err := os.MkdirAll(dirPath, 0755); err != nil {
+		dirPath = path.Join(sysfsRoot, "devices/virtual/accel", controlDeviceName)
+		if err := os.MkdirAll(dirPath, 0777); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
 
 		// class/accel setup
 		sysfsAccelClassDir := path.Join(sysfsRoot, "class/accel")
-		if err := os.MkdirAll(sysfsAccelClassDir, 0750); err != nil {
+		if err := os.MkdirAll(sysfsAccelClassDir, 0777); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
 
 		// links setup
-		accelDirDeviceFile := path.Join(sysfsAccelClassDir, deviceDirName)
-		accelDirControlDeviceFile := path.Join(sysfsAccelClassDir, controlDeviceDirName)
+		accelDirDeviceFile := path.Join(sysfsAccelClassDir, deviceName)
+		accelDirControlDeviceFile := path.Join(sysfsAccelClassDir, controlDeviceName)
 
-		if err := os.Symlink(fmt.Sprintf("../../devices/virtual/accel/%v", deviceDirName), accelDirDeviceFile); err != nil {
+		if err := os.Symlink(fmt.Sprintf("../../devices/virtual/accel/%v", deviceName), accelDirDeviceFile); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
 
-		if err := os.Symlink(fmt.Sprintf("../../devices/virtual/accel/%v", controlDeviceDirName), accelDirControlDeviceFile); err != nil {
+		if err := os.Symlink(fmt.Sprintf("../../devices/virtual/accel/%v", controlDeviceName), accelDirControlDeviceFile); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
+
+		if err := fakeGaudiDevfs(devfsRoot, gaudi, deviceName, controlDeviceName); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func fakeGaudiDevfs(devfsRoot string, gaudi *device.DeviceInfo, deviceName string, controlDeviceName string) error {
+	accelDevPath := path.Join(devfsRoot, "accel")
+	if err := os.MkdirAll(accelDevPath, 0777); err != nil {
+		return fmt.Errorf("creating fake devs, err: %v", err)
+	}
+	if err := helpers.WriteFile(path.Join(accelDevPath, deviceName), ""); err != nil {
+		return fmt.Errorf("creating fake devfs, err: %v", err)
+	}
+	if err := helpers.WriteFile(path.Join(accelDevPath, controlDeviceName), ""); err != nil {
+		return fmt.Errorf("creating fake devfs, err: %v", err)
+	}
+
+	if err := helpers.WriteFile(path.Join(devfsRoot, fmt.Sprintf("hl%d", gaudi.DeviceIdx)), ""); err != nil {
+		return fmt.Errorf("creating fake devfs, err: %v", err)
+	}
+	if err := helpers.WriteFile(path.Join(devfsRoot, fmt.Sprintf("hl_controlD%d", gaudi.DeviceIdx)), ""); err != nil {
+		return fmt.Errorf("creating fake devfs, err: %v", err)
 	}
 
 	return nil

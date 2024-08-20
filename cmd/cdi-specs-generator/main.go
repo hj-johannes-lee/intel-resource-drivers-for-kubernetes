@@ -21,11 +21,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
+	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
+
 	gpuCdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/cdihelpers"
 	gpuDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	gpuDiscovery "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
-	"github.com/spf13/cobra"
-	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 
 	gaudiCdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/cdihelpers"
 	gaudiDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"

@@ -19,8 +19,6 @@ package cdihelpers
 import (
 	"fmt"
 	"path"
-	"strconv"
-	"strings"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	"k8s.io/klog/v2"
@@ -88,7 +86,6 @@ func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.Dev
 
 		klog.V(5).Infof("checking vendorspec %v", specIdx)
 
-		specChanged := false // if devices were updated or deleted
 		filteredDevices := []cdiSpecs.Device{}
 
 		for specDeviceIdx, specDevice := range vendorSpec.Devices {
@@ -97,10 +94,8 @@ func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.Dev
 			// if matched detected - check and update device nodes, if needed - add to filtered Devices
 			if detectedDevice, found := devices[specDevice.Name]; found {
 
-				if updateDeviceNodes(specDevice, detectedDevice) {
-					specChanged = true
-				}
-
+				// always update the device nodes
+				specDevice.ContainerEdits.DeviceNodes = newContainerEditsDeviceNodes(detectedDevice.DeviceIdx)
 				filteredDevices = append(filteredDevices, specDevice)
 				// Regardless if we needed to update the existing device or not,
 				// it is in CDI registry so no need to add it again later.
@@ -108,18 +103,14 @@ func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.Dev
 			} else {
 				// skip CDI devices that were not detected
 				klog.V(5).Infof("Removing device %v from CDI registry", specDevice.Name)
-				specChanged = true
 			}
 		}
 
-		// update spec if it was changed
-		if specChanged {
-			vendorSpec.Spec.Devices = filteredDevices
-			specName := path.Base(vendorSpec.GetPath())
-			klog.V(5).Infof("Updating spec %v", specName)
-			if err := writeSpec(cdCache, vendorSpec.Spec, specName); err != nil {
-				return nil, fmt.Errorf("failed to save CDI spec %v: %v", specName, err)
-			}
+		vendorSpec.Spec.Devices = filteredDevices
+		specName := path.Base(vendorSpec.GetPath())
+		klog.V(5).Infof("Updating spec %v", specName)
+		if err := writeSpec(cdCache, vendorSpec.Spec, specName); err != nil {
+			return nil, fmt.Errorf("failed to save CDI spec %v: %v", specName, err)
 		}
 	}
 
@@ -186,45 +177,6 @@ func DeleteDeviceAndWrite(cdiCache *cdiapi.Cache, claimUID string) error {
 	return writeSpec(cdiCache, cdiSpec.Spec, specName)
 }
 
-func updateDeviceNodes(specDevice cdiSpecs.Device, detectedDevice *device.DeviceInfo) bool {
-	replaceDeviceNodes := false
-
-	for deviceNodeIdx, deviceNode := range specDevice.ContainerEdits.DeviceNodes {
-		accelFileName := path.Base(deviceNode.Path) // e.g. accel1 or accel_controlD1
-		var separator string
-		switch {
-		case device.AccelRegexp.MatchString(accelFileName):
-			separator = "accel"
-		case device.AccelControlRegexp.MatchString(accelFileName):
-			separator = "accel_controlD"
-		default:
-			klog.Warningf("unexpected device node %v in CDI device %v", deviceNode.Path, specDevice.Name)
-
-			continue
-		}
-
-		klog.V(5).Infof("CDI device node %v is an accel device: %v", deviceNodeIdx, accelFileName)
-		deviceIdx, err := strconv.ParseUint(strings.Split(accelFileName, separator)[1], 10, 64)
-		if err != nil {
-			klog.Errorf("failed to parse index of Accel device '%v', skipping", accelFileName)
-
-			continue
-		}
-
-		if deviceIdx != detectedDevice.DeviceIdx {
-			replaceDeviceNodes = true
-
-			break
-		}
-	}
-
-	if replaceDeviceNodes {
-		specDevice.ContainerEdits.DeviceNodes = newContainerEditsDeviceNodes(detectedDevice.DeviceIdx)
-	}
-
-	return replaceDeviceNodes
-}
-
 // addDevicesToNewSpec creates new CDI spec, adds devices to it and calls writeSpec.
 // Should only be called if no vendor spec not exists.
 func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) error {
@@ -244,9 +196,9 @@ func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) err
 }
 
 func newContainerEditsDeviceNodes(deviceIdx uint64) []*cdiSpecs.DeviceNode {
-	accelDevPath := device.GetDevfsAccelDir()
+	devfsRoot := device.GetDevfsRoot()
 	return []*cdiSpecs.DeviceNode{
-		{Path: path.Join(accelDevPath, fmt.Sprintf("accel%d", deviceIdx)), Type: "c"},
-		{Path: path.Join(accelDevPath, fmt.Sprintf("accel_controlD%d", deviceIdx)), Type: "c"},
+		{Path: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)), Type: "c"},
+		{Path: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)), Type: "c"},
 	}
 }
