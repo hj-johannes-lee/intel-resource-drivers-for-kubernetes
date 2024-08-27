@@ -166,7 +166,7 @@ func handleGaudiDevices(templateFilePath string) error {
 	fmt.Printf("fake file system: %v\n", testDirs.TestRoot)
 	fmt.Printf("fake sysfs: %v\n", testDirs.SysfsRoot)
 	fmt.Printf("fake devfs: %v\n", testDirs.DevfsRoot)
-	fmt.Printf("fake devfs: %v\n", testDirs.CdiRoot)
+	fmt.Printf("fake CDI: %v\n", testDirs.CdiRoot)
 	return nil
 }
 
