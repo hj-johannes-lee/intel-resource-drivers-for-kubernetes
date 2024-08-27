@@ -51,7 +51,7 @@ func newCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "device-faker <gpu | gaudi>",
 		Short: "device-faker",
-		Long:  "device-faker create fake sysfs and devfs in /tmp for Intel GPU or Intel Gaudi based on template ",
+		Long:  "device-faker creates fake sysfs and devfs in /tmp for Intel GPU or Intel Gaudi based on template ",
 		Args: func(cmd *cobra.Command, args []string) error {
 			// arguments validation
 			if err := cobra.MinimumNArgs(1)(cmd, args); err != nil {

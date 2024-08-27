@@ -80,18 +80,18 @@ func removeFakeVFDRM(devfsRoot string, sysfsI915DeviceDir string) error {
 				return fmt.Errorf("could not cleanup VF DRM dir %v: %v", drmDir, err)
 			}
 			// delete devfs/dri/card and by-path/ card link
-			if err := os.RemoveAll(path.Join(devfsRoot, "dri", drmFileName)); err != nil {
+			if err := os.Remove(path.Join(devfsRoot, "dri", drmFileName)); err != nil {
 				return fmt.Errorf("could not cleanup VF DRI file: %v", err)
 			}
-			if err := os.RemoveAll(path.Join(devfsRoot, "dri/by-path", fmt.Sprintf("pci-%s-card", pciAddress))); err != nil {
+			if err := os.Remove(path.Join(devfsRoot, "dri/by-path", fmt.Sprintf("pci-%s-card", pciAddress))); err != nil {
 				return fmt.Errorf("could not cleanup VF DRI file: %v", err)
 			}
 		} else if device.RenderdRegexp.MatchString(drmFileName) {
 			// delete devfs/dri/render and by-path/ card link
-			if err := os.RemoveAll(path.Join(devfsRoot, "dri", drmFileName)); err != nil {
+			if err := os.Remove(path.Join(devfsRoot, "dri", drmFileName)); err != nil {
 				return fmt.Errorf("could not cleanup VF DRI file: %v", err)
 			}
-			if err := os.RemoveAll(path.Join(devfsRoot, "dri/by-path", fmt.Sprintf("pci-%s-render", pciAddress))); err != nil {
+			if err := os.Remove(path.Join(devfsRoot, "dri/by-path", fmt.Sprintf("pci-%s-render", pciAddress))); err != nil {
 				return fmt.Errorf("could not cleanup VF DRI file: %v", err)
 			}
 		}
