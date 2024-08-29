@@ -43,27 +43,27 @@ func NewTestDirs() (TestDirsType, error) {
 		return TestDirsType{}, fmt.Errorf("failed creating test root dir: %v", err)
 	}
 
-	if err := os.Chmod(testRoot, 0777); err != nil {
+	if err := os.Chmod(testRoot, 0755); err != nil {
 		return TestDirsType{}, fmt.Errorf("failed changing permissions to test root dir: %v", err)
 	}
 
 	cdiRoot := path.Join(testRoot, "cdi")
-	if err := os.MkdirAll(cdiRoot, 0777); err != nil {
+	if err := os.MkdirAll(cdiRoot, 0755); err != nil {
 		return TestDirsType{}, fmt.Errorf("failed creating fake CDI root dir: %v", err)
 	}
 
 	fakeSysfsRoot := path.Join(testRoot, "sysfs")
-	if err := os.MkdirAll(fakeSysfsRoot, 0777); err != nil {
+	if err := os.MkdirAll(fakeSysfsRoot, 0755); err != nil {
 		return TestDirsType{}, fmt.Errorf("failed creating fake sysfs root dir: %v", err)
 	}
 
 	driverPluginRoot := path.Join(testRoot, "kubelet-plugin")
-	if err := os.MkdirAll(driverPluginRoot, 0777); err != nil {
+	if err := os.MkdirAll(driverPluginRoot, 0755); err != nil {
 		return TestDirsType{}, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
 	}
 
 	devfsRoot := path.Join(testRoot, "dev")
-	if err := os.MkdirAll(devfsRoot, 0777); err != nil {
+	if err := os.MkdirAll(devfsRoot, 0755); err != nil {
 		return TestDirsType{}, fmt.Errorf("failed creating fake devfs dir: %v", err)
 	}
 

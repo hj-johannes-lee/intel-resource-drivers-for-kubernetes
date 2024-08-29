@@ -40,7 +40,7 @@ func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.Dev
 	for _, gaudi := range gaudis {
 		// bus/pci/driver/<device> setup
 		pciDriverDevDir := path.Join(sysfsRoot, "bus/pci/drivers/habanalabs/", gaudi.PCIAddress)
-		if err := os.MkdirAll(pciDriverDevDir, 0777); err != nil {
+		if err := os.MkdirAll(pciDriverDevDir, 0755); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
 
@@ -52,7 +52,7 @@ func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.Dev
 		controlDeviceName := fmt.Sprintf("accel_controlD%v", gaudi.DeviceIdx)
 		// devices/virtual/accel/<device> setup
 		dirPath := path.Join(sysfsRoot, "devices/virtual/accel", deviceName, "device")
-		if err := os.MkdirAll(dirPath, 0777); err != nil {
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
 			return fmt.Errorf("creating fake sysfs dir, err: %v", err)
 		}
 		// $ cat /sys/devices/virtual/accel/accel0/device/pci_addr
@@ -66,13 +66,13 @@ func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.Dev
 		}
 
 		dirPath = path.Join(sysfsRoot, "devices/virtual/accel", controlDeviceName)
-		if err := os.MkdirAll(dirPath, 0777); err != nil {
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
 
 		// class/accel setup
 		sysfsAccelClassDir := path.Join(sysfsRoot, "class/accel")
-		if err := os.MkdirAll(sysfsAccelClassDir, 0777); err != nil {
+		if err := os.MkdirAll(sysfsAccelClassDir, 0755); err != nil {
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
 
@@ -98,7 +98,7 @@ func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.Dev
 
 func fakeGaudiDevfs(devfsRoot string, gaudi *device.DeviceInfo, deviceName string, controlDeviceName string) error {
 	accelDevPath := path.Join(devfsRoot, "accel")
-	if err := os.MkdirAll(accelDevPath, 0777); err != nil {
+	if err := os.MkdirAll(accelDevPath, 0755); err != nil {
 		return fmt.Errorf("creating fake devs, err: %v", err)
 	}
 	if err := helpers.WriteFile(path.Join(accelDevPath, deviceName), ""); err != nil {
