@@ -37,10 +37,15 @@ import (
 )
 
 func TestFakeSysfs(t *testing.T) {
-	fakeSysfsRoot := "/tmp/fakegaudisysfs"
+	testDirs, err := helpers.NewTestDirs()
+	if err != nil {
+		t.Errorf("could not create fake system dirs: %v", err)
+		return
+	}
 
 	if err := fakesysfs.FakeSysFsGaudiContents(
-		fakeSysfsRoot,
+		testDirs.SysfsRoot,
+		testDirs.DevfsRoot,
 		device.DevicesInfo{
 			"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, UID: "0000-0f-00-0-0x1020"},
 		},
@@ -49,8 +54,8 @@ func TestFakeSysfs(t *testing.T) {
 		return
 	}
 
-	if err := os.RemoveAll(fakeSysfsRoot); err != nil {
-		t.Errorf("could not cleanup fake sysfs %v", fakeSysfsRoot)
+	if err := os.RemoveAll(testDirs.TestRoot); err != nil {
+		t.Errorf("could not cleanup test root %v: %v", testDirs.TestRoot, err)
 	}
 }
 
@@ -208,6 +213,7 @@ func TestNodePrepareResources(t *testing.T) {
 
 		if err := fakesysfs.FakeSysFsGaudiContents(
 			testDirs.SysfsRoot,
+			testDirs.DevfsRoot,
 			device.DevicesInfo{
 				"0000-00-02-0-0x1020": {Model: "0x1020", PCIAddress: "0000:00:02.0", DeviceIdx: 0, UID: "0000-00-02-0-0x1020"},
 				"0000-00-03-0-0x1020": {Model: "0x1020", PCIAddress: "0000:00:03.0", DeviceIdx: 1, UID: "0000-00-03-0-0x1020"},
@@ -331,6 +337,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 
 		if err := fakesysfs.FakeSysFsGaudiContents(
 			testDirs.SysfsRoot,
+			testDirs.DevfsRoot,
 			device.DevicesInfo{
 				"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020"},
 				"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020"},

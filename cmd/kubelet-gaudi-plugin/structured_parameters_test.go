@@ -147,6 +147,7 @@ func TestNodePrepareStructuredResources(t *testing.T) {
 
 		if err := fakesysfs.FakeSysFsGaudiContents(
 			testDirs.SysfsRoot,
+			testDirs.DevfsRoot,
 			device.DevicesInfo{
 				"0000-00-02-0-0x1020": {Model: "0x1020", DeviceIdx: 0, PCIAddress: "0000:00:02.0", UID: "0000-00-02-0-0x1020"},
 				"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020"},
@@ -230,6 +231,7 @@ func TestNodeListAndWatchResources(t *testing.T) {
 
 	if err := fakesysfs.FakeSysFsGaudiContents(
 		testDirs.SysfsRoot,
+		testDirs.DevfsRoot,
 		device.DevicesInfo{
 			"0000-00-02-0-0x1020": {Model: "0x1020", DeviceIdx: 0, PCIAddress: "0000:00:02.0", UID: "0000-00-02-0-0x1020"},
 			"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020"},

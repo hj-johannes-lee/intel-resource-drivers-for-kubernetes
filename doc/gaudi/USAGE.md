@@ -1,6 +1,6 @@
 ## Requirements
 
-- Kubernetes 1.28+, with `DynamicResourceAllocation` feature-flag enabled, and [other cluster parameters](hack/clusterconfig.yaml)
+- Kubernetes 1.27+, with `DynamicResourceAllocation` feature-flag enabled, and [other cluster parameters](hack/clusterconfig.yaml)
 - [habanalabs container runtime](https://docs.habana.ai/en/latest/Installation_Guide/Bare_Metal_Fresh_OS.html#set-up-container-runtime) with CDI support
 
 

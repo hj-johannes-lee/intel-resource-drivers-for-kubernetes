@@ -73,6 +73,10 @@ bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/cdi-specs-generator
 
+bin/device-faker: cmd/device-faker/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
+	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/device-faker
+
 
 .PHONY: branch-build
 # test that all commits in $GIT_BRANCH (default=current) build

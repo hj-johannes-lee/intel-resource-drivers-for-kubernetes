@@ -41,6 +41,7 @@ const (
 	CDIVendor              = "intel.com"
 	CDIKind                = CDIVendor + "/gpu"
 	PCIAddressLength       = len("0000:00:00.0")
+	UIDLength              = len("0000-00-00-0-0x0000")
 	PreparedClaimsFileName = "preparedClaims.json"
 	DefaultNamingStyle     = "machine"
 )

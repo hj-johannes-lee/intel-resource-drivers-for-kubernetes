@@ -152,8 +152,8 @@ func TestNodePrepareStructuredResources(t *testing.T) {
 		}
 
 		if err := fakesysfs.FakeSysFsGpuContents(
-			t,
 			testDirs.SysfsRoot,
+			testDirs.DevfsRoot,
 			device.DevicesInfo{
 				"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
 				"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000-00-03-0-0x56c0", MaxVFs: 16},
@@ -178,7 +178,7 @@ func TestNodePrepareStructuredResources(t *testing.T) {
 
 		// dynamically add and remove fake sysfs SR-IOV VFs
 		if testcase.updateFakeSysfs {
-			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot)
+			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot, testDirs.DevfsRoot)
 			defer watcher.Close()
 		}
 
@@ -244,8 +244,8 @@ func TestNodeListAndWatchResources(t *testing.T) {
 	}
 
 	if err := fakesysfs.FakeSysFsGpuContents(
-		t,
 		testDirs.SysfsRoot,
+		testDirs.DevfsRoot,
 		device.DevicesInfo{
 			"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
 			"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000-00-03-0-0x56c0", MaxVFs: 16},
