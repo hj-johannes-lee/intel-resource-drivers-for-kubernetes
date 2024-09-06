@@ -51,13 +51,18 @@ const (
 
 	// driver.sysfsDriverDir and driver.sysfsAccelDir are sysfsDriverPath and sysfsAccelPath
 	// respectively prefixed with $SYSFS_ROOT.
-	SysfsDriverPath          = "bus/pci/drivers/habanalabs"
-	SysfsAccelPath           = "devices/virtual/accel/"
-	CDIVendor                = "intel.com"
-	CDIClass                 = "gaudi"
-	CDIKind                  = CDIVendor + "/" + CDIClass
-	PCIAddressLength         = len("0000:00:00.0")
-	PreparedClaimsFileName   = "preparedClaims.json"
+	SysfsDriverPath  = "bus/pci/drivers/habanalabs"
+	SysfsAccelPath   = "devices/virtual/accel/"
+	CDIVendor        = "intel.com"
+	CDIClass         = "gaudi"
+	CDIKind          = CDIVendor + "/" + CDIClass
+	DriverName       = CDIClass + "." + CDIVendor
+	PCIAddressLength = len("0000:00:00.0")
+
+	PreparedClaimsFileName  = "preparedClaims.json"
+	PluginRegistrarFileName = DriverName + ".sock"
+	PluginSocketFileName    = "plugin.sock"
+
 	DefaultNamingStyle       = "machine"
 	VisibleDevicesEnvVarName = "HABANA_VISIBLE_DEVICES"
 )
@@ -69,6 +74,7 @@ type DeviceInfo struct {
 	UID        string `json:"uid"`
 	PCIAddress string `json:"pciaddress"` // PCI address in Linux DBDF notation for use with sysfs, e.g. 0000:00:00.0
 	Model      string `json:"model"`      // PCI device ID
+	ModelName  string `json:"modelname"`  // SKU name of the device, e.g. Gaudi2
 	DeviceIdx  uint64 `json:"deviceidx"`  // accel device number (e.g. 0 for /dev/accel/accel0)
 	ModuleIdx  uint64 `json:"moduleidx"`  // OAM slot number, needed for Habana Runtime to set networking
 }
@@ -82,11 +88,12 @@ func (g *DeviceInfo) DeepCopy() *DeviceInfo {
 	return &di
 }
 
-func (g *DeviceInfo) ModelName() string {
-	if model, found := ModelNames[g.Model]; found {
-		return model
+func (g *DeviceInfo) SetModelName() {
+	if modelName, found := ModelNames[g.Model]; found {
+		g.ModelName = modelName
+		return
 	}
-	return "Unknown"
+	g.ModelName = "Unknown"
 }
 
 func DeviceUIDFromPCIinfo(pciAddress string, pciid string) string {

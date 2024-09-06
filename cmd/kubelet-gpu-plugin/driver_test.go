@@ -28,7 +28,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubefake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/kubelet/pkg/apis/dra/v1alpha3"
+
+	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
@@ -92,8 +93,8 @@ func getFakeDriver(testDirs helpers.TestDirsType) (*driver, error) {
 func TestNodePrepareResources(t *testing.T) {
 	type testCase struct {
 		name               string
-		request            *v1alpha3.NodePrepareResourcesRequest
-		expectedResponse   *v1alpha3.NodePrepareResourcesResponse
+		request            *drav1.NodePrepareResourcesRequest
+		expectedResponse   *drav1.NodePrepareResourcesResponse
 		gasSpecAllocations map[string]gpuv1alpha2.AllocatedClaim
 		preparedClaims     ClaimPreparations
 		updateFakeSysfs    bool
@@ -102,24 +103,24 @@ func TestNodePrepareResources(t *testing.T) {
 	testcases := []testCase{
 		{
 			name: "blank request",
-			request: &v1alpha3.NodePrepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{},
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{},
 			},
-			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{},
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{},
 			},
 			preparedClaims:  ClaimPreparations{},
 			updateFakeSysfs: false,
 		},
 		{
 			name: "single GPU",
-			request: &v1alpha3.NodePrepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim1", Namespace: "namespace1", Uid: "uid1"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid1": {CDIDevices: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
 				},
 			},
@@ -131,13 +132,13 @@ func TestNodePrepareResources(t *testing.T) {
 		},
 		{
 			name: "single existing VF",
-			request: &v1alpha3.NodePrepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim2", Namespace: "namespace2", Uid: "uid2"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid2": {CDIDevices: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
 				},
 			},
@@ -150,13 +151,13 @@ func TestNodePrepareResources(t *testing.T) {
 		// this is a slow test case - validation of created VF is timing out as expected
 		{
 			name: "single new VF failed post-creation validation",
-			request: &v1alpha3.NodePrepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim3", Namespace: "namespace3", Uid: "uid3"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid3": {Error: "error preparing resource: failed to validate provisioned VFs: vf 0 of GPU 0000:00:02.0 is NOT OK, did not check the rest of new VFs, cleaned up successfully"},
 				},
 			},
@@ -169,13 +170,13 @@ func TestNodePrepareResources(t *testing.T) {
 		},
 		{
 			name: "single new VF failed creation, no tiles",
-			request: &v1alpha3.NodePrepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim5", Namespace: "namespace5", Uid: "uid5"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid5": {Error: "error preparing resource: failed to validate provisioned VFs: vf 0 of GPU 0000:00:04.0 is NOT OK, did not check the rest of new VFs, cleaned up successfully"},
 				},
 			},
@@ -187,13 +188,13 @@ func TestNodePrepareResources(t *testing.T) {
 		},
 		{
 			name: "monitoring claim",
-			request: &v1alpha3.NodePrepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "monitor", Namespace: "namespace1", Uid: "uid1", ResourceHandle: "monitor"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid1": {
 						CDIDevices: []string{
 							"intel.com/gpu=0000-00-02-0-0x56c0",
@@ -210,13 +211,13 @@ func TestNodePrepareResources(t *testing.T) {
 		},
 		{
 			name: "single GPU, already prepared claim",
-			request: &v1alpha3.NodePrepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim1", Namespace: "namespace1", Uid: "uid1"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid1": {CDIDevices: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
 				},
 			},
@@ -230,13 +231,13 @@ func TestNodePrepareResources(t *testing.T) {
 		},
 		{
 			name: "single new VF success",
-			request: &v1alpha3.NodePrepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim3", Namespace: "namespace3", Uid: "uid3"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodePrepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodePrepareResourceResponse{
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid3": {CDIDevices: []string{"intel.com/gpu=0000-00-02-1-0x56c0"}},
 				},
 			},
@@ -384,8 +385,8 @@ func TestReuseLeftoverSRIOVResources(t *testing.T) {
 func TestNodeUnprepareResources(t *testing.T) {
 	type testCase struct {
 		name                   string
-		request                *v1alpha3.NodeUnprepareResourcesRequest
-		expectedResponse       *v1alpha3.NodeUnprepareResourcesResponse
+		request                *drav1.NodeUnprepareResourcesRequest
+		expectedResponse       *drav1.NodeUnprepareResourcesResponse
 		preparedClaims         ClaimPreparations
 		expectedPreparedClaims ClaimPreparations
 		updateFakeSysfs        bool
@@ -394,24 +395,24 @@ func TestNodeUnprepareResources(t *testing.T) {
 	testcases := []testCase{
 		{
 			name: "blank request",
-			request: &v1alpha3.NodeUnprepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{},
+			request: &drav1.NodeUnprepareResourcesRequest{
+				Claims: []*drav1.Claim{},
 			},
-			expectedResponse: &v1alpha3.NodeUnprepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{},
+			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
+				Claims: map[string]*drav1.NodeUnprepareResourceResponse{},
 			},
 			preparedClaims:         ClaimPreparations{},
 			expectedPreparedClaims: ClaimPreparations{},
 		},
 		{
 			name: "single GPU",
-			request: &v1alpha3.NodeUnprepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodeUnprepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim1", Namespace: "namespace1", Uid: "uid1"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodeUnprepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"uid1": {}},
+			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
+				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid1": {}},
 			},
 			preparedClaims: ClaimPreparations{
 				"uid1": {{UID: "0000-b3-00-0-0x0bda", DeviceType: "gpu", MemoryMiB: 4096}},
@@ -420,13 +421,13 @@ func TestNodeUnprepareResources(t *testing.T) {
 		},
 		{
 			name: "single VF without cleanup",
-			request: &v1alpha3.NodeUnprepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodeUnprepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim2", Namespace: "namespace2", Uid: "uid2"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodeUnprepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"uid2": {}},
+			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
+				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid2": {}},
 			},
 			preparedClaims: ClaimPreparations{
 				"uid2": {{UID: "0000-af-00-1-0x0bda", PCIAddress: "0000:af:00.1", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 0, ParentUID: "0000-af-00-0-0x0bda"}},
@@ -439,13 +440,13 @@ func TestNodeUnprepareResources(t *testing.T) {
 		// This test is a bit slow because kubelet-plugin waits for VFs to go away, and they never do.
 		{
 			name: "single VF failed cleanup",
-			request: &v1alpha3.NodeUnprepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodeUnprepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim3", Namespace: "namespace3", Uid: "uid3"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodeUnprepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{
+			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
+				Claims: map[string]*drav1.NodeUnprepareResourceResponse{
 					"uid3": {Error: "error unpreparing resource: failed to remove VFs: 0000-af-00-0-0x0bda: failed removing VFs: timeout waiting for VFs to be disabled on device"},
 				},
 			},
@@ -456,13 +457,13 @@ func TestNodeUnprepareResources(t *testing.T) {
 		},
 		{
 			name: "single VF successful cleanup",
-			request: &v1alpha3.NodeUnprepareResourcesRequest{
-				Claims: []*v1alpha3.Claim{
+			request: &drav1.NodeUnprepareResourcesRequest{
+				Claims: []*drav1.Claim{
 					{Name: "claim3", Namespace: "namespace3", Uid: "uid3"},
 				},
 			},
-			expectedResponse: &v1alpha3.NodeUnprepareResourcesResponse{
-				Claims: map[string]*v1alpha3.NodeUnprepareResourceResponse{"uid3": {}},
+			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
+				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid3": {}},
 			},
 			preparedClaims: ClaimPreparations{
 				"uid3": {{UID: "0000-af-00-2-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
@@ -542,7 +543,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 	}
 }
 
-func compareNodePrepareResourcesResponses(expectedResponse, response *v1alpha3.NodePrepareResourcesResponse) bool {
+func compareNodePrepareResourcesResponses(expectedResponse, response *drav1.NodePrepareResourcesResponse) bool {
 	if len(response.Claims) != len(expectedResponse.Claims) {
 		return false
 	}

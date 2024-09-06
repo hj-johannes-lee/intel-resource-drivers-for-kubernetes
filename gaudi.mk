@@ -13,13 +13,12 @@
 # limitations under the License.
 
 
-GAUDI_VERSION ?= v0.1.3
+GAUDI_VERSION ?= v0.2.0
 GAUDI_IMAGE_NAME ?= intel-gaudi-resource-driver
 GAUDI_IMAGE_VERSION ?= $(GAUDI_VERSION)
 GAUDI_IMAGE_TAG ?= $(REGISTRY)/$(GAUDI_IMAGE_NAME):$(GAUDI_IMAGE_VERSION)
 
 GAUDI_BINARIES = \
-bin/gaudi-controller \
 bin/kubelet-gaudi-plugin
 
 GAUDI_COMMON_SRC = \
@@ -35,10 +34,6 @@ GAUDI_LDFLAGS = ${LDFLAGS} -X ${PKG}/pkg/version.driverVersion=${GAUDI_VERSION}
 
 .PHONY: gaudi
 gaudi: $(GAUDI_BINARIES)
-
-bin/gaudi-controller: cmd/gaudi-controller/*.go $(GAUDI_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${GAUDI_LDFLAGS}" -mod vendor -o $@ ./cmd/gaudi-controller
 
 bin/kubelet-gaudi-plugin: cmd/kubelet-gaudi-plugin/*.go $(GAUDI_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
@@ -71,18 +66,3 @@ generate-gaudi-clientset: rm-gaudi-clientset
 	mkdir -p $(CURDIR)/pkg/intel.com/resource/gaudi/clientset
 	mv $(CURDIR)/pkg/tmp_clientset/versioned $(CURDIR)/pkg/intel.com/resource/gaudi/clientset/
 	rm -rf $(CURDIR)/pkg/tmp_clients
-
-.PHONY: generate-gaudi-crd
-generate-gaudi-crd: generate-gaudi-deepcopy
-	controller-gen \
-		crd:crdVersions=v1 \
-		paths=$(CURDIR)/pkg/intel.com/resource/gaudi/v1alpha1/ \
-		output:crd:dir=$(CURDIR)/deployments/gaudi/static/crds
-
-
-.PHONY: generate-gaudi-deepcopy
-generate-gaudi-deepcopy: generate-gaudi-clientset
-	controller-gen \
-		object:headerFile=$(CURDIR)/hack/boilerplate.go.txt,year=$(shell date +"%Y") \
-		paths=$(CURDIR)/pkg/intel.com/resource/gaudi/v1alpha1/ \
-		output:object:dir=$(CURDIR)/pkg/intel.com/resource/gaudi/v1alpha1

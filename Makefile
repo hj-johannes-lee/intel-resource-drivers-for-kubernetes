@@ -56,8 +56,7 @@ endif
 
 
 COMMON_SRC = \
-pkg/version/*.go \
-pkg/controllerhelpers/*.go
+pkg/version/*.go
 
 include $(CURDIR)/gpu.mk
 include $(CURDIR)/gaudi.mk
@@ -136,12 +135,9 @@ licenses: clean-licenses
 	GO111MODULE=on go run github.com/google/go-licenses@$(GOLICENSES_VERSION) \
 	save \
 	"./cmd/alert-webhook" \
-	"./cmd/gaudi-controller" \
 	"./cmd/cdi-specs-generator" \
-	"./cmd/gpu-controller" \
 	"./cmd/kubelet-gaudi-plugin" \
 	"./cmd/kubelet-gpu-plugin" \
-	"./pkg/controllerhelpers" \
 	"./pkg/version" \
 	"./pkg/gpu/cdihelpers" \
 	"./pkg/gpu/device" \

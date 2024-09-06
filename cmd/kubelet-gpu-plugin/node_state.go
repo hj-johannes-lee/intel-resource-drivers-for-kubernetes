@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	resourcev1 "k8s.io/api/resource/v1alpha2"
+	resourcev1 "k8s.io/api/resource/v1alpha3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"

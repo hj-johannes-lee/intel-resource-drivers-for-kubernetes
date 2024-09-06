@@ -22,8 +22,10 @@ import (
 	"path"
 
 	"k8s.io/client-go/util/retry"
+	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
-	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha3"
+
+	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
@@ -36,13 +38,10 @@ import (
 var _ drav1.NodeServer = (*driver)(nil)
 
 type driver struct {
-	// Resource model publisher uses this channel to know when to send updated model.
-	updateCh chan bool
-	// Resource model publisher uses this channel to know when to stop sending updates to the kubelet and quit.
-	doneCh   chan bool
 	gas      *intelcrd.GpuAllocationState
 	state    *nodeState
 	sysfsDir string
+	plugin   kubeletplugin.DRAPlugin
 }
 
 func newDriver(ctx context.Context, config *configType) (*driver, error) {
@@ -102,8 +101,28 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 		state:    state,
 		sysfsDir: sysfsDir,
 	}
-	klog.V(3).Info("Finished creating new driver")
 
+	klog.Infof(`Starting DRA resource-driver kubelet-plugin
+RegistrarSocketPath: %v
+PluginSocketPath: %v
+KubeletPluginSocketPath: %v`,
+		pluginRegistrationPath,
+		driverPluginSocketPath,
+		driverPluginSocketPath)
+
+	plugin, err := kubeletplugin.Start(
+		ctx,
+		d,
+		kubeletplugin.DriverName(intelcrd.APIGroupName),
+		kubeletplugin.RegistrarSocketPath(pluginRegistrationPath),
+		kubeletplugin.PluginSocketPath(driverPluginSocketPath),
+		kubeletplugin.KubeletPluginSocketPath(driverPluginSocketPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to start kubelet-plugin: %v", err)
+	}
+
+	d.plugin = plugin
+	klog.V(3).Info("Finished creating new driver")
 	return d, nil
 }
 
@@ -112,15 +131,8 @@ func (d *driver) NodePrepareResources(ctx context.Context, req *drav1.NodePrepar
 
 	preparedResources := &drav1.NodePrepareResourcesResponse{Claims: map[string]*drav1.NodePrepareResourceResponse{}}
 
-	// In production version some common operations of d.nodeUnprepareResources
-	// should be done outside of the loop, for instance updating the CR could
-	// be done once after all HW was prepared.
-	for _, claim := range req.Claims {
-		if claim.StructuredResourceHandle != nil && len(claim.StructuredResourceHandle) != 0 {
-			preparedResources.Claims[claim.Uid] = d.nodePrepareStructuredResource(ctx, claim)
-		} else {
-			preparedResources.Claims[claim.Uid] = d.nodePrepareResources(ctx, claim)
-		}
+	for _, claim := range req.Clai7ms {
+		preparedResources.Claims[claim.Uid] = d.nodePrepareResources(ctx, claim)
 	}
 
 	return preparedResources, nil
@@ -131,7 +143,7 @@ func (d *driver) nodePrepareResources(
 	klog.V(5).Infof("NodePrepareResource is called: request: %+v", claim)
 
 	// provide all devices for monitoring claims
-	if claim.ResourceHandle == intelcrd.MonitorAllocType {
+	if claim. == intelcrd.MonitorAllocType {
 		cdinames := d.state.getMonitorCDINames(claim.Uid)
 		klog.V(3).Infof("Prepared devices for monitor claim '%v': %s", claim.Uid, cdinames)
 		return &drav1.NodePrepareResourceResponse{CDIDevices: cdinames}
@@ -345,4 +357,10 @@ func (d *driver) sanitizedClaimDevicesToBeProvisioned(claim *drav1.Claim) (map[s
 	}
 
 	return toProvision, claimDevices, nil
+}
+
+func (d *driver) Shutdown(ctx context.Context) error {
+	if err := d.plugin.Stop(); err != nil {
+		return err
+	}
 }

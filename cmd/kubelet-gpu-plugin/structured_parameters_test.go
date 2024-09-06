@@ -26,8 +26,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc/metadata"
-	resourcev1 "k8s.io/api/resource/v1alpha2"
-	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha3"
+	resourcev1 "k8s.io/api/resource/v1alpha3"
+
+	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"

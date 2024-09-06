@@ -39,7 +39,6 @@ import (
 	"k8s.io/component-base/logs"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/component-base/term"
-	plugin "k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 
 	intelclientset "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned"
@@ -253,28 +252,14 @@ func callPlugin(ctx context.Context, config *configType) error {
 		return err
 	}
 
-	klog.Infof(`Starting DRA resource-driver kubelet-plugin
-RegistrarSocketPath: %v
-PluginSocketPath: %v
-KubeletPluginSocketPath: %v`,
-		pluginRegistrationPath,
-		driverPluginSocketPath,
-		driverPluginSocketPath)
-
-	kubeletPlugin, err := plugin.Start(
-		driver,
-		plugin.DriverName(intelcrd.APIGroupName),
-		plugin.RegistrarSocketPath(pluginRegistrationPath),
-		plugin.PluginSocketPath(driverPluginSocketPath),
-		plugin.KubeletPluginSocketPath(driverPluginSocketPath))
-	if err != nil {
-		return fmt.Errorf("failed to start kubelet-plugin: %v", err)
-	}
-
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 	<-sigc
-	kubeletPlugin.Stop()
+
+	if err := driver.Shutdown(ctx); err != nil {
+		klog.Error("error shutting down gracefully: %v", err)
+		return err
+	}
 
 	return nil
 }

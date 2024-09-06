@@ -117,6 +117,19 @@ func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.Dev
 	return devices, nil
 }
 
+func AddDeviceToAnySpec(cdiCache *cdiapi.Cache, vendor string, newDevice cdiSpecs.Device) error {
+	vendorSpecs := cdiCache.GetVendorSpecs(vendor)
+	if len(vendorSpecs) == 0 {
+		return fmt.Errorf("no %v specs found", vendor)
+	}
+
+	cdiSpec := vendorSpecs[0]
+	cdiSpec.Spec.Devices = append(cdiSpec.Spec.Devices, newDevice)
+	specName := path.Base(cdiSpec.GetPath())
+
+	return writeSpec(cdiCache, cdiSpec.Spec, specName)
+}
+
 // writeSpec sets latest cdiVersion for spec and writes it.
 func writeSpec(cdiCache *cdiapi.Cache, spec *cdiSpecs.Spec, specName string) error {
 	cdiVersion, err := cdiapi.MinimumRequiredVersion(spec)

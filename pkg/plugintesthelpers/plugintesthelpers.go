@@ -21,6 +21,10 @@ import (
 	"os"
 	"path"
 	"testing"
+
+	resourcev1 "k8s.io/api/resource/v1alpha3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -80,4 +84,38 @@ func CleanupTest(t *testing.T, testname string, testRoot string) {
 	if err := os.RemoveAll(testRoot); err != nil {
 		t.Logf("%v: could not cleanup temp directory %v: %v", testname, testRoot, err)
 	}
+}
+
+func NewClaim(claimNs, claimName, claimUID, requestName, driverName, pool string, allocatedDevices []string) *resourcev1.ResourceClaim {
+	allocationResults := []resourcev1.DeviceRequestAllocationResult{}
+	for _, deviceUID := range allocatedDevices {
+		newDevice := resourcev1.DeviceRequestAllocationResult{
+			Device:  deviceUID,
+			Request: requestName,
+			Driver:  driverName,
+			Pool:    pool,
+		}
+		allocationResults = append(allocationResults, newDevice)
+	}
+
+	claim := &resourcev1.ResourceClaim{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "resource.k8s.io/v1alpha3", Kind: "ResourceClaim"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: claimNs, Name: claimName, UID: types.UID(claimUID)},
+		Spec: resourcev1.ResourceClaimSpec{
+			Devices: resourcev1.DeviceClaim{
+				Requests: []resourcev1.DeviceRequest{
+					{Name: requestName, DeviceClassName: driverName, Count: 1},
+				},
+			},
+		},
+		Status: resourcev1.ResourceClaimStatus{
+			Allocation: &resourcev1.AllocationResult{
+				Devices: resourcev1.DeviceAllocationResult{
+					Results: allocationResults,
+				},
+			},
+		},
+	}
+
+	return claim
 }

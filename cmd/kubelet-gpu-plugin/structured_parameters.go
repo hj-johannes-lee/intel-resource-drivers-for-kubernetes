@@ -20,9 +20,10 @@ import (
 	"context"
 	"fmt"
 
-	resourcev1 "k8s.io/api/resource/v1alpha2"
+	resourcev1 "k8s.io/api/resource/v1alpha3"
 	"k8s.io/klog/v2"
-	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha3"
+
+	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 )
@@ -47,7 +48,7 @@ func (d *driver) NodeListAndWatchResources(req *drav1.NodeListAndWatchResourcesR
 }
 
 func (d *driver) sendResourceModel(stream drav1.Node_NodeListAndWatchResourcesServer) error {
-	model := d.state.getResourceModel()
+	model := d.state.getResourceSlice()
 	resp := &drav1.NodeListAndWatchResourcesResponse{
 		Resources: []*resourcev1.ResourceModel{&model},
 	}

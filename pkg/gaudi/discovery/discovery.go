@@ -95,6 +95,7 @@ func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo
 			Model:      deviceId,
 			DeviceIdx:  0,
 		}
+		newDeviceInfo.SetModelName()
 
 		deviceIdx, found := deviceIndexes[devicePCIAddress]
 		if !found {
