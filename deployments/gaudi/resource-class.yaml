@@ -1,26 +1,9 @@
-apiVersion: resource.k8s.io/v1alpha2
-kind: ResourceClass
+apiVersion: resource.k8s.io/v1alpha3
+kind: DeviceClass
 metadata:
-  name: intel-gaudi
-driverName: gaudi.resource.intel.com
-parametersRef:
-  apiGroup: gaudi.resource.intel.com/v1alpha1
-  kind: GaudiClassParameters
-  name: intel-gaudi-params
----
-apiVersion: gaudi.resource.intel.com/v1alpha1
-kind: GaudiClassParameters
-metadata:
-  name: intel-gaudi-monitor-params
+  name: gaudi.intel.com
+
 spec:
-  monitor: true
----
-apiVersion: resource.k8s.io/v1alpha2
-kind: ResourceClass
-metadata:
-  name: intel-gaudi-monitor
-driverName: gaudi.resource.intel.com
-parametersRef:
-  apiGroup: gaudi.resource.intel.com/v1alpha1
-  kind: GaudiClassParameters
-  name: intel-gaudi-monitor-params
+  selectors:
+  - cel:
+      expression: device.driver == "gaudi.intel.com"

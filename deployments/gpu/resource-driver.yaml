@@ -19,7 +19,7 @@ spec:
       serviceAccountName: intel-gpu-resource-driver-service-account
       initContainers:
       - name: init
-        image: intel/intel-gpu-resource-driver:v0.5.1
+        image: intel/intel-gpu-resource-driver:v0.6.0
         imagePullPolicy: IfNotPresent
         command: ["/kubelet-gpu-plugin", "--status", "NotReady"]
         env:
@@ -71,9 +71,6 @@ spec:
           mountPath: /etc/cdi
         - name: varruncdi
           mountPath: /var/run/cdi
-        - name: defaults
-          mountPath: "/defaults"
-          readOnly: true
         - name: sysfs
           mountPath: "/sysfs"
         securityContext:
@@ -101,56 +98,6 @@ spec:
       - name: sysfs
         hostPath:
           path: /sys
-      - name: defaults
-        configMap:
-          name: defaults
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: intel-gpu-resource-driver-controller
-  namespace: intel-gpu-resource-driver
-  labels:
-    app: intel-gpu-resource-driver-controller
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: intel-gpu-resource-driver-controller
-  template:
-    metadata:
-      labels:
-        app: intel-gpu-resource-driver-controller
-    spec:
-      serviceAccount: intel-gpu-resource-driver-service-account
-      serviceAccountName: intel-gpu-resource-driver-service-account
-      containers:
-      - name: controller
-        image: intel/intel-gpu-resource-driver:v0.5.1
-        imagePullPolicy: IfNotPresent
-        command: ["/gpu-controller"]
-        env:
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        securityContext:
-          privileged: false
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: [ "ALL" ]
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 10001
-          seccompProfile:
-            type: RuntimeDefault
-      tolerations:
-      - key: node-role.kubernetes.io/master
-        operator: Exists
-        effect: NoSchedule
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
 
 ---
 apiVersion: v1
@@ -167,14 +114,14 @@ metadata:
   namespace: intel-gpu-resource-driver
 rules:
 - apiGroups: [""]
-  resources: ["pods", "nodes", "events"]
-  verbs: ["get", "list", "create", "watch", "patch"]
+  resources: ["nodes"]
+  verbs: ["get"]
 - apiGroups: ["resource.k8s.io"]
-  resources: ["resourceclaims", "resourceclaimparameters", "resourceclasses", "podschedulings","resourceclaims/status", "podschedulings/status", "podschedulingcontexts", "podschedulingcontexts/status"]
-  verbs: ["create", "get", "update", "list", "watch", "patch"]
-- apiGroups: ["gpu.resource.intel.com"]
-  resources: ["*"]
-  verbs: ["*"]
+  resources: ["resourceslices"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["resource.k8s.io"]
+  resources: ["resourceclaims"]
+  verbs: ["get"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -190,3 +137,44 @@ roleRef:
   kind: ClusterRole
   name: intel-gpu-resource-driver-role
   apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: resourceslices-policy-dra-kubelet-plugin
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   ["resource.k8s.io"]
+      apiVersions: ["v1alpha3"]
+      operations:  ["CREATE", "UPDATE", "DELETE"]
+      resources:   ["resourceslices"]
+  matchConditions:
+  - name: isRestrictedUser
+    expression: >-
+      request.userInfo.username == "system:serviceaccount:intel-gpu-resource-driver:intel-gpu-resource-driver-service-account"
+  variables:
+  - name: userNodeName
+    expression: >-
+      request.userInfo.extra[?'authentication.kubernetes.io/node-name'][0].orValue('')
+  - name: objectNodeName
+    expression: >-
+      (request.operation == "DELETE" ? oldObject : object).spec.?nodeName.orValue("")
+  validations:
+  - expression: variables.userNodeName != ""
+    message: >-
+      no node association found for user, this user must run in a pod on a node and ServiceAccountTokenPodNodeInfo must be enabled
+  - expression: variables.userNodeName == variables.objectNodeName
+    messageExpression: >-
+      "this user running on node '"+variables.userNodeName+"' may not modify " +
+      (variables.objectNodeName == "" ?"cluster resourceslices" : "resourceslices on node '"+variables.objectNodeName+"'")
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: resourceslices-policy-dra-kubelet-plugin
+spec:
+  policyName: resourceslices-policy-dra-kubelet-plugin
+  validationActions: [Deny]

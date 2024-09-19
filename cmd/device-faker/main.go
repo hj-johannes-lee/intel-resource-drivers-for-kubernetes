@@ -191,7 +191,6 @@ func newTemplate(deviceType string) error {
 				DeviceType: "gpu",
 				MaxVFs:     8,
 				VFProfile:  "",
-				EccOn:      true,
 			},
 			"card1": {
 				UID:        "0000-03-00-1-0x56c0",
@@ -206,7 +205,6 @@ func newTemplate(deviceType string) error {
 				ParentUID:  "0000-03-00-0-0x56c0",
 				VFProfile:  "",
 				VFIndex:    0,
-				EccOn:      true,
 			},
 		}
 		templateText, err = json.MarshalIndent(templateData, "", "  ")

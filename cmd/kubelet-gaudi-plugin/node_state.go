@@ -26,10 +26,8 @@ import (
 	"time"
 
 	resourcev1 "k8s.io/api/resource/v1alpha3"
-	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
-	"k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	cdiSpecs "tags.cncf.io/container-device-interface/specs-go"
@@ -50,7 +48,7 @@ type nodeState struct {
 	nodeName               string
 }
 
-func newNodeState(ctx context.Context, clientset coreclientset.Interface, detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimsFilePath string, nodeName string) (*nodeState, error) {
+func newNodeState(ctx context.Context, detectedDevices map[string]*device.DeviceInfo, cdiRoot string, preparedClaimsFilePath string, nodeName string) (*nodeState, error) {
 	for ddev := range detectedDevices {
 		klog.V(3).Infof("new device: %+v", ddev)
 	}
@@ -183,7 +181,7 @@ func (s *nodeState) cdiHabanaEnvVar(claimUID string, visibleDevices string) erro
 }
 
 /*
-func (s *nodeState) syncPreparedDevicesFromFile(clientset coreclientset.Interface, preparedClaims ClaimPreparations) error {
+func (s *nodeState) syncPreparedDevicesFromFile(preparedClaims ClaimPreparations) error {
 	klog.V(5).Infof("Syncing %d Prepared allocations from GaudiAllocationState to internal state", len(preparedClaims))
 
 	if s.prepared == nil {
@@ -216,11 +214,11 @@ func (s *nodeState) syncPreparedDevicesFromFile(clientset coreclientset.Interfac
 */
 
 func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim) error {
-	allocatedGaudiDevices := []*v1alpha4.Device{}
-
 	if claim.Status.Allocation == nil {
 		return fmt.Errorf("no allocation found in claim %v/%v status", claim.Namespace, claim.Name)
 	}
+
+	allocatedDevices := []*drav1.Device{}
 
 	for _, allocatedDevice := range claim.Status.Allocation.Devices.Results {
 		// ATM the only pool is cluster node's pool: all devices on current node.
@@ -234,16 +232,16 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 			return fmt.Errorf("could not find allocatable device %v (pool %v)", allocatedDevice.Device, allocatedDevice.Pool)
 		}
 
-		newDevice := v1alpha4.Device{
+		newDevice := drav1.Device{
 			RequestNames: []string{allocatedDevice.Request},
 			PoolName:     allocatedDevice.Pool,
 			DeviceName:   allocatedDevice.Device,
 			CDIDeviceIDs: []string{allocatableDevice.CDIName()},
 		}
-		allocatedGaudiDevices = append(allocatedGaudiDevices, &newDevice)
+		allocatedDevices = append(allocatedDevices, &newDevice)
 	}
 
-	s.prepared[string(claim.UID)] = allocatedGaudiDevices
+	s.prepared[string(claim.UID)] = allocatedDevices
 
 	err := writePreparedClaimsToFile(s.preparedClaimsFilePath, s.prepared)
 	if err != nil {

@@ -20,7 +20,7 @@ spec:
       initContainers:
       containers:
       - name: kubelet-plugin
-        image: intel/intel-gaudi-resource-driver:v0.1.1
+        image: intel/intel-gaudi-resource-driver:v0.2.0
         imagePullPolicy: IfNotPresent
         command: ["/kubelet-gaudi-plugin"]
         env:

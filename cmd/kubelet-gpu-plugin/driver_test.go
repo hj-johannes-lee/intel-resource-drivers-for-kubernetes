@@ -25,7 +25,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/fsnotify/fsnotify"
+	resourcev1 "k8s.io/api/resource/v1alpha3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 
@@ -33,14 +33,11 @@ import (
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
-	gpucsfake "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned/fake"
-	gpuv1alpha2 "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2"
-	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
 	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
 func TestFakeSysfs(t *testing.T) {
-	testDirs, err := helpers.NewTestDirs()
+	testDirs, err := helpers.NewTestDirs(device.DriverName)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
 		return
@@ -64,25 +61,19 @@ func TestFakeSysfs(t *testing.T) {
 
 func getFakeDriver(testDirs helpers.TestDirsType) (*driver, error) {
 
-	fakeGas := &gpuv1alpha2.GpuAllocationState{
-		TypeMeta:   metav1.TypeMeta{},
-		ObjectMeta: metav1.ObjectMeta{Namespace: "namespace1", Name: "node1"},
-		Status:     "Ready",
-		Spec:       gpuv1alpha2.GpuAllocationStateSpec{},
-	}
-	fakeDRAClient := gpucsfake.NewSimpleClientset(fakeGas)
-
 	config := &configType{
-		crdconfig: &intelcrd.GpuAllocationStateConfig{
-			Name:      "node1",
-			Namespace: "namespace1",
-		},
-		clientset: &clientsetType{
-			kubefake.NewSimpleClientset(),
-			fakeDRAClient,
-		},
-		cdiRoot:          testDirs.CdiRoot,
-		driverPluginPath: testDirs.DriverPluginRoot,
+		nodeName:                  "node1",
+		clientset:                 kubefake.NewSimpleClientset(),
+		cdiRoot:                   testDirs.CdiRoot,
+		kubeletPluginDir:          testDirs.KubeletPluginDir,
+		kubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+	}
+
+	if err := os.MkdirAll(config.kubeletPluginDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
+	}
+	if err := os.MkdirAll(config.kubeletPluginsRegistryDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -92,12 +83,12 @@ func getFakeDriver(testDirs helpers.TestDirsType) (*driver, error) {
 
 func TestNodePrepareResources(t *testing.T) {
 	type testCase struct {
-		name               string
-		request            *drav1.NodePrepareResourcesRequest
-		expectedResponse   *drav1.NodePrepareResourcesResponse
-		gasSpecAllocations map[string]gpuv1alpha2.AllocatedClaim
-		preparedClaims     ClaimPreparations
-		updateFakeSysfs    bool
+		name                   string
+		claims                 []*resourcev1.ResourceClaim
+		request                *drav1.NodePrepareResourcesRequest
+		expectedResponse       *drav1.NodePrepareResourcesResponse
+		preparedClaims         ClaimPreparations
+		expectedPreparedClaims ClaimPreparations
 	}
 
 	testcases := []testCase{
@@ -109,151 +100,206 @@ func TestNodePrepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{},
 			},
-			preparedClaims:  ClaimPreparations{},
-			updateFakeSysfs: false,
+			preparedClaims: ClaimPreparations{},
 		},
 		{
 			name: "single GPU",
+			claims: []*resourcev1.ResourceClaim{
+				helpers.NewClaim("namespace1", "claim1", "uid1", "request1", "gpu.intel.com", "node1", []string{"0000-00-02-0-0x56c0"}),
+			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
-					{Name: "claim1", Namespace: "namespace1", Uid: "uid1"},
-				},
-			},
-			expectedResponse: &drav1.NodePrepareResourcesResponse{
-				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"uid1": {CDIDevices: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
-				},
-			},
-			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid1": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000-00-02-0-0x56c0", Type: "gpu", Memory: 4096}}},
-			},
-			preparedClaims:  ClaimPreparations{},
-			updateFakeSysfs: false,
-		},
-		{
-			name: "single existing VF",
-			request: &drav1.NodePrepareResourcesRequest{
-				Claims: []*drav1.Claim{
-					{Name: "claim2", Namespace: "namespace2", Uid: "uid2"},
-				},
-			},
-			expectedResponse: &drav1.NodePrepareResourcesResponse{
-				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"uid2": {CDIDevices: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
-				},
-			},
-			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid2": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000-00-03-1-0x56c0", Type: "vf", Memory: 8064, VFIndex: 0, ParentUID: "0000-00-03-0-0x56c0"}}},
-			},
-			preparedClaims:  ClaimPreparations{},
-			updateFakeSysfs: false,
-		},
-		// this is a slow test case - validation of created VF is timing out as expected
-		{
-			name: "single new VF failed post-creation validation",
-			request: &drav1.NodePrepareResourcesRequest{
-				Claims: []*drav1.Claim{
-					{Name: "claim3", Namespace: "namespace3", Uid: "uid3"},
-				},
-			},
-			expectedResponse: &drav1.NodePrepareResourcesResponse{
-				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"uid3": {Error: "error preparing resource: failed to validate provisioned VFs: vf 0 of GPU 0000:00:02.0 is NOT OK, did not check the rest of new VFs, cleaned up successfully"},
-				},
-			},
-			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid3": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000-00-02-0-0x56c0"}}},
-				"uid4": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 1, ParentUID: "0000-00-02-0-0x56c0"}}},
-			},
-			preparedClaims:  ClaimPreparations{},
-			updateFakeSysfs: false,
-		},
-		{
-			name: "single new VF failed creation, no tiles",
-			request: &drav1.NodePrepareResourcesRequest{
-				Claims: []*drav1.Claim{
-					{Name: "claim5", Namespace: "namespace5", Uid: "uid5"},
-				},
-			},
-			expectedResponse: &drav1.NodePrepareResourcesResponse{
-				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"uid5": {Error: "error preparing resource: failed to validate provisioned VFs: vf 0 of GPU 0000:00:04.0 is NOT OK, did not check the rest of new VFs, cleaned up successfully"},
-				},
-			},
-			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid5": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000-00-04-0-0x0000"}}},
-			},
-			preparedClaims:  ClaimPreparations{},
-			updateFakeSysfs: false,
-		},
-		{
-			name: "monitoring claim",
-			request: &drav1.NodePrepareResourcesRequest{
-				Claims: []*drav1.Claim{
-					{Name: "monitor", Namespace: "namespace1", Uid: "uid1", ResourceHandle: "monitor"},
+					{UID: "uid1", Name: "claim1", Namespace: "namespace1"},
 				},
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid1": {
-						CDIDevices: []string{
+						Devices: []*drav1.Device{
+							{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
+						},
+					},
+				},
+			},
+			preparedClaims: ClaimPreparations{},
+			expectedPreparedClaims: ClaimPreparations{
+				"uid1": {
+					{
+						RequestNames: []string{"request1"},
+						PoolName:     "node1",
+						DeviceName:   "0000-00-02-0-0x56c0",
+						CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"},
+					},
+				},
+			},
+		},
+		{
+			name: "single existing VF",
+			claims: []*resourcev1.ResourceClaim{
+				helpers.NewClaim("namespace2", "claim2", "uid2", "request2", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}),
+			},
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
+					{Name: "claim2", Namespace: "namespace2", UID: "uid2"},
+				},
+			},
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
+					"uid2": {
+						Devices: []*drav1.Device{
+							{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+						},
+					},
+				},
+			},
+			preparedClaims: ClaimPreparations{},
+			expectedPreparedClaims: ClaimPreparations{
+				"uid2": {
+					{
+						RequestNames: []string{"request2"},
+						PoolName:     "node1",
+						DeviceName:   "0000-00-03-1-0x56c0",
+						CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+					},
+				},
+			},
+		},
+		{
+			name: "monitoring claim",
+			claims: []*resourcev1.ResourceClaim{
+				helpers.NewMonitoringClaim("namespace3", "monitor", "uid3", "request3", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}),
+			},
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{
+					{Name: "monitor", Namespace: "namespace3", UID: "uid3"},
+				},
+			},
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
+					"uid3": {
+						Devices: []*drav1.Device{
+							{
+								RequestNames: []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-02-0-0x56c0",
+								CDIDeviceIDs: []string{
+									"intel.com/gpu=0000-00-02-0-0x56c0",
+								},
+							},
+							{
+								RequestNames: []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-0-0x56c0",
+								CDIDeviceIDs: []string{
+									"intel.com/gpu=0000-00-03-0-0x56c0",
+								},
+							},
+							{
+								RequestNames: []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-1-0x56c0",
+								CDIDeviceIDs: []string{
+									"intel.com/gpu=0000-00-03-1-0x56c0",
+								},
+							},
+							{
+								RequestNames: []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-04-0-0x56c0",
+								CDIDeviceIDs: []string{
+									"intel.com/gpu=0000-00-04-0-0x0000",
+								},
+							},
+						},
+					},
+				},
+			},
+			preparedClaims: ClaimPreparations{},
+			expectedPreparedClaims: ClaimPreparations{
+				"uid3": {
+					{
+						RequestNames: []string{"monitor"},
+						PoolName:     "node1",
+						DeviceName:   "0000-00-02-0-0x56c0",
+						CDIDeviceIDs: []string{
 							"intel.com/gpu=0000-00-02-0-0x56c0",
+						},
+					},
+					{
+						RequestNames: []string{"monitor"},
+						PoolName:     "node1",
+						DeviceName:   "0000-00-03-0-0x56c0",
+						CDIDeviceIDs: []string{
 							"intel.com/gpu=0000-00-03-0-0x56c0",
+						},
+					},
+					{
+						RequestNames: []string{"monitor"},
+						PoolName:     "node1",
+						DeviceName:   "0000-00-03-1-0x56c0",
+						CDIDeviceIDs: []string{
 							"intel.com/gpu=0000-00-03-1-0x56c0",
+						},
+					},
+					{
+						RequestNames: []string{"monitor"},
+						PoolName:     "node1",
+						DeviceName:   "0000-00-04-0-0x56c0",
+						CDIDeviceIDs: []string{
 							"intel.com/gpu=0000-00-04-0-0x0000",
 						},
 					},
 				},
 			},
-			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{},
-			preparedClaims:     ClaimPreparations{},
-			updateFakeSysfs:    false,
 		},
 		{
 			name: "single GPU, already prepared claim",
+			claims: []*resourcev1.ResourceClaim{
+				helpers.NewMonitoringClaim("namespace4", "claim4", "uid4", "request4", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}),
+			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
-					{Name: "claim1", Namespace: "namespace1", Uid: "uid1"},
+					{Name: "claim4", Namespace: "namespace4", UID: "uid4"},
 				},
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"uid1": {CDIDevices: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
+					"uid4": {
+						Devices: []*drav1.Device{
+							{
+								RequestNames: []string{"request4"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+							},
+						},
+					},
 				},
-			},
-			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid1": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "0000-00-02-0-0x56c0", Type: "gpu", Memory: 4096}}},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid1": {{UID: "0000-00-02-0-0x56c0", DeviceType: "gpu", MemoryMiB: 4096, Millicores: 1}},
-			},
-			updateFakeSysfs: false,
-		},
-		{
-			name: "single new VF success",
-			request: &drav1.NodePrepareResourcesRequest{
-				Claims: []*drav1.Claim{
-					{Name: "claim3", Namespace: "namespace3", Uid: "uid3"},
+				"uid4": {
+					{
+						RequestNames: []string{"request4"},
+						PoolName:     "node1",
+						DeviceName:   "0000-00-03-1-0x56c0",
+						CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+					},
 				},
 			},
-			expectedResponse: &drav1.NodePrepareResourcesResponse{
-				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"uid3": {CDIDevices: []string{"intel.com/gpu=0000-00-02-1-0x56c0"}},
+			expectedPreparedClaims: ClaimPreparations{
+				"uid4": {
+					{
+						RequestNames: []string{"request4"},
+						PoolName:     "node1",
+						DeviceName:   "0000-00-03-1-0x56c0",
+						CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+					},
 				},
 			},
-			gasSpecAllocations: map[string]gpuv1alpha2.AllocatedClaim{
-				"uid3": {Gpus: []gpuv1alpha2.AllocatedGpu{{UID: "", Type: "vf", Memory: 4096, VFIndex: 0, ParentUID: "0000-00-02-0-0x56c0"}}},
-			},
-			preparedClaims:  ClaimPreparations{},
-			updateFakeSysfs: true,
 		},
 	}
 
-	var watcher *fsnotify.Watcher
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := helpers.NewTestDirs()
+		testDirs, err := helpers.NewTestDirs(device.DriverName)
 		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("%v: setup error: %v", testcase.name, err)
@@ -275,7 +321,7 @@ func TestNodePrepareResources(t *testing.T) {
 			return
 		}
 
-		preparedClaimFilePath := path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName)
+		preparedClaimFilePath := path.Join(testDirs.KubeletPluginDir, device.PreparedClaimsFileName)
 		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
@@ -286,18 +332,12 @@ func TestNodePrepareResources(t *testing.T) {
 			continue
 		}
 
-		// dynamically add and remove fake sysfs SR-IOV VFs
-		if testcase.updateFakeSysfs {
-			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot, testDirs.DevfsRoot)
-			defer watcher.Close()
-		}
-
-		// cleanup and setup GAS
-		gasspec := driver.gas.Spec.DeepCopy()
-		gasspec.AllocatedClaims = testcase.gasSpecAllocations
-		if err := driver.gas.Update(context.TODO(), gasspec); err != nil {
-			t.Error("setup error: could not prepare GAS")
-			continue
+		for _, testClaim := range testcase.claims {
+			createdClaim, err := driver.client.ResourceV1alpha3().ResourceClaims(testClaim.Namespace).Create(context.TODO(), testClaim, metav1.CreateOptions{})
+			if err != nil {
+				t.Errorf("could not create test claim: %v", err)
+			}
+			t.Logf("created test claim: %+v", createdClaim)
 		}
 
 		response, err := driver.NodePrepareResources(context.TODO(), testcase.request)
@@ -305,80 +345,9 @@ func TestNodePrepareResources(t *testing.T) {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 		}
 
-		if !compareNodePrepareResourcesResponses(testcase.expectedResponse, response) {
+		if !reflect.DeepEqual(testcase.expectedResponse, response) {
 			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, response, testcase.expectedResponse)
 		}
-	}
-}
-
-func TestReuseLeftoverSRIOVResources(t *testing.T) {
-	testDirs, err := helpers.NewTestDirs()
-	defer helpers.CleanupTest(t, "TestReuseLeftoverSRIOVResources", testDirs.TestRoot)
-	if err != nil {
-		t.Errorf("setup error: %v", err)
-		return
-	}
-	if err := fakesysfs.FakeSysFsGpuContents(
-		testDirs.SysfsRoot,
-		testDirs.DevfsRoot,
-		device.DevicesInfo{
-			"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
-			"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 1, RenderdIdx: 129, UID: "0000-00-03-0-0x56c0", MaxVFs: 16},
-		},
-	); err != nil {
-		t.Errorf("setup error: could not create fake sysfs: %v", err)
-		return
-	}
-
-	driver, driverErr := getFakeDriver(testDirs)
-	if driverErr != nil {
-		t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
-	}
-
-	expectedToProvision := map[string][]*device.DeviceInfo{
-		"0000-00-03-0-0x56c0": {
-			{
-				UID:        "",
-				MemoryMiB:  0,
-				Model:      "0x56c0",
-				DeviceType: "vf",
-				VFIndex:    0,
-				VFProfile:  "flex170_m2",
-				ParentUID:  "0000-00-03-0-0x56c0",
-			},
-			{
-				UID:        "", // uid is populated after provisioning
-				MemoryMiB:  0,  // memory is not populated until VF is provisioned. Because not needed.
-				Model:      "0x56c0",
-				DeviceType: "vf",
-				VFIndex:    1,
-				VFProfile:  "flex170_m2",
-				ParentUID:  "0000-00-03-0-0x56c0",
-			},
-		},
-	}
-
-	toProvision := map[string][]*device.DeviceInfo{
-		"0000-00-03-0-0x56c0": {
-			{
-				DeviceType: "vf",
-				VFIndex:    0,
-				Model:      "0x56c0",
-				VFProfile:  "flex170_m2",
-				ParentUID:  "0000-00-03-0-0x56c0",
-			},
-		},
-	}
-	driver.reuseLeftoverSRIOVResources(toProvision)
-
-	if !reflect.DeepEqual(toProvision, expectedToProvision) {
-		for _, vf := range toProvision["0000-00-03-0-0x56c0"] {
-			fmt.Printf("toProvision VF: %+v\n", vf)
-		}
-		for _, vf := range expectedToProvision["0000-00-03-0-0x56c0"] {
-			fmt.Printf("expectedtoProvision VF: %+v\n", vf)
-		}
-		t.Errorf("unexpected result after reusing leftovers: %+v; expected: %+v", toProvision, expectedToProvision)
 	}
 }
 
@@ -389,7 +358,6 @@ func TestNodeUnprepareResources(t *testing.T) {
 		expectedResponse       *drav1.NodeUnprepareResourcesResponse
 		preparedClaims         ClaimPreparations
 		expectedPreparedClaims ClaimPreparations
-		updateFakeSysfs        bool
 	}
 
 	testcases := []testCase{
@@ -408,14 +376,14 @@ func TestNodeUnprepareResources(t *testing.T) {
 			name: "single GPU",
 			request: &drav1.NodeUnprepareResourcesRequest{
 				Claims: []*drav1.Claim{
-					{Name: "claim1", Namespace: "namespace1", Uid: "uid1"},
+					{Name: "claim1", Namespace: "namespace1", UID: "uid1"},
 				},
 			},
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid1": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid1": {{UID: "0000-b3-00-0-0x0bda", DeviceType: "gpu", MemoryMiB: 4096}},
+				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-b3-00-0-0x0bda", CDIDeviceIDs: []string{"intel.com/gpu=0000-b3-00-0-0x0bda"}}},
 			},
 			expectedPreparedClaims: ClaimPreparations{},
 		},
@@ -423,61 +391,26 @@ func TestNodeUnprepareResources(t *testing.T) {
 			name: "single VF without cleanup",
 			request: &drav1.NodeUnprepareResourcesRequest{
 				Claims: []*drav1.Claim{
-					{Name: "claim2", Namespace: "namespace2", Uid: "uid2"},
+					{Name: "claim2", Namespace: "namespace2", UID: "uid2"},
 				},
 			},
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid2": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"uid2": {{UID: "0000-af-00-1-0x0bda", PCIAddress: "0000:af:00.1", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 0, ParentUID: "0000-af-00-0-0x0bda"}},
-				"uid3": {{UID: "0000-af-00-2-0x0bda", PCIAddress: "0000:af:00.2", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
+				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-af-00-1-0x0bda", CDIDeviceIDs: []string{"intel.com/gpu=0000-af-00-1-0x0bda"}}},
+				"uid3": {{RequestNames: []string{"request3"}, PoolName: "node1", DeviceName: "0000-af-00-2-0x0bda", CDIDeviceIDs: []string{"intel.com/gpu=0000-af-00-2-0x0bda"}}},
 			},
 			expectedPreparedClaims: ClaimPreparations{
-				"uid3": {{UID: "0000-af-00-2-0x0bda", PCIAddress: "0000:af:00.2", Model: "0x0bda", CardIdx: 3, DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
+				"uid3": {{RequestNames: []string{"request3"}, PoolName: "node1", DeviceName: "0000-af-00-2-0x0bda", CDIDeviceIDs: []string{"intel.com/gpu=0000-af-00-2-0x0bda"}}},
 			},
-		},
-		// This test is a bit slow because kubelet-plugin waits for VFs to go away, and they never do.
-		{
-			name: "single VF failed cleanup",
-			request: &drav1.NodeUnprepareResourcesRequest{
-				Claims: []*drav1.Claim{
-					{Name: "claim3", Namespace: "namespace3", Uid: "uid3"},
-				},
-			},
-			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
-				Claims: map[string]*drav1.NodeUnprepareResourceResponse{
-					"uid3": {Error: "error unpreparing resource: failed to remove VFs: 0000-af-00-0-0x0bda: failed removing VFs: timeout waiting for VFs to be disabled on device"},
-				},
-			},
-			preparedClaims: ClaimPreparations{
-				"uid3": {{UID: "0000-af-00-2-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
-			},
-			expectedPreparedClaims: ClaimPreparations{},
-		},
-		{
-			name: "single VF successful cleanup",
-			request: &drav1.NodeUnprepareResourcesRequest{
-				Claims: []*drav1.Claim{
-					{Name: "claim3", Namespace: "namespace3", Uid: "uid3"},
-				},
-			},
-			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
-				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid3": {}},
-			},
-			preparedClaims: ClaimPreparations{
-				"uid3": {{UID: "0000-af-00-2-0x0bda", DeviceType: "vf", MemoryMiB: 22528, Millicores: 500, VFIndex: 1, ParentUID: "0000-af-00-0-0x0bda"}},
-			},
-			expectedPreparedClaims: ClaimPreparations{},
-			updateFakeSysfs:        true,
 		},
 	}
 
-	var watcher *fsnotify.Watcher
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := helpers.NewTestDirs()
+		testDirs, err := helpers.NewTestDirs(device.DriverName)
 		defer helpers.CleanupTest(t, "TestNodeUnprepareResources", testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("setup error: %v", err)
@@ -498,7 +431,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 			return
 		}
 
-		preparedClaimsFilePath := path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName)
+		preparedClaimsFilePath := path.Join(testDirs.KubeletPluginDir, device.PreparedClaimsFileName)
 		if err := writePreparedClaimsToFile(preparedClaimsFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 			continue
@@ -508,12 +441,6 @@ func TestNodeUnprepareResources(t *testing.T) {
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue
-		}
-
-		// dynamically add and remove fake sysfs SR-IOV VFs
-		if testcase.updateFakeSysfs {
-			watcher = fakesysfs.WatchNumvfs(t, testDirs.SysfsRoot, testDirs.DevfsRoot)
-			defer watcher.Close()
 		}
 
 		response, err := driver.NodeUnprepareResources(context.TODO(), testcase.request)
@@ -541,35 +468,4 @@ func TestNodeUnprepareResources(t *testing.T) {
 			)
 		}
 	}
-}
-
-func compareNodePrepareResourcesResponses(expectedResponse, response *drav1.NodePrepareResourcesResponse) bool {
-	if len(response.Claims) != len(expectedResponse.Claims) {
-		return false
-	}
-
-	for expClaimUID, expClaim := range expectedResponse.Claims {
-		claim, found := response.Claims[expClaimUID]
-		if !found {
-			return false
-		}
-
-		if expClaim.Error != claim.Error || len(expClaim.CDIDevices) != len(claim.CDIDevices) {
-			return false
-		}
-
-		for _, expGPU := range expClaim.CDIDevices {
-			found := false
-			for _, gpu := range claim.CDIDevices {
-				if gpu == expGPU {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
-	}
-	return true
 }

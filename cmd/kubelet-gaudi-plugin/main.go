@@ -52,7 +52,6 @@ type flagsType struct {
 	kubeconfig   *string
 	kubeAPIQPS   *float32
 	kubeAPIBurst *int
-	status       *string
 }
 
 type configType struct {
@@ -134,7 +133,6 @@ func addFlags(cmd *cobra.Command, logsconfig *logsapi.LoggingConfiguration) *fla
 	flags.kubeconfig = fs.String("kubeconfig", "", "Absolute path to the kube.config file")
 	flags.kubeAPIQPS = fs.Float32("kube-api-qps", 15, "QPS to use while communicating with the kubernetes apiserver.")
 	flags.kubeAPIBurst = fs.Int("kube-api-burst", 45, "Burst to use while communicating with the kubernetes apiserver.")
-	flags.status = fs.String("status", "", "The status to set [Ready | NotReady].")
 
 	fs = cmd.PersistentFlags()
 	for _, f := range sharedFlagSets.FlagSets {
@@ -199,7 +197,8 @@ func callPlugin(ctx context.Context, config *configType) error {
 
 	klog.Info("Received stop stignal, exiting.")
 	if err := driver.Shutdown(ctx); err != nil {
-		klog.FromContext(ctx).Error(err, "could not stop DRA driver gracefully")
+		klog.FromContext(ctx).Error(err, "could not stop DRA driver gracefully: %v", err)
+		return err
 	}
 
 	return nil

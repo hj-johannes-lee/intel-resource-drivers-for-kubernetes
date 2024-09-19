@@ -29,9 +29,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/sriov"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
-	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
 )
 
 var perDeviceIdTilesDirs = map[string][]string{
@@ -51,8 +49,8 @@ var perDeviceIdTilesDirs = map[string][]string{
 
 func countVFs(devices device.DevicesInfo) map[string]int {
 	perDeviceNumvfs := map[string]int{}
-	for deviceUID, device := range devices {
-		if device.DeviceType == intelcrd.VfDeviceType {
+	for deviceUID, gpu := range devices {
+		if gpu.DeviceType == device.VfDeviceType {
 			perDeviceNumvfs[deviceUID] += 1
 		}
 	}
@@ -414,7 +412,7 @@ func fakeSysfsPF(deviceUID string, gpu *device.DeviceInfo, numvfs int, i915DevDi
 				return fmt.Errorf("creating fake sysfs, err: %v", err)
 			}
 
-			for _, vfAttr := range sriov.VfAttributeFiles {
+			for _, vfAttr := range device.VfAttributeFiles {
 				if writeErr := helpers.WriteFile(path.Join(drmVFgtDir, vfAttr), "0"); writeErr != nil {
 					return fmt.Errorf("creating fake sysfs, err: %v", writeErr)
 				}

@@ -25,6 +25,7 @@ import (
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
+
 	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 	cdiparser "tags.cncf.io/container-device-interface/pkg/parser"
 
@@ -56,7 +57,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 	}
 
 	klog.V(3).Info("Creating new NodeState")
-	state, err := newNodeState(ctx, config.clientset, detectedDevices, config.cdiRoot, preparedClaimsFilePath, config.nodeName)
+	state, err := newNodeState(ctx, detectedDevices, config.cdiRoot, preparedClaimsFilePath, config.nodeName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
@@ -99,7 +100,6 @@ KubeletPluginSocketPath: %v`,
 	plugin.PublishResources(ctx, resources)
 
 	klog.V(3).Info("Finished creating new driver")
-
 	return d, nil
 }
 

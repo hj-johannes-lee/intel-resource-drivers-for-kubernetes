@@ -23,6 +23,13 @@ import (
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
+	"golang.org/x/sys/unix"
+)
+
+const (
+	devNullMajor = 1
+	devNullMinor = 3
+	devNullType  = unix.S_IFCHR
 )
 
 func FakeSysFsGaudiContents(sysfsRoot string, devfsRoot string, gaudis device.DevicesInfo) error {
@@ -101,18 +108,30 @@ func fakeGaudiDevfs(devfsRoot string, gaudi *device.DeviceInfo, deviceName strin
 	if err := os.MkdirAll(accelDevPath, 0755); err != nil {
 		return fmt.Errorf("creating fake devs, err: %v", err)
 	}
-	if err := helpers.WriteFile(path.Join(accelDevPath, deviceName), ""); err != nil {
+	if err := createDevice(path.Join(accelDevPath, deviceName)); err != nil {
 		return fmt.Errorf("creating fake devfs, err: %v", err)
 	}
-	if err := helpers.WriteFile(path.Join(accelDevPath, controlDeviceName), ""); err != nil {
+	if err := createDevice(path.Join(accelDevPath, controlDeviceName)); err != nil {
 		return fmt.Errorf("creating fake devfs, err: %v", err)
 	}
 
-	if err := helpers.WriteFile(path.Join(devfsRoot, fmt.Sprintf("hl%d", gaudi.DeviceIdx)), ""); err != nil {
+	if err := createDevice(path.Join(devfsRoot, fmt.Sprintf("hl%d", gaudi.DeviceIdx))); err != nil {
 		return fmt.Errorf("creating fake devfs, err: %v", err)
 	}
-	if err := helpers.WriteFile(path.Join(devfsRoot, fmt.Sprintf("hl_controlD%d", gaudi.DeviceIdx)), ""); err != nil {
+	if err := createDevice(path.Join(devfsRoot, fmt.Sprintf("hl_controlD%d", gaudi.DeviceIdx))); err != nil {
 		return fmt.Errorf("creating fake devfs, err: %v", err)
+	}
+
+	return nil
+}
+
+func createDevice(filepath string) error {
+	mode := uint32(0644 | devNullType)
+	devid := int(unix.Mkdev(uint32(devNullMajor), uint32(devNullMinor)))
+
+	if err := unix.Mknod(filepath, mode, devid); err != nil {
+		return fmt.Errorf("NULL device (%d:%d) node creation failed for '%s': %w",
+			devNullMajor, devNullMinor, filepath, err)
 	}
 
 	return nil

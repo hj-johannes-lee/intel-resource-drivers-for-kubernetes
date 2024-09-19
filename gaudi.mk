@@ -23,9 +23,6 @@ bin/kubelet-gaudi-plugin
 
 GAUDI_COMMON_SRC = \
 $(COMMON_SRC) \
-pkg/intel.com/resource/gaudi/clientset/versioned/*.go \
-pkg/intel.com/resource/gaudi/v1alpha1/api/*.go \
-pkg/intel.com/resource/gaudi/v1alpha1/*.go \
 pkg/gaudi/cdihelpers/*.go \
 pkg/gaudi/device/*.go \
 pkg/gaudi/discovery/*.go
@@ -48,21 +45,3 @@ gaudi-container-build: cleanall vendor
 .PHONY: gaudi-container-push
 gaudi-container-push: gaudi-container-build
 	$(DOCKER) push $(GAUDI_IMAGE_TAG)
-
-.PHONY: rm-gaudi-clientset
-rm-gaudi-clientset:
-	rm -rf  "$(CURDIR)/pkg/intel.com/resource/gaudi/clientset/"
-
-.PHONY: generate-gaudi-clientset
-generate-gaudi-clientset: rm-gaudi-clientset
-	client-gen \
-		--go-header-file=$(CURDIR)/hack/boilerplate.go.txt \
-		--clientset-name "versioned" \
-		--output-pkg "$(MODULE)/pkg/intel.com/resource/gaudi/clientset" \
-		--input-base "$(MODULE)/pkg/intel.com/resource" \
-		--output-dir "$(CURDIR)/pkg/tmp_clientset" \
-		--input "gaudi/v1alpha1" \
-		--plural-exceptions "GaudiClassParameters:GaudiClassParameters,GaudiClaimParameters:GaudiClaimParameters"
-	mkdir -p $(CURDIR)/pkg/intel.com/resource/gaudi/clientset
-	mv $(CURDIR)/pkg/tmp_clientset/versioned $(CURDIR)/pkg/intel.com/resource/gaudi/clientset/
-	rm -rf $(CURDIR)/pkg/tmp_clients

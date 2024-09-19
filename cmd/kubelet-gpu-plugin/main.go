@@ -21,18 +21,16 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/metadata"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/retry"
 
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/featuregate"
@@ -40,19 +38,13 @@ import (
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/component-base/term"
 	"k8s.io/klog/v2"
-
-	intelclientset "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/clientset/versioned"
-	intelcrd "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/intel.com/resource/gpu/v1alpha2/api"
 )
 
 const (
-	pluginRegistrationPath = "/var/lib/kubelet/plugins_registry/" + intelcrd.APIGroupName + ".sock"
-	driverPluginPath       = "/var/lib/kubelet/plugins/" + intelcrd.APIGroupName
-	driverPluginSocketPath = driverPluginPath + "/plugin.sock"
-
-	cdiRoot   = "/etc/cdi"
-	cdiVendor = "intel.com"
-	cdiKind   = cdiVendor + "/gpu"
+	DefaultCDIRoot                   = "/etc/cdi"
+	DefaultKubeletPath               = "/var/lib/kubelet/"
+	DefaultKubeletPluginDir          = DefaultKubeletPath + "plugins/" + device.DriverName
+	DefaultKubeletPluginsRegistryDir = DefaultKubeletPath + "plugins_registry/"
 )
 
 type flagsType struct {
@@ -62,16 +54,12 @@ type flagsType struct {
 	status       *string
 }
 
-type clientsetType struct {
-	core  coreclientset.Interface
-	intel intelclientset.Interface
-}
-
 type configType struct {
-	crdconfig        *intelcrd.GpuAllocationStateConfig
-	clientset        *clientsetType
-	cdiRoot          string
-	driverPluginPath string
+	clientset                 coreclientset.Interface
+	cdiRoot                   string
+	kubeletPluginDir          string
+	kubeletPluginsRegistryDir string
+	nodeName                  string
 }
 
 func main() {
@@ -104,11 +92,6 @@ func newCommand() *cobra.Command {
 	}
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		err := validateFlags(flags)
-		if err != nil {
-			return fmt.Errorf("validate flags: %v", err)
-		}
-
 		csconfig, err := getClientSetConfig(flags)
 		if err != nil {
 			return fmt.Errorf("create client configuration: %v", err)
@@ -119,68 +102,23 @@ func newCommand() *cobra.Command {
 			return fmt.Errorf("create core client: %v", err)
 		}
 
-		intelclient, err := intelclientset.NewForConfig(csconfig)
-		if err != nil {
-			return fmt.Errorf("create Intel client: %v", err)
-		}
-
 		nodeName, nodeNameFound := os.LookupEnv("NODE_NAME")
 		if !nodeNameFound {
 			nodeName = "127.0.0.1"
 		}
-		podNamespace, podNamespaceFound := os.LookupEnv("POD_NAMESPACE")
-		if !podNamespaceFound {
-			podNamespace = "default"
-		}
-		klog.V(3).Infof("node: %v, namespace: %v", nodeName, podNamespace)
-
-		node, err := coreclient.CoreV1().Nodes().Get(cmd.Context(), nodeName, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("get node object: %v", err)
-		}
 
 		config := &configType{
-			crdconfig: &intelcrd.GpuAllocationStateConfig{
-				Name:      nodeName,
-				Namespace: podNamespace,
-				Owner: &metav1.OwnerReference{
-					APIVersion: "v1",
-					Kind:       "Node",
-					Name:       nodeName,
-					UID:        node.UID,
-				},
-			},
-			clientset: &clientsetType{
-				coreclient,
-				intelclient,
-			},
-			cdiRoot:          cdiRoot,
-			driverPluginPath: driverPluginPath,
-		}
-
-		if *flags.status != "" {
-			gas := intelcrd.NewGpuAllocationState(config.crdconfig, intelclient)
-			return setStatus(cmd.Context(), *flags.status, gas)
+			nodeName:                  nodeName,
+			clientset:                 coreclient,
+			cdiRoot:                   DefaultCDIRoot,
+			kubeletPluginDir:          DefaultKubeletPluginDir,
+			kubeletPluginsRegistryDir: DefaultKubeletPluginsRegistryDir,
 		}
 
 		return callPlugin(cmd.Context(), config)
 	}
 
 	return cmd
-}
-
-func validateFlags(f *flagsType) error {
-	switch strings.ToLower(*f.status) {
-	case strings.ToLower(intelcrd.GpuAllocationStateStatusReady):
-		*f.status = intelcrd.GpuAllocationStateStatusReady
-	case strings.ToLower(intelcrd.GpuAllocationStateStatusNotReady):
-		*f.status = intelcrd.GpuAllocationStateStatusNotReady
-	case "":
-		return nil
-	default:
-		return fmt.Errorf("unknown status: %v", *f.status)
-	}
-	return nil
 }
 
 func addFlags(cmd *cobra.Command, logsconfig *logsapi.LoggingConfiguration) *flagsType {
@@ -195,7 +133,6 @@ func addFlags(cmd *cobra.Command, logsconfig *logsapi.LoggingConfiguration) *fla
 	flags.kubeconfig = fs.String("kubeconfig", "", "Absolute path to the kube.config file")
 	flags.kubeAPIQPS = fs.Float32("kube-api-qps", 15, "QPS to use while communicating with the kubernetes apiserver.")
 	flags.kubeAPIBurst = fs.Int("kube-api-burst", 45, "Burst to use while communicating with the kubernetes apiserver.")
-	flags.status = fs.String("status", "", "The status to set [Ready | NotReady].")
 
 	fs = cmd.PersistentFlags()
 	for _, f := range sharedFlagSets.FlagSets {
@@ -237,13 +174,15 @@ func getClientSetConfig(flags *flagsType) (*rest.Config, error) {
 }
 
 func callPlugin(ctx context.Context, config *configType) error {
-	err := os.MkdirAll(config.driverPluginPath, 0750)
-	if err != nil {
+	if err := os.MkdirAll(config.kubeletPluginDir, 0750); err != nil {
 		return fmt.Errorf("failed to create plugin socket dir: %v", err)
 	}
 
-	err = os.MkdirAll(config.cdiRoot, 0750)
-	if err != nil {
+	if err := os.MkdirAll(config.kubeletPluginDir, 0750); err != nil {
+		return fmt.Errorf("failed to create plugin registrar socket dir: %v", err)
+	}
+
+	if err := os.MkdirAll(config.cdiRoot, 0750); err != nil {
 		return fmt.Errorf("failed to create CDI root dir: %v", err)
 	}
 
@@ -256,35 +195,11 @@ func callPlugin(ctx context.Context, config *configType) error {
 	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 	<-sigc
 
+	klog.Info("Received stop stignal, exiting.")
 	if err := driver.Shutdown(ctx); err != nil {
-		klog.Error("error shutting down gracefully: %v", err)
+		klog.FromContext(ctx).Error(err, "could not stop DRA driver gracefully: %v", err)
 		return err
 	}
-
-	return nil
-}
-
-func setStatus(ctx context.Context, status string, gas *intelcrd.GpuAllocationState) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-
-		klog.V(5).Infof("fetching GAS %v", gas.Name)
-		err := gas.GetOrCreate(ctx)
-		if err != nil {
-			return fmt.Errorf("error retrieving GAS CRD for node %v: %v", gas.Name, err)
-		}
-
-		if gas.Status == status {
-			return nil
-		}
-
-		return gas.UpdateStatus(ctx, status)
-	})
-
-	if err != nil {
-		return err
-	}
-
-	klog.V(5).Info("GAS status updated")
 
 	return nil
 }

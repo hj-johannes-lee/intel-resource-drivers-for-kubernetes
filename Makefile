@@ -134,7 +134,6 @@ clean-licenses:
 licenses: clean-licenses
 	GO111MODULE=on go run github.com/google/go-licenses@$(GOLICENSES_VERSION) \
 	save \
-	"./cmd/alert-webhook" \
 	"./cmd/cdi-specs-generator" \
 	"./cmd/kubelet-gaudi-plugin" \
 	"./cmd/kubelet-gpu-plugin" \
@@ -145,13 +144,7 @@ licenses: clean-licenses
 	"./pkg/gpu/sriov" \
 	"./pkg/gaudi/cdihelpers" \
 	"./pkg/gaudi/device" \
-	"./pkg/gaudi/discovery" \
-	"./pkg/intel.com/resource/gpu/v1alpha2" \
-	"./pkg/intel.com/resource/gpu/v1alpha2/api" \
-	"./pkg/intel.com/resource/gpu/clientset/versioned/" --save_path licenses \
-	"./pkg/intel.com/resource/gaudi/v1alpha1" \
-	"./pkg/intel.com/resource/gaudi/v1alpha1/api" \
-	"./pkg/intel.com/resource/gaudi/clientset/versioned/" --save_path licenses
+	"./pkg/gaudi/discovery"
 
 
 # linting targets for Go and other code

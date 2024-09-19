@@ -51,8 +51,9 @@ const (
 
 	// driver.sysfsDriverDir and driver.sysfsAccelDir are sysfsDriverPath and sysfsAccelPath
 	// respectively prefixed with $SYSFS_ROOT.
-	SysfsDriverPath  = "bus/pci/drivers/habanalabs"
-	SysfsAccelPath   = "devices/virtual/accel/"
+	SysfsDriverPath = "bus/pci/drivers/habanalabs"
+	SysfsAccelPath  = "devices/virtual/accel/"
+
 	CDIVendor        = "intel.com"
 	CDIClass         = "gaudi"
 	CDIKind          = CDIVendor + "/" + CDIClass

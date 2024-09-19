@@ -36,7 +36,7 @@ import (
 )
 
 func TestFakeSysfs(t *testing.T) {
-	testDirs, err := helpers.NewTestDirs()
+	testDirs, err := helpers.NewTestDirs(device.DriverName)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
 		return
@@ -64,8 +64,8 @@ func getFakeDriver(testDirs helpers.TestDirsType) (*driver, error) {
 		nodeName:                  "node1",
 		clientset:                 kubefake.NewSimpleClientset(),
 		cdiRoot:                   testDirs.CdiRoot,
-		kubeletPluginsRegistryDir: testDirs.DriverPluginRoot,
-		kubeletPluginDir:          testDirs.DriverPluginRoot,
+		kubeletPluginsRegistryDir: testDirs.KubeletPluginDir,
+		kubeletPluginDir:          testDirs.KubeletPluginRegistryDir,
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -91,11 +91,7 @@ func TestNodePrepareResources(t *testing.T) {
 			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
-					{
-						UID:       "claimuid1",
-						Name:      "claimname1",
-						Namespace: "default",
-					},
+					{UID: "claimuid1", Name: "claimname1", Namespace: "default"},
 				},
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
@@ -129,7 +125,7 @@ func TestNodePrepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := helpers.NewTestDirs()
+		testDirs, err := helpers.NewTestDirs(device.DriverName)
 		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("%v: setup error: %v", testcase.name, err)
@@ -149,14 +145,15 @@ func TestNodePrepareResources(t *testing.T) {
 			return
 		}
 
-		preparedClaimFilePath := path.Join(testDirs.DriverPluginRoot, "preparedClaims.json")
-		if err := writePreparedClaimsToFile(path.Join(testDirs.DriverPluginRoot, "preparedClaims.json"), testcase.preparedClaims); err != nil {
+		preparedClaimFilePath := path.Join(testDirs.KubeletPluginDir, "preparedClaims.json")
+		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
 		driver, driverErr := getFakeDriver(testDirs)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
+			continue
 		}
 
 		for _, testClaim := range testcase.claims {

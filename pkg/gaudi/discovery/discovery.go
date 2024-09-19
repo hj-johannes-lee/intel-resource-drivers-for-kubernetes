@@ -27,26 +27,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-/*
-docker run --rm --runtime=habana -e HABANA_VISIBLE_DEVICES=all {docker image} /bin/bash -c "ls /dev/ac*"
-accel0
-accel1
-accel2
-accel3
-accel4
-accel5
-accel6
-accel7
-accel_controlD0
-accel_controlD1
-accel_controlD2
-accel_controlD3
-accel_controlD4
-accel_controlD5
-accel_controlD6
-accel_controlD7
-*/
-
 type gaudiIndexesType struct {
 	accelIdx  uint64 // /dev/accel/accelX
 	moduleIdx uint64 // OAM slot number for networking logic
