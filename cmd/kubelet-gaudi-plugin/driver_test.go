@@ -189,17 +189,16 @@ func TestNodePrepareResources(t *testing.T) {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 			continue
 		}
+		if !reflect.DeepEqual(testcase.expectedResponse, response) {
+			responseJSON, _ := json.MarshalIndent(response, "", "\t")
+			expectedResponseJSON, _ := json.MarshalIndent(testcase.expectedResponse, "", "\t")
+			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, string(responseJSON), string(expectedResponseJSON))
+		}
 
 		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 			continue
-		}
-
-		if !reflect.DeepEqual(testcase.expectedResponse, response) {
-			responseJSON, _ := json.MarshalIndent(response, "", "\t")
-			expectedResponseJSON, _ := json.MarshalIndent(testcase.expectedResponse, "", "\t")
-			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, string(responseJSON), string(expectedResponseJSON))
 		}
 
 		expectedPreparedClaims := testcase.expectedPreparedClaims

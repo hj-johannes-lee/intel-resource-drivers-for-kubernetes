@@ -167,7 +167,8 @@ func TestNodePrepareResources(t *testing.T) {
 		{
 			name: "monitoring claim",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewMonitoringClaim("namespace3", "monitor", "uid3", "request3", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}),
+				helpers.NewMonitoringClaim(
+					"namespace3", "monitor", "uid3", "monitor", "gpu.intel.com", "node1", []string{"0000-00-02-0-0x56c0", "0000-00-03-0-0x56c0", "0000-00-03-1-0x56c0", "0000-00-04-0-0x0000"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
@@ -178,38 +179,10 @@ func TestNodePrepareResources(t *testing.T) {
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
 					"uid3": {
 						Devices: []*drav1.Device{
-							{
-								RequestNames: []string{"monitor"},
-								PoolName:     "node1",
-								DeviceName:   "0000-00-02-0-0x56c0",
-								CDIDeviceIDs: []string{
-									"intel.com/gpu=0000-00-02-0-0x56c0",
-								},
-							},
-							{
-								RequestNames: []string{"monitor"},
-								PoolName:     "node1",
-								DeviceName:   "0000-00-03-0-0x56c0",
-								CDIDeviceIDs: []string{
-									"intel.com/gpu=0000-00-03-0-0x56c0",
-								},
-							},
-							{
-								RequestNames: []string{"monitor"},
-								PoolName:     "node1",
-								DeviceName:   "0000-00-03-1-0x56c0",
-								CDIDeviceIDs: []string{
-									"intel.com/gpu=0000-00-03-1-0x56c0",
-								},
-							},
-							{
-								RequestNames: []string{"monitor"},
-								PoolName:     "node1",
-								DeviceName:   "0000-00-04-0-0x56c0",
-								CDIDeviceIDs: []string{
-									"intel.com/gpu=0000-00-04-0-0x0000",
-								},
-							},
+							{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
+							{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0"}},
+							{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+							{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-04-0-0x0000", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000"}},
 						},
 					},
 				},
@@ -217,38 +190,10 @@ func TestNodePrepareResources(t *testing.T) {
 			preparedClaims: ClaimPreparations{},
 			expectedPreparedClaims: ClaimPreparations{
 				"uid3": {
-					{
-						RequestNames: []string{"monitor"},
-						PoolName:     "node1",
-						DeviceName:   "0000-00-02-0-0x56c0",
-						CDIDeviceIDs: []string{
-							"intel.com/gpu=0000-00-02-0-0x56c0",
-						},
-					},
-					{
-						RequestNames: []string{"monitor"},
-						PoolName:     "node1",
-						DeviceName:   "0000-00-03-0-0x56c0",
-						CDIDeviceIDs: []string{
-							"intel.com/gpu=0000-00-03-0-0x56c0",
-						},
-					},
-					{
-						RequestNames: []string{"monitor"},
-						PoolName:     "node1",
-						DeviceName:   "0000-00-03-1-0x56c0",
-						CDIDeviceIDs: []string{
-							"intel.com/gpu=0000-00-03-1-0x56c0",
-						},
-					},
-					{
-						RequestNames: []string{"monitor"},
-						PoolName:     "node1",
-						DeviceName:   "0000-00-04-0-0x56c0",
-						CDIDeviceIDs: []string{
-							"intel.com/gpu=0000-00-04-0-0x0000",
-						},
-					},
+					{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
+					{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0"}},
+					{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+					{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-04-0-0x0000", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000"}},
 				},
 			},
 		},
@@ -346,7 +291,29 @@ func TestNodePrepareResources(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(testcase.expectedResponse, response) {
-			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, response, testcase.expectedResponse)
+			responseJSON, _ := json.MarshalIndent(response, "", "\t")
+			expectedResponseJSON, _ := json.MarshalIndent(testcase.expectedResponse, "", "\t")
+			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, string(responseJSON), string(expectedResponseJSON))
+		}
+
+		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
+		if err != nil {
+			t.Errorf("%v: error %v, expected no error", testcase.name, err)
+			continue
+		}
+
+		expectedPreparedClaims := testcase.expectedPreparedClaims
+		if expectedPreparedClaims == nil {
+			expectedPreparedClaims = ClaimPreparations{}
+		}
+
+		if !reflect.DeepEqual(expectedPreparedClaims, preparedClaims) {
+			preparedClaimsJSON, _ := json.MarshalIndent(preparedClaims, "", "\t")
+			expectedPreparedClaimsJSON, _ := json.MarshalIndent(testcase.expectedPreparedClaims, "", "\t")
+			t.Errorf(
+				"%v: unexpected PreparedClaims:\n%s\nexpected PreparedClaims:\n%s",
+				testcase.name, string(preparedClaimsJSON), string(expectedPreparedClaimsJSON),
+			)
 		}
 	}
 }
