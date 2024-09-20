@@ -25,8 +25,7 @@ GPU_COMMON_SRC = \
 $(COMMON_SRC) \
 pkg/gpu/cdihelpers/*.go \
 pkg/gpu/device/*.go \
-pkg/gpu/discovery/*.go \
-pkg/gpu/sriov/*.go
+pkg/gpu/discovery/*.go
 
 GPU_LDFLAGS = ${LDFLAGS} -X ${PKG}/pkg/version.driverVersion=${GPU_VERSION}
 

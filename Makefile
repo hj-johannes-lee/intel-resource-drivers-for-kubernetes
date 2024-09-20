@@ -141,7 +141,6 @@ licenses: clean-licenses
 	"./pkg/gpu/cdihelpers" \
 	"./pkg/gpu/device" \
 	"./pkg/gpu/discovery" \
-	"./pkg/gpu/sriov" \
 	"./pkg/gaudi/cdihelpers" \
 	"./pkg/gaudi/device" \
 	"./pkg/gaudi/discovery"
