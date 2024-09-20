@@ -36,10 +36,6 @@ import (
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 )
 
-const (
-	bytesInMiB = 1024 * 1024
-)
-
 type ClaimPreparations map[string][]*drav1.Device
 
 type nodeState struct {
@@ -126,23 +122,6 @@ func (s *nodeState) GetResources() kubeletplugin.Resources {
 	}
 
 	return kubeletplugin.Resources{Devices: devices}
-}
-
-// Check if any prepared claim already uses VFs from given parent UIDs.
-func (s *nodeState) parentCanHaveVFs(toProvision map[string][]*device.DeviceInfo) bool {
-	for _, preparedClaim := range s.prepared {
-		for _, device := range preparedClaim {
-			deviceInfo, found := s.allocatable[device.DeviceName]
-			if !found {
-				return false
-			}
-			// existing prepared claim using parent GPU prevents it from being used with SR-IOV
-			if _, found := toProvision[deviceInfo.ParentUID]; found {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim) error {

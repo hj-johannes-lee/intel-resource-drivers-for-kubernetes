@@ -30,13 +30,13 @@ import (
 	"k8s.io/klog/v2"
 	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
+	cdiparser "tags.cncf.io/container-device-interface/pkg/parser"
 	cdiSpecs "tags.cncf.io/container-device-interface/specs-go"
 
 	cdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/cdihelpers"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 )
 
-// type ClaimPreparations map[string][]*device.DeviceInfo
 type ClaimPreparations map[string][]*drav1.Device
 
 type nodeState struct {
@@ -219,6 +219,8 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 	}
 
 	allocatedDevices := []*drav1.Device{}
+	visibleDevices := device.VisibleDevicesEnvVarName + "="
+	devs := 0
 
 	for _, allocatedDevice := range claim.Status.Allocation.Devices.Results {
 		// ATM the only pool is cluster node's pool: all devices on current node.
@@ -239,6 +241,21 @@ func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim
 			CDIDeviceIDs: []string{allocatableDevice.CDIName()},
 		}
 		allocatedDevices = append(allocatedDevices, &newDevice)
+
+		devs++
+		if devs > 1 {
+			visibleDevices += ","
+		}
+		visibleDevices += fmt.Sprintf("%v", allocatableDevice.DeviceIdx)
+	}
+
+	if devs > 0 {
+		if err := s.cdiHabanaEnvVar(string(claim.UID), visibleDevices); err != nil {
+			return fmt.Errorf("failed ensuring Habana Runtime specific CDI device: %v", err)
+		}
+
+		cdiName := cdiparser.QualifiedName(device.CDIVendor, device.CDIClass, string(claim.UID))
+		allocatedDevices[0].CDIDeviceIDs = append(allocatedDevices[0].CDIDeviceIDs, cdiName)
 	}
 
 	s.prepared[string(claim.UID)] = allocatedDevices

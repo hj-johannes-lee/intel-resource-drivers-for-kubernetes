@@ -48,6 +48,7 @@ func TestFakeSysfs(t *testing.T) {
 		device.DevicesInfo{
 			"0000-0f-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:0f:00.0", DeviceIdx: 0, UID: "0000-0f-00-0-0x1020"},
 		},
+		false,
 	); err != nil {
 		t.Errorf("setup error: could not create fake sysfs: %v", err)
 		return
@@ -64,8 +65,8 @@ func getFakeDriver(testDirs helpers.TestDirsType) (*driver, error) {
 		nodeName:                  "node1",
 		clientset:                 kubefake.NewSimpleClientset(),
 		cdiRoot:                   testDirs.CdiRoot,
-		kubeletPluginsRegistryDir: testDirs.KubeletPluginDir,
-		kubeletPluginDir:          testDirs.KubeletPluginRegistryDir,
+		kubeletPluginDir:          testDirs.KubeletPluginDir,
+		kubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -87,36 +88,52 @@ func TestNodePrepareResources(t *testing.T) {
 		{
 			name: "one Gaudi success",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewClaim("default", "claimname1", "claimuid1", "request1", "gaudi.intel.com", "node1", []string{"0000-00-02-0-0x1020"}),
+				helpers.NewClaim("default", "claim1", "uid1", "request1", "gaudi.intel.com", "node1", []string{"0000-00-02-0-0x1020"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
-				Claims: []*drav1.Claim{
-					{UID: "claimuid1", Name: "claimname1", Namespace: "default"},
-				},
+				Claims: []*drav1.Claim{{UID: "uid1", Name: "claim1", Namespace: "default"}},
 			},
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{
-					"claimuid1": {
-						Devices: []*drav1.Device{
-							{
-								RequestNames: []string{"request1"},
-								PoolName:     "node1",
-								DeviceName:   "0000-00-02-0-0x1020",
-								CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=claimuid1"},
-							},
-						},
-					},
+					"uid1": {Devices: []*drav1.Device{{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid1"}}}},
 				},
 			},
 			preparedClaims: nil,
 			expectedPreparedClaims: ClaimPreparations{
-				"claimuid1": {
-					{
-						RequestNames: []string{"request1"},
-						PoolName:     "node1",
-						DeviceName:   "0000-00-02-0-0x1020",
-						CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=claimuid1"},
-					},
+				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid1"}}},
+			},
+		},
+		{
+			name: "single Gaudi, already prepared claim",
+			claims: []*resourcev1.ResourceClaim{
+				helpers.NewClaim("namespace2", "claim2", "uid2", "request2", "gaudi.intel.com", "node1", []string{"0000-00-02-0-0x1020"}),
+			},
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{{Name: "claim2", Namespace: "namespace2", UID: "uid2"}},
+			},
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
+					"uid2": {Devices: []*drav1.Device{{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid2"}}}},
+				},
+			},
+			preparedClaims: ClaimPreparations{
+				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid2"}}},
+			},
+			expectedPreparedClaims: ClaimPreparations{
+				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid2"}}},
+			},
+		},
+		{
+			name: "single unavailable device",
+			claims: []*resourcev1.ResourceClaim{
+				helpers.NewClaim("namespace3", "claim3", "uid3", "request3", "gaudi.intel.com", "node1", []string{"0000-00-05-0-0x1020"}),
+			},
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{{Name: "claim3", Namespace: "namespace3", UID: "uid3"}},
+			},
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
+					"uid3": {Error: "could not find allocatable device 0000-00-05-0-0x1020 (pool node1)"},
 				},
 			},
 		},
@@ -140,6 +157,7 @@ func TestNodePrepareResources(t *testing.T) {
 				"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020"},
 				"0000-00-04-0-0x1020": {Model: "0x1020", DeviceIdx: 2, PCIAddress: "0000:00:04.0", UID: "0000-00-04-0-0x1020"},
 			},
+			false,
 		); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
 			return
@@ -148,6 +166,7 @@ func TestNodePrepareResources(t *testing.T) {
 		preparedClaimFilePath := path.Join(testDirs.KubeletPluginDir, "preparedClaims.json")
 		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
+			continue
 		}
 
 		driver, driverErr := getFakeDriver(testDirs)
@@ -160,6 +179,7 @@ func TestNodePrepareResources(t *testing.T) {
 			createdClaim, err := driver.client.ResourceV1alpha3().ResourceClaims(testClaim.Namespace).Create(context.TODO(), testClaim, metav1.CreateOptions{})
 			if err != nil {
 				t.Errorf("could not create test claim: %v", err)
+				continue
 			}
 			t.Logf("created test claim: %+v", createdClaim)
 		}
@@ -167,86 +187,36 @@ func TestNodePrepareResources(t *testing.T) {
 		response, err := driver.NodePrepareResources(context.TODO(), testcase.request)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
+			continue
 		}
 
 		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
+			continue
 		}
 
 		if !reflect.DeepEqual(testcase.expectedResponse, response) {
 			responseJSON, _ := json.MarshalIndent(response, "", "\t")
 			expectedResponseJSON, _ := json.MarshalIndent(testcase.expectedResponse, "", "\t")
-			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, responseJSON, expectedResponseJSON)
+			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, string(responseJSON), string(expectedResponseJSON))
 		}
 
-		if !reflect.DeepEqual(testcase.expectedPreparedClaims, preparedClaims) {
+		expectedPreparedClaims := testcase.expectedPreparedClaims
+		if expectedPreparedClaims == nil {
+			expectedPreparedClaims = ClaimPreparations{}
+		}
+
+		if !reflect.DeepEqual(expectedPreparedClaims, preparedClaims) {
 			preparedClaimsJSON, _ := json.MarshalIndent(preparedClaims, "", "\t")
 			expectedPreparedClaimsJSON, _ := json.MarshalIndent(testcase.expectedPreparedClaims, "", "\t")
 			t.Errorf(
 				"%v: unexpected PreparedClaims:\n%s\nexpected PreparedClaims:\n%s",
-				testcase.name, preparedClaimsJSON, expectedPreparedClaimsJSON,
+				testcase.name, string(preparedClaimsJSON), string(expectedPreparedClaimsJSON),
 			)
 		}
 	}
 }
-
-/*
-	{
-		name: "single Gaudi, already prepared claim",
-		request: &drav1.NodePrepareResourcesRequest{
-			Claims: []*drav1.Claim{
-				{Name: "claim1", Namespace: "namespace1", Uid: "uid1"},
-			},
-		},
-		expectedResponse: &drav1.NodePrepareResourcesResponse{
-			Claims: map[string]*drav1.NodePrepareResourceResponse{
-				"uid1": {CDIDevices: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid1"}},
-			},
-		},
-		gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
-			"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000-00-02-0-0x1020"}}},
-		},
-		preparedClaims: ClaimPreparations{
-			"uid1": {{UID: "0000-00-02-0-0x1020"}},
-		},
-	},
-	{
-		name: "single unavailable device",
-		request: &drav1.NodePrepareResourcesRequest{
-			Claims: []*drav1.Claim{
-				{Name: "claim1", Namespace: "namespace1", Uid: "uid1"},
-			},
-		},
-		expectedResponse: &drav1.NodePrepareResourcesResponse{
-			Claims: map[string]*drav1.NodePrepareResourceResponse{
-				"uid1": {Error: "failed validating devices to prepare: allocated device 0000-00-04-0-0x1020 not found in API"},
-			},
-		},
-		gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
-			"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000-00-04-0-0x1020"}}},
-		},
-		preparedClaims: nil,
-	},
-	{
-		name: "missing claim allocation",
-		request: &drav1.NodePrepareResourcesRequest{
-			Claims: []*drav1.Claim{
-				{Name: "claim2", Namespace: "namespace2", Uid: "uid2"},
-			},
-		},
-		expectedResponse: &drav1.NodePrepareResourcesResponse{
-			Claims: map[string]*drav1.NodePrepareResourceResponse{
-				"uid2": {Error: "failed validating devices to prepare: no allocation found for claim uid2 in API"},
-			},
-		},
-		gasSpecAllocations: map[string]gaudiv1alpha1.AllocatedClaim{
-			"uid1": {Devices: []gaudiv1alpha1.AllocatedDevice{{UID: "0000-00-04-0-0x1020"}}},
-		},
-		preparedClaims: nil,
-	},
-
-*/
 
 /*
 func TestNodeUnprepareResources(t *testing.T) {

@@ -27,7 +27,6 @@ import (
 	"k8s.io/klog/v2"
 
 	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
-	cdiparser "tags.cncf.io/container-device-interface/pkg/parser"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/discovery"
@@ -36,8 +35,6 @@ import (
 
 // compile-time test for implementation conformance with the interface.
 var _ drav1.NodeServer = (*driver)(nil)
-
-const ()
 
 type driver struct {
 	client   coreclientset.Interface
@@ -112,14 +109,6 @@ func (d *driver) NodePrepareResources(ctx context.Context, req *drav1.NodePrepar
 		preparedResources.Claims[claim.UID] = d.nodePrepareResource(ctx, claim)
 	}
 
-	// Temporary until Habana Runtime support is deprecated.
-	if err := d.injectHabanaRuntimeEnvVars(preparedResources); err != nil {
-		for _, claim := range req.Claims {
-			_ = d.nodeUnprepareResource(ctx, claim)
-		}
-		return nil, fmt.Errorf("could not inject Habana Runtime environment variables: %v", err)
-	}
-
 	return preparedResources, nil
 }
 
@@ -142,54 +131,11 @@ func (d *driver) nodePrepareResource(ctx context.Context, claim *drav1.Claim) *d
 
 	if err := d.state.Prepare(ctx, resourceClaim); err != nil {
 		return &drav1.NodePrepareResourceResponse{
-			Error: fmt.Sprintf("error preparing devices for claim %v: %v", claim.UID, err),
+			Error: err.Error(),
 		}
 	}
 
 	return &drav1.NodePrepareResourceResponse{Devices: d.state.prepared[claim.UID]}
-}
-
-func (d *driver) injectHabanaRuntimeEnvVars(preparedResources *drav1.NodePrepareResourcesResponse) error {
-	visibleDevices := device.VisibleDevicesEnvVarName + "="
-	devs := 0
-	lastClaimUID := ""
-	for claimUID, claim := range preparedResources.Claims {
-
-		for _, allocatedDevice := range claim.Devices {
-			for _, cdiDeviceName := range allocatedDevice.CDIDeviceIDs {
-				_, _, deviceUID, err := cdiparser.ParseQualifiedName(cdiDeviceName)
-				if err != nil {
-					return fmt.Errorf("could not parse CDI name %v", cdiDeviceName)
-				}
-
-				allocatableDevice, found := d.state.allocatable[deviceUID]
-
-				if !found {
-					return fmt.Errorf("could not find allocatable device %v", cdiDeviceName)
-				}
-
-				devs++
-				if devs > 1 {
-					visibleDevices += ","
-				}
-				visibleDevices += fmt.Sprintf("%v", allocatableDevice.DeviceIdx)
-			}
-		}
-		lastClaimUID = claimUID
-	}
-
-	if lastClaimUID != "" {
-		if err := d.state.cdiHabanaEnvVar(lastClaimUID, visibleDevices); err != nil {
-			return fmt.Errorf("failed ensuring Habana Runtime specific CDI device: %v", err)
-		}
-
-		preparedResources.Claims[lastClaimUID].Devices[0].CDIDeviceIDs = append(preparedResources.Claims[lastClaimUID].Devices[0].CDIDeviceIDs, cdiparser.QualifiedName(device.CDIVendor, device.CDIClass, lastClaimUID))
-		if err := writePreparedClaimsToFile(d.state.preparedClaimsFilePath, d.state.prepared); err != nil {
-			return fmt.Errorf("could not save prepared claims to file: %v", err)
-		}
-	}
-
-	return nil
 }
 
 func (d *driver) NodeUnprepareResources(ctx context.Context, req *drav1.NodeUnprepareResourcesRequest) (*drav1.NodeUnprepareResourcesResponse, error) {

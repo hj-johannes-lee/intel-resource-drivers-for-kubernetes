@@ -115,7 +115,7 @@ func handleGPUDevices(templateFilePath string) error {
 		return fmt.Errorf("failed parsing file %v. Err: %v", templateFilePath, err)
 	}
 
-	testDirs, err := helpers.NewTestDirs()
+	testDirs, err := helpers.NewTestDirs("gpu.intel.com")
 	if err != nil {
 		fmt.Printf("error creating temp dirs: %v\n", err)
 		return err
@@ -148,13 +148,13 @@ func handleGaudiDevices(templateFilePath string) error {
 		return fmt.Errorf("failed parsing file %v. Err: %v", templateFilePath, err)
 	}
 
-	testDirs, err := helpers.NewTestDirs()
+	testDirs, err := helpers.NewTestDirs("gaudi.intel.com")
 	if err != nil {
 		fmt.Printf("error creating temp dirs: %v\n", err)
 		return err
 	}
 
-	err = fakesysfs.FakeSysFsGaudiContents(testDirs.SysfsRoot, testDirs.DevfsRoot, devices)
+	err = fakesysfs.FakeSysFsGaudiContents(testDirs.SysfsRoot, testDirs.DevfsRoot, devices, true)
 	if err != nil {
 		fmt.Printf("could not setup fake filesystem in %v: %v\n", testDirs.TestRoot, err)
 		if err := os.RemoveAll(testDirs.TestRoot); err != nil {

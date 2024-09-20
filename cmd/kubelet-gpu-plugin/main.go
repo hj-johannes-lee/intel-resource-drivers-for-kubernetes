@@ -51,7 +51,6 @@ type flagsType struct {
 	kubeconfig   *string
 	kubeAPIQPS   *float32
 	kubeAPIBurst *int
-	status       *string
 }
 
 type configType struct {
