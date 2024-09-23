@@ -38,11 +38,6 @@ spec:
         #- name: DEVFS_ROOT
         #  value: "/devfs"
 
-        # Use this to tell kubelet-plugin where the DRI devices nodes should be.
-        # This will be prefix for CDI devices, runtime will try to mount devices
-        # with this prefix into workloads.
-        #- name: DEV_DRI_PATH
-        #  value: "/fake/dri"
         volumeMounts:
         - name: plugins-registry
           mountPath: /var/lib/kubelet/plugins_registry

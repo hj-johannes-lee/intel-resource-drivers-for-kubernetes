@@ -49,6 +49,7 @@ func TestFakeSysfs(t *testing.T) {
 		device.DevicesInfo{
 			"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardIdx: 0, RenderdIdx: 128, UID: "0000-00-02-0-0x56c0", MaxVFs: 16},
 		},
+		false,
 	); err != nil {
 		t.Errorf("setup error: could not create fake sysfs: %v", err)
 		return
@@ -261,6 +262,7 @@ func TestNodePrepareResources(t *testing.T) {
 				// dummy, no SR-IOV tiles
 				"0000-00-04-0-0x0000": {Model: "0x0000", MemoryMiB: 14248, DeviceType: "gpu", CardIdx: 3, RenderdIdx: 131, UID: "0000-00-04-0-0x0000", MaxVFs: 16},
 			},
+			false,
 		); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
 			return
@@ -380,7 +382,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 		testDirs, err := helpers.NewTestDirs(device.DriverName)
 		defer helpers.CleanupTest(t, "TestNodeUnprepareResources", testDirs.TestRoot)
 		if err != nil {
-			t.Errorf("setup error: %v", err)
+			t.Errorf("%v: setup error: %v", testcase.name, err)
 			return
 		}
 
@@ -393,8 +395,9 @@ func TestNodeUnprepareResources(t *testing.T) {
 				"0000-af-00-1-0x0bda": {Model: "0x0bda", MemoryMiB: 22528, Millicores: 500, DeviceType: "vf", CardIdx: 2, UID: "0000-af-00-1-0x0bda", VFIndex: 0, VFProfile: "max_47g_c2", ParentUID: "0000-af-00-0-0x0bda"},
 				"0000-af-00-2-0x0bda": {Model: "0x0bda", MemoryMiB: 22528, Millicores: 500, DeviceType: "vf", CardIdx: 3, UID: "0000-af-00-2-0x0bda", VFIndex: 1, VFProfile: "max_47g_c2", ParentUID: "0000-af-00-0-0x0bda"},
 			},
+			false,
 		); err != nil {
-			t.Errorf("setup error: could not create fake sysfs: %v", err)
+			t.Errorf("%v: setup error: could not create fake sysfs: %v", testcase.name, err)
 			return
 		}
 

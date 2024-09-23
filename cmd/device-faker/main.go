@@ -35,7 +35,7 @@ var (
 		"gpu":   true,
 		"gaudi": true,
 	}
-	version = "v0.1.0"
+	version = "v0.2.0"
 )
 
 func main() {
@@ -121,7 +121,7 @@ func handleGPUDevices(templateFilePath string) error {
 		return err
 	}
 
-	err = fakesysfs.FakeSysFsGpuContents(testDirs.SysfsRoot, testDirs.DevfsRoot, devices)
+	err = fakesysfs.FakeSysFsGpuContents(testDirs.SysfsRoot, testDirs.DevfsRoot, devices, true)
 	if err != nil {
 		fmt.Printf("could not setup fake filesystem in %v: %v\n", testDirs.TestRoot, err)
 		if err := os.RemoveAll(testDirs.TestRoot); err != nil {

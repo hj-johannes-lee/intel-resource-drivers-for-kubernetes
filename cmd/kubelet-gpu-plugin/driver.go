@@ -46,6 +46,7 @@ func newDriver(ctx context.Context, config *configType) (*driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
 	sysfsRoot := device.GetSysfsRoot()
 	preparedClaimFilePath := path.Join(config.kubeletPluginDir, device.PreparedClaimsFileName)
+	klog.V(5).Infof("Prepared claims: %v", preparedClaimFilePath)
 
 	detectedDevices := discovery.DiscoverDevices(sysfsRoot, device.DefaultNamingStyle)
 	if len(detectedDevices) == 0 {

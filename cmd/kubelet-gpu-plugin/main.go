@@ -23,7 +23,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/metadata"
 

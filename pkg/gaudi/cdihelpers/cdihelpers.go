@@ -27,6 +27,10 @@ import (
 	cdiSpecs "tags.cncf.io/container-device-interface/specs-go"
 )
 
+const (
+	containerDevfsRoot = "/dev"
+)
+
 func getGaudiSpecs(cdiCache *cdiapi.Cache) []*cdiapi.Spec {
 	gaudiSpecs := []*cdiapi.Spec{}
 	for _, cdiSpec := range cdiCache.GetVendorSpecs(device.CDIVendor) {
@@ -211,7 +215,14 @@ func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) err
 func newContainerEditsDeviceNodes(deviceIdx uint64) []*cdiSpecs.DeviceNode {
 	devfsRoot := device.GetDevfsRoot()
 	return []*cdiSpecs.DeviceNode{
-		{Path: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)), Type: "c"},
-		{Path: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)), Type: "c"},
+		{
+			Path:     path.Join(containerDevfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)),
+			HostPath: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)),
+			Type:     "c"},
+		{
+			Path:     path.Join(containerDevfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)),
+			HostPath: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)),
+			Type:     "c",
+		},
 	}
 }
