@@ -39,3 +39,13 @@ bin/qat-showdevice: cmd/qat-showdevice/*.go $(QAT_COMMON_SRC)
 bin/kubelet-qat-plugin: cmd/kubelet-qat-plugin/*.go $(QAT_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${QAT_LDFLAGS}" -mod vendor -o $@ ./cmd/kubelet-qat-plugin
+
+.PHONY: qat-container-build
+qat-container-build: cleanall vendor
+	@echo "Building QAT resource driver container..."
+	$(DOCKER) build --pull --platform="linux/$(ARCH)" -t $(QAT_IMAGE_TAG) \
+	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.qat .
+
+.PHONY: qat-container-push
+qat-container-push: qat-container-build
+	$(DOCKER) push $(QAT_IMAGE_TAG)
