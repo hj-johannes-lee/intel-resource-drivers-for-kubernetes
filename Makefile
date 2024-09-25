@@ -60,12 +60,13 @@ pkg/version/*.go
 
 include $(CURDIR)/gpu.mk
 include $(CURDIR)/gaudi.mk
+include $(CURDIR)/qat.mk
 
 .EXPORT_ALL_VARIABLES:
 
 
 .PHONY: build
-build: gpu gaudi bin/intel-cdi-specs-generator
+build: gpu gaudi qat bin/intel-cdi-specs-generator
 
 
 bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
@@ -137,6 +138,7 @@ licenses: clean-licenses
 	"./cmd/cdi-specs-generator" \
 	"./cmd/kubelet-gaudi-plugin" \
 	"./cmd/kubelet-gpu-plugin" \
+	"./cmd/qat-showdevice" \
 	"./pkg/version" \
 	"./pkg/gpu/cdihelpers" \
 	"./pkg/gpu/device" \
