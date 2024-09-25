@@ -31,10 +31,7 @@ const (
 	vfDeviceNode     = "/dev/vfio"
 )
 
-var (
-	sysfsRoot string = ""
-	devfsRoot string = ""
-)
+var sysfsRoot string = ""
 
 func getSysfsRoot() string {
 	if sysfsRoot != "" {
@@ -90,7 +87,7 @@ const (
 var servicetostring = map[Services]string{None: "", Sym: "sym", Asym: "asym", Dc: "dc", Dcc: "dcc"}
 
 func (s *Services) String() string {
-	var str string = ""
+	str := ""
 	for _, i := range []Services{None, Sym, Asym, Dc, Dcc} {
 		if *s&i != 0 {
 			if str != "" {
@@ -104,33 +101,29 @@ func (s *Services) String() string {
 }
 
 func (s *Services) Supports(service Services) bool {
-	if *s&service == service {
-		return true
-	}
-
-	return false
+	return *s&service == service
 }
 
 func StringToServices(servicestr string) (Services, error) {
 	var service Services = Unset
 
 	for _, str := range strings.Split(servicestr, ";") {
-		var exists bool = false
+		exists := false
 
 		for i, strtoservice := range servicetostring {
 			if str == strtoservice {
-				service = service | i
+				service |= i
 				exists = true
 				break
 			}
 		}
 		if !exists {
-			return Unset, fmt.Errorf("Unknown service '%s'", servicestr)
+			return Unset, fmt.Errorf("unknown service '%s'", servicestr)
 		}
 	}
 
 	if service != None {
-		service = service & ^None
+		service &= ^None
 	}
 
 	return service, nil
@@ -159,20 +152,20 @@ type VFDriver int
 
 const (
 	Unbound VFDriver = iota
-	VFIO_PCI
+	VfioPci
 	Unknown
 )
 
 var stringToDriver = map[string]VFDriver{
 	"":         Unbound,
-	"vfio-pci": VFIO_PCI,
+	"vfio-pci": VfioPci,
 }
 
 func (s *VFDriver) String() string {
 	if *s == Unbound {
 		return ""
 	}
-	if *s == VFIO_PCI {
+	if *s == VfioPci {
 		return "vfio-pci"
 	}
 	return "unknown"
@@ -226,7 +219,7 @@ func New() (QATDevices, error) {
 func GetControlNode() (*VFDevice, error) {
 	return &VFDevice{
 		VFDevice: "vfio",
-		VFDriver: VFIO_PCI,
+		VFDriver: VfioPci,
 		VFIommu:  "vfio",
 	}, nil
 }
@@ -320,7 +313,7 @@ func (p *PFDevice) syncConfig() error {
 }
 
 func (p *PFDevice) getServices() (Services, error) {
-	var services Services = 0
+	var services Services
 
 	servicestr, err := p.read(qatServices)
 	if err != nil {
@@ -343,7 +336,7 @@ func (p *PFDevice) SetServices(srv []Services) error {
 	}
 
 	for _, s := range srv {
-		config = config | s
+		config |= s
 	}
 
 	deviceState := p.State
@@ -385,8 +378,7 @@ func (p *PFDevice) getVFs() error {
 		vfdevice := filepath.Base(vfpath)
 
 		// already in AvailableDevices
-		if d, ok := p.AvailableDevices[deviceuid(vfdevice)]; ok {
-			vf = d
+		if _, ok := p.AvailableDevices[deviceuid(vfdevice)]; ok {
 			break
 		}
 
@@ -422,7 +414,7 @@ func (p *PFDevice) getVFs() error {
 }
 
 func (p *PFDevice) up() error {
-	var state State = Up
+	state := Up
 
 	if p.State != Up {
 		if err := p.write(qatState, state.String()); err != nil {
@@ -435,7 +427,7 @@ func (p *PFDevice) up() error {
 }
 
 func (p *PFDevice) down() error {
-	var state State = Down
+	state := Down
 
 	if len(p.AllocatedDevices) > 0 {
 		return fmt.Errorf("cannot set QAT device down while VF devices are allocated")
@@ -487,7 +479,7 @@ func (p *PFDevice) EnableReconfiguration(allow bool) {
 
 func (p *PFDevice) Allocate(deviceUID string, allocatedBy string) (*VFDevice, error) {
 	var vf *VFDevice = nil
-	var exists bool = false
+	exists := false
 
 	if allocatedBy == "" {
 		return nil, fmt.Errorf("no allocator ID given")
@@ -547,7 +539,7 @@ func (q QATDevices) Allocate(requestedDeviceUID string, requestedService Service
 
 	for _, pf := range q {
 		// allocate from an unconfigured device
-		if pf.Services != None || pf.AllowReconfiguration == false {
+		if pf.Services != None || !pf.AllowReconfiguration {
 			continue
 		}
 		// attempt allocation of requested device
@@ -588,8 +580,10 @@ func (p *PFDevice) free(requestedDeviceUID string, vfdevices VFDevices) (bool, e
 		}
 
 		// set PF device configuration back to an unconfigured state
-		if p.AllowReconfiguration == true {
-			p.SetServices([]Services{None})
+		if p.AllowReconfiguration {
+			if err := p.SetServices([]Services{None}); err != nil {
+				return false, err
+			}
 			return true, nil
 		}
 		return false, nil
@@ -650,9 +644,7 @@ func (v *VFDevice) unbindVFIODriver() error {
 	err := v.writeFile(filepath.Join(sysfsDriverPath(), vfioUnbind), v.VFDevice)
 	if err != nil {
 		// fs.PathError is returned if the device was not bound
-		if _, ok := err.(*os.PathError); ok {
-			return nil
-		}
+		err, _ = err.(*os.PathError)
 	}
 	return err
 }

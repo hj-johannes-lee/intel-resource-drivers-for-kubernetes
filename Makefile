@@ -139,6 +139,7 @@ licenses: clean-licenses
 	"./cmd/kubelet-gaudi-plugin" \
 	"./cmd/kubelet-gpu-plugin" \
 	"./cmd/qat-showdevice" \
+	"./cmd/kubelet-qat-plugin" \
 	"./pkg/version" \
 	"./pkg/gpu/cdihelpers" \
 	"./pkg/gpu/device" \

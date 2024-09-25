@@ -6,8 +6,9 @@ package device
 
 import (
 	"fmt"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
 	"testing"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
 )
 
 func TestServicesToString(t *testing.T) {
@@ -131,8 +132,18 @@ func TestState(t *testing.T) {
 
 func TestDevices(t *testing.T) {
 	setupdevices := fakesysfs.QATDevices{
-		{"0000:aa:00.0", "down", "sym;asym", 3, 0},
-		{"0000:bb:00.0", "up", "dc", 3, 0},
+		{Device: "0000:aa:00.0",
+			State:    "down",
+			Services: "sym;asym",
+			TotalVFs: 3,
+			NumVFs:   0,
+		},
+		{Device: "0000:bb:00.0",
+			State:    "up",
+			Services: "dc",
+			TotalVFs: 3,
+			NumVFs:   0,
+		},
 	}
 
 	defer fakesysfs.FakeSysFsRemove()
@@ -147,22 +158,32 @@ func TestDevices(t *testing.T) {
 
 	expected := QATDevices{
 		&PFDevice{
-			false, "0000:aa:00.0", Down, Sym | Asym, 0, 3,
-			map[string]*VFDevice{
-				"qatvf-0000-aa-00-1": {nil, "qatvf-0000-aa-00-1", VFIO_PCI, "351"},
-				"qatvf-0000-aa-00-2": {nil, "qatvf-0000-aa-00-2", VFIO_PCI, "352"},
-				"qatvf-0000-aa-00-3": {nil, "qatvf-0000-aa-00-3", VFIO_PCI, "353"},
+			AllowReconfiguration: false,
+			Device:               "0000:aa:00.0",
+			State:                Down,
+			Services:             Sym | Asym,
+			NumVFs:               0,
+			TotalVFs:             3,
+			AvailableDevices: map[string]*VFDevice{
+				"qatvf-0000-aa-00-1": {nil, "qatvf-0000-aa-00-1", VfioPci, "351"},
+				"qatvf-0000-aa-00-2": {nil, "qatvf-0000-aa-00-2", VfioPci, "352"},
+				"qatvf-0000-aa-00-3": {nil, "qatvf-0000-aa-00-3", VfioPci, "353"},
 			},
-			map[string]VFDevices{},
+			AllocatedDevices: map[string]VFDevices{},
 		},
 		&PFDevice{
-			false, "0000:bb:00.0", Up, Dc, 0, 3,
-			map[string]*VFDevice{
-				"qatvf-0000-bb-00-1": {nil, "qatvf-0000-bb-00-1", VFIO_PCI, "354"},
-				"qatvf-0000-bb-00-2": {nil, "qatvf-0000-bb-00-2", VFIO_PCI, "355"},
-				"qatvf-0000-bb-00-3": {nil, "qatvf-0000-bb-00-3", VFIO_PCI, "356"},
+			AllowReconfiguration: false,
+			Device:               "0000:bb:00.0",
+			State:                Up,
+			Services:             Dc,
+			NumVFs:               0,
+			TotalVFs:             3,
+			AvailableDevices: map[string]*VFDevice{
+				"qatvf-0000-bb-00-1": {nil, "qatvf-0000-bb-00-1", VfioPci, "354"},
+				"qatvf-0000-bb-00-2": {nil, "qatvf-0000-bb-00-2", VfioPci, "355"},
+				"qatvf-0000-bb-00-3": {nil, "qatvf-0000-bb-00-3", VfioPci, "356"},
 			},
-			map[string]VFDevices{},
+			AllocatedDevices: map[string]VFDevices{},
 		},
 	}
 	err = CompareQATDevices(qatdevices, expected)
@@ -216,7 +237,7 @@ func ComparePFDevices(pfdevice *PFDevice, expected *PFDevice) error {
 	for vf, vfdevice := range pfdevice.AvailableDevices {
 		vfexpected, exists := expected.AvailableDevices[vf]
 		if !exists {
-			fmt.Errorf("VF device '%s' was not expected in AvailableDevices", vf)
+			return fmt.Errorf("VF device '%s' was not expected in AvailableDevices", vf)
 		}
 		if err := CompareVFDevices(vfdevice, vfexpected); err != nil {
 			return err

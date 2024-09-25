@@ -19,11 +19,13 @@ QAT_IMAGE_VERSION ?= $(QAT_VERSION)
 QAT_IMAGE_TAG ?= $(REGISTRY)/$(QAT_IMAGE_NAME):$(QAT_IMAGE_VERSION)
 
 QAT_BINARIES = \
-bin/qat-showdevice
+bin/qat-showdevice \
+bin/kubelet-qat-plugin
 
 QAT_COMMON_SRC = \
 $(COMMON_SRC) \
-pkg/qat/device/*.go
+pkg/qat/device/*.go \
+pkg/qat/cdi/*.go
 
 QAT_LDFLAGS = ${LDFLAGS} -X ${PKG}/pkg/version.driverVersion=${QAT_VERSION}
 
@@ -33,3 +35,7 @@ qat: $(QAT_BINARIES)
 bin/qat-showdevice: cmd/qat-showdevice/*.go $(QAT_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${QAT_LDFLAGS}" -mod vendor -o $@ ./cmd/qat-showdevice
+
+bin/kubelet-qat-plugin: cmd/kubelet-qat-plugin/*.go $(QAT_COMMON_SRC)
+	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
+	  go build -a -ldflags "${QAT_LDFLAGS}" -mod vendor -o $@ ./cmd/kubelet-qat-plugin
