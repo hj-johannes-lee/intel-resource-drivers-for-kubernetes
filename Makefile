@@ -146,7 +146,8 @@ licenses: clean-licenses
 	"./pkg/gpu/discovery" \
 	"./pkg/gaudi/cdihelpers" \
 	"./pkg/gaudi/device" \
-	"./pkg/gaudi/discovery"
+	"./pkg/gaudi/discovery" \
+	 --save_path licenses
 
 
 # linting targets for Go and other code
