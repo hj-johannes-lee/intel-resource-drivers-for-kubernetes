@@ -25,10 +25,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"k8s.io/klog/v2"
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	specs "tags.cncf.io/container-device-interface/specs-go"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 )
 
 const (

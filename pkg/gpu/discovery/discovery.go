@@ -58,7 +58,7 @@ func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo
 		if !device.PciRegexp.MatchString(devicePCIAddress) {
 			continue
 		}
-		klog.V(5).Infof("Found GPU PCI device: " + devicePCIAddress)
+		klog.V(5).Infof("Found GPU PCI device: %s", devicePCIAddress)
 
 		deviceI915Dir := path.Join(sysfsI915Dir, devicePCIAddress)
 		deviceIdFile := path.Join(deviceI915Dir, "device")
