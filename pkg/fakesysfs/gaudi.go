@@ -25,18 +25,18 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
-func FakeSysFsGaudiContents(sysfsRoot string, devfsRoot string, gaudis device.DevicesInfo) error {
+func FakeSysFsGaudiContents(sysfsRoot string, devfsRoot string, gaudis device.DevicesInfo, realDeviceFiles bool) error {
 	if err := sanitizeFakeSysFsDir(sysfsRoot); err != nil {
 		return err
 	}
 
-	return fakeSysFsGaudiDevices(sysfsRoot, devfsRoot, gaudis)
+	return fakeSysFsGaudiDevices(sysfsRoot, devfsRoot, gaudis, realDeviceFiles)
 }
 
 // fakeSysFsGaudiDevices creates PCI and DRM devices layout in existing fake sysfsRoot.
 // This will be called when fake sysfs is being created and when more devices added
 // to existing fake sysfs.
-func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.DevicesInfo) error {
+func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.DevicesInfo, realDeviceFiles bool) error {
 	for _, gaudi := range gaudis {
 		// bus/pci/driver/<device> setup
 		pciDriverDevDir := path.Join(sysfsRoot, "bus/pci/drivers/habanalabs/", gaudi.PCIAddress)
@@ -88,7 +88,7 @@ func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.Dev
 			return fmt.Errorf("creating fake sysfs, err: %v", err)
 		}
 
-		if err := fakeGaudiDevfs(devfsRoot, gaudi, deviceName, controlDeviceName); err != nil {
+		if err := fakeGaudiDevfs(devfsRoot, gaudi, realDeviceFiles); err != nil {
 			return err
 		}
 	}
@@ -96,22 +96,49 @@ func fakeSysFsGaudiDevices(sysfsRoot string, devfsRoot string, gaudis device.Dev
 	return nil
 }
 
-func fakeGaudiDevfs(devfsRoot string, gaudi *device.DeviceInfo, deviceName string, controlDeviceName string) error {
+func fakeGaudiDevfs(devfsRoot string, gaudi *device.DeviceInfo, realDevices bool) error {
 	accelDevPath := path.Join(devfsRoot, "accel")
 	if err := os.MkdirAll(accelDevPath, 0755); err != nil {
 		return fmt.Errorf("creating fake devs, err: %v", err)
 	}
-	if err := helpers.WriteFile(path.Join(accelDevPath, deviceName), ""); err != nil {
+
+	if realDevices {
+		return fakeGaudiDeviceFiles(devfsRoot, accelDevPath, gaudi.DeviceIdx)
+	}
+
+	return fakeGaudiPlainDeviceFiles(devfsRoot, accelDevPath, gaudi.DeviceIdx)
+}
+
+func fakeGaudiDeviceFiles(devfsRoot, accelDevPath string, accelIdx uint64) error {
+	if err := createDevice(path.Join(accelDevPath, fmt.Sprintf("accel%v", accelIdx))); err != nil {
 		return fmt.Errorf("creating fake devfs, err: %v", err)
 	}
-	if err := helpers.WriteFile(path.Join(accelDevPath, controlDeviceName), ""); err != nil {
+	if err := createDevice(path.Join(accelDevPath, fmt.Sprintf("accel_controlD%v", accelIdx))); err != nil {
 		return fmt.Errorf("creating fake devfs, err: %v", err)
 	}
 
-	if err := helpers.WriteFile(path.Join(devfsRoot, fmt.Sprintf("hl%d", gaudi.DeviceIdx)), ""); err != nil {
+	if err := createDevice(path.Join(devfsRoot, fmt.Sprintf("hl%d", accelIdx))); err != nil {
 		return fmt.Errorf("creating fake devfs, err: %v", err)
 	}
-	if err := helpers.WriteFile(path.Join(devfsRoot, fmt.Sprintf("hl_controlD%d", gaudi.DeviceIdx)), ""); err != nil {
+	if err := createDevice(path.Join(devfsRoot, fmt.Sprintf("hl_controlD%d", accelIdx))); err != nil {
+		return fmt.Errorf("creating fake devfs, err: %v", err)
+	}
+
+	return nil
+}
+
+func fakeGaudiPlainDeviceFiles(devfsRoot, accelDevPath string, accelIdx uint64) error {
+	if err := helpers.WriteFile(path.Join(accelDevPath, fmt.Sprintf("accel%v", accelIdx)), ""); err != nil {
+		return fmt.Errorf("creating fake devfs, err: %v", err)
+	}
+	if err := helpers.WriteFile(path.Join(accelDevPath, fmt.Sprintf("accel_controlD%v", accelIdx)), ""); err != nil {
+		return fmt.Errorf("creating fake devfs, err: %v", err)
+	}
+
+	if err := helpers.WriteFile(path.Join(devfsRoot, fmt.Sprintf("hl%d", accelIdx)), ""); err != nil {
+		return fmt.Errorf("creating fake devfs, err: %v", err)
+	}
+	if err := helpers.WriteFile(path.Join(devfsRoot, fmt.Sprintf("hl_controlD%d", accelIdx)), ""); err != nil {
 		return fmt.Errorf("creating fake devfs, err: %v", err)
 	}
 

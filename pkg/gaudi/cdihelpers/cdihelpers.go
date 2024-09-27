@@ -27,6 +27,10 @@ import (
 	cdiSpecs "tags.cncf.io/container-device-interface/specs-go"
 )
 
+const (
+	containerDevfsRoot = "/dev"
+)
+
 func getGaudiSpecs(cdiCache *cdiapi.Cache) []*cdiapi.Spec {
 	gaudiSpecs := []*cdiapi.Spec{}
 	for _, cdiSpec := range cdiCache.GetVendorSpecs(device.CDIVendor) {
@@ -117,6 +121,19 @@ func updateDevicesInSpecsAndWrite(cdCache *cdiapi.Cache, devicesToAdd device.Dev
 	return devices, nil
 }
 
+func AddDeviceToAnySpec(cdiCache *cdiapi.Cache, vendor string, newDevice cdiSpecs.Device) error {
+	vendorSpecs := cdiCache.GetVendorSpecs(vendor)
+	if len(vendorSpecs) == 0 {
+		return fmt.Errorf("no %v specs found", vendor)
+	}
+
+	cdiSpec := vendorSpecs[0]
+	cdiSpec.Spec.Devices = append(cdiSpec.Spec.Devices, newDevice)
+	specName := path.Base(cdiSpec.GetPath())
+
+	return writeSpec(cdiCache, cdiSpec.Spec, specName)
+}
+
 // writeSpec sets latest cdiVersion for spec and writes it.
 func writeSpec(cdiCache *cdiapi.Cache, spec *cdiSpecs.Spec, specName string) error {
 	cdiVersion, err := cdiapi.MinimumRequiredVersion(spec)
@@ -198,7 +215,14 @@ func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) err
 func newContainerEditsDeviceNodes(deviceIdx uint64) []*cdiSpecs.DeviceNode {
 	devfsRoot := device.GetDevfsRoot()
 	return []*cdiSpecs.DeviceNode{
-		{Path: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)), Type: "c"},
-		{Path: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)), Type: "c"},
+		{
+			Path:     path.Join(containerDevfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)),
+			HostPath: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)),
+			Type:     "c"},
+		{
+			Path:     path.Join(containerDevfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)),
+			HostPath: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)),
+			Type:     "c",
+		},
 	}
 }

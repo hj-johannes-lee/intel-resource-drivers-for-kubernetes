@@ -21,6 +21,10 @@ import (
 	"os"
 	"path"
 	"testing"
+
+	resourcev1 "k8s.io/api/resource/v1alpha3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -28,16 +32,17 @@ const (
 )
 
 type TestDirsType struct {
-	TestRoot         string
-	CdiRoot          string
-	DriverPluginRoot string
-	SysfsRoot        string
-	DevfsRoot        string
+	TestRoot                 string
+	CdiRoot                  string
+	KubeletPluginDir         string
+	KubeletPluginRegistryDir string
+	SysfsRoot                string
+	DevfsRoot                string
 }
 
 // NewTestDirs creates fake CDI root, sysfs, driverPlugin dirs and returns
 // them as a testDirsType or an error.
-func NewTestDirs() (TestDirsType, error) {
+func NewTestDirs(driverName string) (TestDirsType, error) {
 	testRoot, err := os.MkdirTemp("", testRootPrefix)
 	if err != nil {
 		return TestDirsType{}, fmt.Errorf("failed creating test root dir: %v", err)
@@ -57,8 +62,13 @@ func NewTestDirs() (TestDirsType, error) {
 		return TestDirsType{}, fmt.Errorf("failed creating fake sysfs root dir: %v", err)
 	}
 
-	driverPluginRoot := path.Join(testRoot, "kubelet-plugin")
+	driverPluginRoot := path.Join(testRoot, "kubelet-plugin/plugins/", driverName)
 	if err := os.MkdirAll(driverPluginRoot, 0755); err != nil {
+		return TestDirsType{}, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
+	}
+
+	driverRegistrarRoot := path.Join(testRoot, "kubelet-plugin/plugins_registry")
+	if err := os.MkdirAll(driverRegistrarRoot, 0755); err != nil {
 		return TestDirsType{}, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
 	}
 
@@ -68,11 +78,12 @@ func NewTestDirs() (TestDirsType, error) {
 	}
 
 	return TestDirsType{
-		TestRoot:         testRoot,
-		CdiRoot:          cdiRoot,
-		SysfsRoot:        fakeSysfsRoot,
-		DriverPluginRoot: driverPluginRoot,
-		DevfsRoot:        devfsRoot,
+		TestRoot:                 testRoot,
+		CdiRoot:                  cdiRoot,
+		SysfsRoot:                fakeSysfsRoot,
+		KubeletPluginDir:         driverPluginRoot,
+		KubeletPluginRegistryDir: driverRegistrarRoot,
+		DevfsRoot:                devfsRoot,
 	}, nil
 }
 
@@ -80,4 +91,55 @@ func CleanupTest(t *testing.T, testname string, testRoot string) {
 	if err := os.RemoveAll(testRoot); err != nil {
 		t.Logf("%v: could not cleanup temp directory %v: %v", testname, testRoot, err)
 	}
+}
+
+func NewMonitoringClaim(claimNs, claimName, claimUID, requestName, driverName, pool string, allocatedDevices []string) *resourcev1.ResourceClaim {
+	claim := NewClaim(claimNs, claimName, claimUID, requestName, driverName, pool, allocatedDevices)
+	claim.Spec.Devices.Requests[0].AdminAccess = true
+	claim.Spec.Devices.Requests[0].AllocationMode = "All"
+
+	return claim
+}
+
+func NewClaim(claimNs, claimName, claimUID, requestName, driverName, pool string, allocatedDevices []string) *resourcev1.ResourceClaim {
+	allocationResults := []resourcev1.DeviceRequestAllocationResult{}
+	for _, deviceUID := range allocatedDevices {
+		newDevice := resourcev1.DeviceRequestAllocationResult{
+			Device:  deviceUID,
+			Request: requestName,
+			Driver:  driverName,
+			Pool:    pool,
+		}
+		allocationResults = append(allocationResults, newDevice)
+	}
+
+	alienDevice := resourcev1.DeviceRequestAllocationResult{
+		Device:  "numberOne",
+		Request: "complimentaryRequest",
+		Driver:  "NonExistent",
+		Pool:    pool,
+	}
+	allocationResults = append(allocationResults, alienDevice)
+
+	claim := &resourcev1.ResourceClaim{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "resource.k8s.io/v1alpha3", Kind: "ResourceClaim"},
+		ObjectMeta: metav1.ObjectMeta{Namespace: claimNs, Name: claimName, UID: types.UID(claimUID)},
+		Spec: resourcev1.ResourceClaimSpec{
+			Devices: resourcev1.DeviceClaim{
+				Requests: []resourcev1.DeviceRequest{
+					{Name: requestName, DeviceClassName: driverName, Count: 1},
+					{Name: "complimentaryRequest", DeviceClassName: "NonExistent"},
+				},
+			},
+		},
+		Status: resourcev1.ResourceClaimStatus{
+			Allocation: &resourcev1.AllocationResult{
+				Devices: resourcev1.DeviceAllocationResult{
+					Results: allocationResults,
+				},
+			},
+		},
+	}
+
+	return claim
 }
