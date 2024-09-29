@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-// map allocation id to VF device
+// Map allocation id to VF device.
 type savedAllocations map[string][]string
 
 func (q *QATDevices) SetupSaveStateFile(statefile string) error {

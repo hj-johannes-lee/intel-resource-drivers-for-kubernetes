@@ -131,10 +131,10 @@ func StringToServices(servicestr string) (Services, error) {
 
 type QATDevices []*PFDevice
 
-// available devices mapped by UID (PCI address minus colons and dots)
+// Available devices mapped by UID (PCI address minus colons and dots).
 type VFDevices map[string]*VFDevice
 
-// allocated devices mapped by supplied string, then by device UID as above
+// Allocated devices mapped by supplied string, then by device UID as above.
 type AllocatedDevices map[string]VFDevices
 
 type PFDevice struct {
@@ -472,7 +472,7 @@ func (p *PFDevice) EnableVFs() error {
 }
 
 // Whether to allow dynamic reconfiguration of PF device services on Free()
-// and Allocate() forcing the caller to update further device resources in K8s
+// and Allocate() forcing the caller to update further device resources in K8s.
 func (p *PFDevice) EnableReconfiguration(allow bool) {
 	p.AllowReconfiguration = allow
 }

@@ -20,7 +20,7 @@ type ClientSet struct {
 type KubeClient kubernetes.Interface
 
 // Create a new client config. Use KUBECONFIG environment variable if set,
-// othewise resort to in-cluster config
+// othewise resort to in-cluster config.
 func (c *ClientSet) newClientSetConfig() error {
 	var err error
 
