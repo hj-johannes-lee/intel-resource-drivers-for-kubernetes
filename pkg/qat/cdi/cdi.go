@@ -18,10 +18,12 @@ package cdi
 
 import (
 	"fmt"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
 	"path"
+
 	cdiapi "tags.cncf.io/container-device-interface/pkg/cdi"
 	cdispecs "tags.cncf.io/container-device-interface/specs-go"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
 )
 
 const (
@@ -32,23 +34,33 @@ const (
 )
 
 type CDI struct {
-	registry cdiapi.Registry
+	cache *cdiapi.Cache
 }
 
 func New(cdidir string) (*CDI, error) {
 	fmt.Printf("Setting up CDI\n")
 
-	registry := cdiapi.GetRegistry(cdiapi.WithSpecDirs(cdidir))
-	err := registry.Refresh()
-	if err != nil {
-		return nil, fmt.Errorf("failed to refresh CDI registry")
+	if err := cdiapi.Configure(cdiapi.WithSpecDirs(cdidir)); err != nil {
+		return nil, fmt.Errorf("unable to refresh the CDI registry: %v", err)
 	}
 
+	cdiCache := cdiapi.GetDefaultCache()
+
 	cdi := &CDI{
-		registry: registry,
+		cache: cdiCache,
 	}
 
 	return cdi, nil
+}
+
+func (c *CDI) getQatSpecs() []*cdiapi.Spec {
+	qatSpecs := []*cdiapi.Spec{}
+	for _, cdiSpec := range c.cache.GetVendorSpecs(CDIVendor) {
+		if cdiSpec.Kind == CDIKind {
+			qatSpecs = append(qatSpecs, cdiSpec)
+		}
+	}
+	return qatSpecs
 }
 
 func (c *CDI) SyncDevices(vfdevices device.VFDevices) error {
@@ -59,7 +71,7 @@ func (c *CDI) SyncDevices(vfdevices device.VFDevices) error {
 	}
 	vfspecname := cdiapi.GenerateSpecName(CDIVendor, CDIClass)
 
-	for _, vendorspec := range c.registry.SpecDB().GetVendorSpecs(CDIVendor) {
+	for _, vendorspec := range c.getQatSpecs() {
 		vendorspecname := path.Base(vendorspec.GetPath())
 
 		if vendorspec.Kind != CDIKind {
@@ -92,7 +104,7 @@ func (c *CDI) SyncDevices(vfdevices device.VFDevices) error {
 		if vendorspecupdate {
 			fmt.Printf("Updating spec file %s with existing devices\n", path.Base(vendorspec.GetPath()))
 			vendorspec.Devices = vendorspecdevices
-			err := c.registry.SpecDB().WriteSpec(vendorspec.Spec, vendorspecname)
+			err := c.cache.WriteSpec(vendorspec.Spec, vendorspecname)
 			if err != nil {
 				fmt.Printf("failed to overwrite CDI spec %s: %v", vendorspecname, err)
 			}
@@ -138,7 +150,7 @@ func (c *CDI) appendDevices(spec *cdispecs.Spec, vfdevices device.VFDevices, nam
 	}
 	spec.Version = version
 
-	err = c.registry.SpecDB().WriteSpec(spec, name)
+	err = c.cache.WriteSpec(spec, name)
 	if err != nil {
 		return fmt.Errorf("failed to write CDI spec %s: %v", name, err)
 	}
