@@ -58,7 +58,7 @@ func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo
 		if !device.PciRegexp.MatchString(devicePCIAddress) {
 			continue
 		}
-		klog.V(5).Infof("Found Gaudi PCI device: " + devicePCIAddress)
+		klog.V(5).Infof("Found Gaudi PCI device: %s", devicePCIAddress)
 
 		deviceIdFile := path.Join(sysfsDriverDir, devicePCIAddress, "device")
 		deviceIdBytes, err := os.ReadFile(deviceIdFile)

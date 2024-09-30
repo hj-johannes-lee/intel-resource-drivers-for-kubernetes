@@ -23,7 +23,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/metadata"
 
@@ -31,13 +30,14 @@ import (
 	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/component-base/logs"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/component-base/term"
 	"k8s.io/klog/v2"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 )
 
 const (
