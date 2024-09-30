@@ -34,3 +34,7 @@ jobs:
       run: |
         make cleanall
         GAUDI_IMAGE_TAG=ger-is-registry.caas.intel.com/dgpu-orchestration/intel-gaudi-resource-driver:devel make gaudi-container-push
+    - name: Build and push QAT resource driver image
+      run: |
+        make cleanall
+        QAT_IMAGE_TAG=ger-is-registry.caas.intel.com/dgpu-orchestration/intel-qat-resource-driver:devel make qat-container-push
