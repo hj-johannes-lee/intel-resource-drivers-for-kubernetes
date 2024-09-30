@@ -1,12 +1,13 @@
 apiVersion: resource.k8s.io/v1alpha3
-kind: ResourceClaim
+kind: ResourceClaimTemplate
 metadata:
   name: claim1
 spec:
-  devices:
-    requests:
-    - name: gpu
-      deviceClassName: gpu.intel.com
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        deviceClassName: gpu.intel.com
 ##
 ## if one is not enough
 #      count: 2
@@ -38,4 +39,4 @@ spec:
     command: ["sh", "-c", "ls -la /dev/ && sleep 60"]
   resourceClaims:
   - name: resource
-    resourceClaimName: claim1
+    resourceClaimTemplateName: claim1
