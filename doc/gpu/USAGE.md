@@ -1,6 +1,6 @@
 ## Requirements
 
-- Kubernetes 1.31+, with `DynamicResourceAllocation` feature-flag enabled, and [other cluster parameters](hack/clusterconfig.yaml)
+- Kubernetes 1.31+, with `DynamicResourceAllocation` feature-flag enabled, and [other cluster parameters](../../hack/clusterconfig.yaml)
 - Container runtime needs to support CDI:
   - CRI-O v1.23.0 or newer
   - Containerd v1.7 or newer
@@ -37,7 +37,7 @@ kubectl apply -f deployments/gpu/resource-driver.yaml
 By default the kubelet-plugin will be deployed on _all_ nodes in the cluster, there is no nodeSelector.
 
 When deploying custom resource driver image, change `image:` lines in
-[resource-driver](../deployments/gpu/resource-driver.yaml) to match its location.
+[resource-driver](../../deployments/gpu/resource-driver.yaml) to match its location.
 
 ## deployment/ directory contains all required YAMLs:
 
@@ -119,9 +119,9 @@ crw-rw-rw-    1 root     root      226, 128 Sep 27 09:17 renderD128
 ## Requesting resources
 
 With Dynamic Resource Allocation the resources are requested in a similar way to how the persistent
-storage is requested. The [Resource Claim](#resourceclaim) is an analog of Persistent Volume Claim,
-and it is used for scheduling Pods to nodes based on the GPU resource availability. It provide access
-to GPU devices in Pod's containers.
+storage is requested. The ResourceClaim is an analog of Persistent Volume Claim, and it is used for
+scheduling Pods to nodes based on the GPU resource availability. It provide access to GPU devices
+in Pod's containers.
 
 ### Basic use case: Pod needs a GPU
 
@@ -251,7 +251,7 @@ spec:
 
 ## GPU monitor deployment
 
-GPU monitor deployment ResourceClaim must specify `allocationMode: All` and `adminAccess: true` in `requests` (see [Device Class specs](../deployments/gpu/examples/monitor-pod-inline.yaml).
+GPU monitor deployment ResourceClaim must specify `allocationMode: All` and `adminAccess: true` in `requests` (see [Monitor pod example](../../deployments/gpu/examples/monitor-pod-inline.yaml).
 
 Unlike with normal GPU ResourceClaims:
 * Monitor deployment gets access to all GPU devices on a node
