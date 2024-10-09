@@ -32,13 +32,12 @@ var _ drav1.NodeServer = &driver{}
 
 type driver struct {
 	sync.Mutex
-	kubeclient      KubeClient
-	nodename        string
-	cdi             *cdi.CDI
-	devices         device.QATDevices
-	resourcedevices *[]resourceapi.Device
-	plugin          kubeletplugin.DRAPlugin
-	statefile       string
+	kubeclient KubeClient
+	nodename   string
+	cdi        *cdi.CDI
+	devices    device.QATDevices
+	plugin     kubeletplugin.DRAPlugin
+	statefile  string
 }
 
 func (d *driver) getResourceClaim(ctx context.Context, claim *drav1.Claim) (*resourceapi.ResourceClaim, error) {
@@ -205,7 +204,7 @@ func (d *driver) UpdateDeviceResources(ctx context.Context) {
 	}
 
 	resources := kubeletplugin.Resources{
-		Devices: *d.resourcedevices,
+		Devices: *deviceResources(device.GetResourceDevices(d.devices)),
 	}
 	d.plugin.PublishResources(ctx, resources)
 }
@@ -249,16 +248,12 @@ func newDriver(ctx context.Context) (*driver, error) {
 		return nil, fmt.Errorf("cannot sync CDI devices: %v", err)
 	}
 
-	detectedresourcedevices := device.GetResourceDevices(pfdevices)
-	resourcedevices := deviceResources(detectedresourcedevices)
-
 	d := &driver{
-		kubeclient:      kubeclient,
-		nodename:        nodename,
-		cdi:             cdi,
-		devices:         pfdevices,
-		resourcedevices: resourcedevices,
-		statefile:       stateFileName,
+		kubeclient: kubeclient,
+		nodename:   nodename,
+		cdi:        cdi,
+		devices:    pfdevices,
+		statefile:  stateFileName,
 	}
 
 	if err := d.devices.SetupSaveStateFile(d.statefile); err != nil {
