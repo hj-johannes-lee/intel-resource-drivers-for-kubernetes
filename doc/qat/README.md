@@ -44,8 +44,6 @@ semicolon (';'). Supported services are:
 * Asymmetric cryptograpy: `asym`
 * Compression: `dc`
 
-For symmetric and asymmetric cryptography the `IPC_LOCK` capability is strongly recommended.
-
 ## Documentation
 
 - [How to setup a Kubernetes cluster with DRA enabled](../CLUSTER_SETUP.md)

@@ -90,4 +90,4 @@ QAT services are matched by CEL expression; in the example above, `sym` and `asy
 services are considered in the regular expression. Examples of other common service
 matches include `sym;asym`, `[^a]?sym` and `dc`, see [README](README.md#qat-service-configuration).
 
-`IPC_LOCK`capability is [strongly recommended](README.md#qat-service-configuration).
+`IPC_LOCK` capability is required sinces VFIO based device access expects IPC_LOCK with the QAT sw stack.
