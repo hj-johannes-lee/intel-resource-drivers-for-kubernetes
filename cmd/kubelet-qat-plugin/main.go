@@ -6,32 +6,38 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	cliflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/featuregate"
+	"k8s.io/component-base/logs"
+	logsapi "k8s.io/component-base/logs/api/v1"
+	"k8s.io/component-base/term"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 )
 
-func main() {
+func cmdRun(cmd *cobra.Command, args []string) error {
 	var (
-		err error
 		d   *driver
+		err error
 	)
 
 	klog.Infof("DRA kubelet plugin %s", driverName)
 
 	ctx := context.Background()
 
-	if err = os.MkdirAll(driverPluginPath, 0750); err != nil {
-		klog.Errorf("Could not create '%s': %v", driverPluginPath, err)
-		return
+	if err := os.MkdirAll(driverPluginPath, 0750); err != nil {
+		return fmt.Errorf("could not create '%s': %v", driverPluginPath, err)
 	}
 
 	if d, err = newDriver(ctx); err != nil {
-		klog.Errorf("failed to create kubelet plugin driver: %v", err)
-		return
+		return fmt.Errorf("failed to create kubelet plugin driver: %v", err)
 	}
 
 	plugin, err := kubeletplugin.Start(
@@ -44,8 +50,7 @@ func main() {
 		kubeletplugin.PluginSocketPath(driverPluginSocketPath),
 		kubeletplugin.KubeletPluginSocketPath(driverPluginSocketPath))
 	if err != nil {
-		klog.Errorf("failed to start kubelet plugin: %v", err)
-		return
+		return fmt.Errorf("failed to start kubelet plugin: %v", err)
 	}
 
 	d.plugin = plugin
@@ -61,4 +66,44 @@ func main() {
 	plugin.Stop()
 
 	klog.Infof("DRA kubelet plugin %s done", driverName)
+
+	return nil
+}
+
+func setupCmd() (*cobra.Command, error) {
+	cmd := &cobra.Command{
+		Use:   "kubelet-plugin",
+		Short: "Intel WAT resource driver kubelet plugin",
+		RunE:  cmdRun,
+	}
+
+	logsconfig := logsapi.NewLoggingConfiguration()
+	featureGate := featuregate.NewFeatureGate()
+	utilruntime.Must(logsapi.AddFeatureGates(featureGate))
+	if err := logsapi.ValidateAndApply(logsconfig, featureGate); err != nil {
+		return nil, err
+	}
+
+	loggingFlags := cliflag.NamedFlagSets{}
+	logFlagSet := loggingFlags.FlagSet("logging")
+	logsapi.AddFlags(logsconfig, logFlagSet)
+	logs.AddFlags(logFlagSet, logs.SkipLoggingConfigurationFlags())
+
+	cmd.PersistentFlags().AddFlagSet(logFlagSet)
+
+	cols, _, _ := term.TerminalSize(cmd.OutOrStdout())
+	cliflag.SetUsageAndHelpFunc(cmd, loggingFlags, cols)
+
+	return cmd, nil
+}
+
+func main() {
+	cmd, err := setupCmd()
+	if err != nil {
+		fmt.Printf("Error: failed to start: %v", err)
+		return
+	}
+
+	// Execute() already prints out the error.
+	_ = cmd.Execute()
 }
