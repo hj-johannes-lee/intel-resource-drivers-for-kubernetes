@@ -463,7 +463,10 @@ func (p *PFDevice) EnableVFs() error {
 
 	_ = p.getVFs()
 	for _, vf := range p.AvailableDevices {
-		_ = vf.enableVFIO()
+		if err := vf.enableVFIO(); err != nil {
+			klog.Errorf("Enabling VF '%s': %v", vf.UID(), err)
+			return err
+		}
 	}
 
 	if err := p.up(); err != nil {
@@ -640,10 +643,12 @@ func (v *VFDevice) bindVFIODriver() error {
 
 func (v *VFDevice) unbindVFIODriver() error {
 	err := v.writeFile(filepath.Join(sysfsDriverPath(), vfioUnbind), v.VFDevice)
-	if err != nil {
-		// fs.PathError is returned if the device was not bound
-		err, _ = err.(*os.PathError)
+
+	// fs.PathError is returned if the device was not bound
+	if _, ispatherror := err.(*os.PathError); ispatherror {
+		return nil
 	}
+
 	return err
 }
 
