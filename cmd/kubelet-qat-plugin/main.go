@@ -20,6 +20,8 @@ import (
 	"k8s.io/component-base/term"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
+
+	driverVersion "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/version"
 )
 
 func cmdRun(cmd *cobra.Command, args []string) error {
@@ -28,7 +30,8 @@ func cmdRun(cmd *cobra.Command, args []string) error {
 		err error
 	)
 
-	klog.Infof("DRA kubelet plugin %s", driverName)
+	klog.Info("DRA QAT kubelet plugin")
+	driverVersion.PrintDriverVersion(driverName)
 
 	ctx := context.Background()
 
@@ -73,23 +76,23 @@ func cmdRun(cmd *cobra.Command, args []string) error {
 func setupCmd() (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "kubelet-plugin",
-		Short: "Intel WAT resource driver kubelet plugin",
+		Short: "Intel QAT resource driver kubelet plugin",
 		RunE:  cmdRun,
 	}
 
 	logsconfig := logsapi.NewLoggingConfiguration()
-	featureGate := featuregate.NewFeatureGate()
-	utilruntime.Must(logsapi.AddFeatureGates(featureGate))
-	if err := logsapi.ValidateAndApply(logsconfig, featureGate); err != nil {
+	fgate := featuregate.NewFeatureGate()
+	utilruntime.Must(logsapi.AddFeatureGates(fgate))
+	if err := logsapi.ValidateAndApply(logsconfig, fgate); err != nil {
 		return nil, err
 	}
 
 	loggingFlags := cliflag.NamedFlagSets{}
-	logFlagSet := loggingFlags.FlagSet("logging")
-	logsapi.AddFlags(logsconfig, logFlagSet)
-	logs.AddFlags(logFlagSet, logs.SkipLoggingConfigurationFlags())
+	fs := loggingFlags.FlagSet("logging")
+	logsapi.AddFlags(logsconfig, fs)
+	logs.AddFlags(fs, logs.SkipLoggingConfigurationFlags())
 
-	cmd.PersistentFlags().AddFlagSet(logFlagSet)
+	cmd.PersistentFlags().AddFlagSet(fs)
 
 	cols, _, _ := term.TerminalSize(cmd.OutOrStdout())
 	cliflag.SetUsageAndHelpFunc(cmd, loggingFlags, cols)
