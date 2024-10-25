@@ -113,7 +113,7 @@ func (d *driver) allocateResource(ctx context.Context, claim *drav1.Claim) *drav
 			fmt.Printf("Error: %s", err.Error())
 
 			for _, vf := range allocatedvfs {
-				_, _ = vf.Free(claim.GetUID())
+				_, _ = d.devices.Free(vf.UID(), claim.GetUID())
 			}
 			return &drav1.NodePrepareResourceResponse{
 				Error: err.Error(),

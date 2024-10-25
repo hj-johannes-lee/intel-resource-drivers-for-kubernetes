@@ -546,7 +546,7 @@ func (q QATDevices) Allocate(requestedDeviceUID string, requestedService Service
 		if vf, err := pf.Allocate(requestedDeviceUID, requestedBy); err == nil {
 			// attempt configuration of requested service
 			if err := pf.SetServices([]Services{requestedService}); err != nil {
-				_, _ = pf.Free(requestedDeviceUID, requestedBy)
+				_, _ = pf.free(requestedDeviceUID, requestedBy)
 				continue
 			}
 			return vf, true, nil
@@ -561,59 +561,55 @@ func (q *QATDevices) Free(requestedDeviceUID string, requestedBy string) (bool, 
 	updated := false
 
 	for _, pfdevice := range *q {
-		if updated, err = pfdevice.Free(requestedDeviceUID, requestedBy); err == nil {
+		if updated, err = pfdevice.free(requestedDeviceUID, requestedBy); err == nil {
 			return updated, nil
 		}
 	}
 	return false, err
 }
 
-func (p *PFDevice) free(requestedDeviceUID string, vfdevices VFDevices) (bool, error) {
-	if vf, exists := vfdevices[requestedDeviceUID]; exists {
-		p.AvailableDevices[vf.UID()] = vf
-		delete(vfdevices, vf.UID())
-
-		for _, vfdevices := range p.AllocatedDevices {
-			if len(vfdevices) > 0 {
-				return false, nil
+func (p *PFDevice) freePF(requestedDeviceUID string, requestedBy string) (bool, error) {
+	if vfdevices, exists := p.AllocatedDevices[requestedBy]; exists {
+		if vf, exists := vfdevices[requestedDeviceUID]; exists {
+			p.AvailableDevices[vf.UID()] = vf
+			delete(vfdevices, vf.UID())
+			if len(vfdevices) == 0 {
+				delete(p.AllocatedDevices, requestedBy)
 			}
-		}
 
-		// set PF device configuration back to an unconfigured state
-		if p.AllowReconfiguration {
-			if err := p.SetServices([]Services{None}); err != nil {
-				return false, err
+			if len(p.AllocatedDevices) == 0 && p.AllowReconfiguration {
+				// set PF device configuration back to an unconfigured state
+				if err := p.SetServices([]Services{None}); err != nil {
+					return false, err
+				}
+				return true, nil
 			}
-			return true, nil
+
+			return false, nil
 		}
-		return false, nil
 	}
 
 	return false, fmt.Errorf("device '%s' could not be found", requestedDeviceUID)
 }
 
-func (p *PFDevice) Free(requestedDeviceUID string, requestedBy string) (bool, error) {
+func (p *PFDevice) free(requestedDeviceUID string, requestedBy string) (bool, error) {
 	if requestedDeviceUID == "" {
 		return false, fmt.Errorf("no device UID for request '%s'", requestedBy)
 	}
 
 	if requestedBy != "" {
-		if vfdevices, exists := p.AllocatedDevices[requestedBy]; exists {
-			return p.free(requestedDeviceUID, vfdevices)
-		}
+		update, err := p.freePF(requestedDeviceUID, requestedBy)
+		return update, err
 	} else {
-		for _, vfdevices := range p.AllocatedDevices {
-			if update, err := p.free(requestedDeviceUID, vfdevices); err == nil {
+		for requestedBy := range p.AllocatedDevices {
+			update, err := p.freePF(requestedDeviceUID, requestedBy)
+			if err == nil {
 				return update, err
 			}
 		}
 	}
 
 	return false, fmt.Errorf("device '%s' requested by '%s' does not exist", requestedDeviceUID, requestedBy)
-}
-
-func (v *VFDevice) Free(requestedBy string) (bool, error) {
-	return v.pfdevice.Free(v.UID(), requestedBy)
 }
 
 func (v *VFDevice) update() {
