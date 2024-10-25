@@ -256,7 +256,7 @@ func newDriver(ctx context.Context) (*driver, error) {
 		statefile:  stateFileName,
 	}
 
-	if err := d.devices.SetupSaveStateFile(d.statefile); err != nil {
+	if err := d.devices.ReadStateOrCreateEmpty(d.statefile); err != nil {
 		return nil, fmt.Errorf("could not set up save state file '%s': %v", d.statefile, err)
 	}
 

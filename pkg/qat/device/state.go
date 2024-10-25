@@ -15,7 +15,7 @@ import (
 // Map allocation id to VF device.
 type savedAllocations map[string][]string
 
-func (q *QATDevices) SetupSaveStateFile(statefile string) error {
+func (q *QATDevices) ReadStateOrCreateEmpty(statefile string) error {
 	if statefile == "" {
 		return nil
 	}
