@@ -6,12 +6,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
+	"k8s.io/klog/v2"
 )
 
 func main() {
@@ -20,17 +20,17 @@ func main() {
 		d   *driver
 	)
 
-	fmt.Println("DRA kubelet plugin")
+	klog.Infof("DRA kubelet plugin %s", driverName)
 
 	ctx := context.Background()
 
 	if err = os.MkdirAll(driverPluginPath, 0750); err != nil {
-		fmt.Printf("Could not create '%s': %v\n", driverPluginPath, err)
+		klog.Errorf("Could not create '%s': %v", driverPluginPath, err)
 		return
 	}
 
 	if d, err = newDriver(ctx); err != nil {
-		fmt.Printf("failed to create kubelet plugin driver: %v\n", err)
+		klog.Errorf("failed to create kubelet plugin driver: %v", err)
 		return
 	}
 
@@ -44,7 +44,7 @@ func main() {
 		kubeletplugin.PluginSocketPath(driverPluginSocketPath),
 		kubeletplugin.KubeletPluginSocketPath(driverPluginSocketPath))
 	if err != nil {
-		fmt.Printf("failed to start kubelet plugin: %v\n", err)
+		klog.Errorf("failed to start kubelet plugin: %v", err)
 		return
 	}
 
@@ -52,7 +52,7 @@ func main() {
 
 	d.UpdateDeviceResources(ctx)
 
-	fmt.Printf("DRA kubelet plugin for %s running...\n", driverName)
+	klog.Infof("DRA kubelet plugin %s running...", driverName)
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
@@ -60,5 +60,5 @@ func main() {
 
 	plugin.Stop()
 
-	fmt.Printf("DRA kubelet plugin done\n")
+	klog.Infof("DRA kubelet plugin %s done", driverName)
 }

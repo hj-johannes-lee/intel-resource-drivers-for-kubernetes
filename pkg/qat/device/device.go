@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -190,7 +192,7 @@ func New() (QATDevices, error) {
 	for _, p := range paths {
 		symlinktarget, err := filepath.EvalSymlinks(p)
 		if err != nil {
-			fmt.Printf("Warning symlink for %s: %v\n", p, err)
+			klog.Warningf("Expected '%s' to be a symlink: %v", p, err)
 			continue
 		}
 
@@ -202,11 +204,11 @@ func New() (QATDevices, error) {
 		}
 
 		if err = newdevice.syncConfig(); err != nil {
-			fmt.Printf("Warning: sync config for %s: %v\n", symlinktarget, err)
+			klog.Warningf("Could not sync config for '%s': %v", newdevice.Device, err)
 			continue
 		}
 		if err := newdevice.getVFs(); err != nil {
-			fmt.Printf("Could not find VFs for %s: %v\n", symlinktarget, err)
+			klog.Warningf("Could not find VFs for '%s': %v", newdevice.Device, err)
 			continue
 		}
 		pcidevices = append(pcidevices, newdevice)
@@ -371,7 +373,7 @@ func (p *PFDevice) getVFs() error {
 
 		vfpath, err := filepath.EvalSymlinks(path)
 		if err != nil {
-			fmt.Printf("Warning symlink for %s: %v\n", path, err)
+			klog.Warningf("Expected symlink for '%s': %v", path, err)
 			continue
 		}
 
@@ -513,7 +515,7 @@ func (q QATDevices) Allocate(requestedDeviceUID string, requestedService Service
 	for _, pf := range q {
 		// check for already allocated service mapped by request ID
 		if !pf.Services.Supports(requestedService) {
-			fmt.Printf("pfdev '%s' service '%s' does not support service '%s'\n", pf.Device, pf.Services.String(), requestedService.String())
+			klog.V(5).Infof("PFdev '%s' service '%s' does not support service '%s'", pf.Device, pf.Services.String(), requestedService.String())
 			continue
 		}
 		if allocatedDevices, exists := pf.AllocatedDevices[requestedBy]; exists {
