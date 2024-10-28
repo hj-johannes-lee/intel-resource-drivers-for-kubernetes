@@ -30,7 +30,7 @@ When deploying custom-built resource driver image, change `image:` lines in
     2) preparation of the hardware allocated to the ResourceClaims for the Pod that is being started on the node.
     3) unpreparation of the hardware allocated to the ResourceClaims for the Pod that has stopped and reached final state on the node.
 
-### Basic use case: Pod with QAT accelerator
+### Example use case: Pod with QAT accelerator
 
 The simplest way to use the Intel® QAT resource driver is to create a ResourceClaim
 and add it to the Pod spec. The Intel® QAT resource driver will take care of allocating
@@ -51,7 +51,6 @@ spec:
         selectors:
         - cel:
            expression: |-
-              device.driver == "qat.intel.com" &&
               device.attributes["qat.intel.com"].services.matches("sym;asym")
 
 ---
