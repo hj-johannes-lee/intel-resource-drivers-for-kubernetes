@@ -91,6 +91,21 @@ func TestDriver(t *testing.T) {
 			},
 		},
 		{
+			name: "QAT reallocate same device and same claim UID",
+			claims: []*resourcev1.ResourceClaim{
+				helpers.NewClaim(testNameSpace, "claim-a", "uid1", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
+			},
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{{UID: "uid1", Name: "claim1", Namespace: testNameSpace}},
+			},
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
+					"uid1": {Devices: []*drav1.Device{
+						{RequestNames: []string{"request1"}, PoolName: testNodeName, DeviceName: "qatvf-0000-aa-00-1", CDIDeviceIDs: []string{"intel.com/qat=qatvf-0000-aa-00-1", "intel.com/qat=qatvf-vfio"}}}},
+				},
+			},
+		},
+		{
 			name: "QAT device already allocated",
 			claims: []*resourcev1.ResourceClaim{
 				helpers.NewClaim(testNameSpace, "claim2", "uid2", "request1", "qat.intel.com", testNodeName, []string{"qatvf-0000-aa-00-1"}),
