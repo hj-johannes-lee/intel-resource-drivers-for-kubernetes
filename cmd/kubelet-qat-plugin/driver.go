@@ -10,11 +10,11 @@ import (
 	"os"
 	"sync"
 
-	resourceapi "k8s.io/api/resource/v1alpha3"
+	resourceapi "k8s.io/api/resource/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
-	drav1 "k8s.io/kubelet/pkg/apis/dra/v1alpha4"
+	drav1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/cdi"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/qat/device"
@@ -28,7 +28,7 @@ const (
 	stateFileName          = driverPluginPath + ".state"
 )
 
-var _ drav1.NodeServer = &driver{}
+var _ drav1.DRAPluginServer = &driver{}
 
 type driver struct {
 	sync.Mutex
@@ -41,7 +41,7 @@ type driver struct {
 }
 
 func (d *driver) getResourceClaim(ctx context.Context, claim *drav1.Claim) (*resourceapi.ResourceClaim, error) {
-	resourceclaim, err := d.kubeclient.ResourceV1alpha3().ResourceClaims(claim.Namespace).Get(ctx, claim.Name, metav1.GetOptions{})
+	resourceclaim, err := d.kubeclient.ResourceV1beta1().ResourceClaims(claim.Namespace).Get(ctx, claim.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to find ResourceClaim %s in namespace %s", claim.Name, claim.Namespace)
 	}
@@ -131,14 +131,20 @@ func (d *driver) allocateResource(ctx context.Context, claim *drav1.Claim) *drav
 		})
 	}
 
+	// FIXME: deallocate devices if state couldn't be saved for some reason ?
 	if err := d.devices.SaveState(d.statefile); err != nil {
 		return &drav1.NodePrepareResourceResponse{
 			Error: err.Error(),
 		}
 	}
 
+	// FIXME: deallocate devices if couldn't publish resources ?
 	if deviceConfigurationChanged {
-		d.UpdateDeviceResources(ctx)
+		if err := d.UpdateDeviceResources(ctx); err != nil {
+			return &drav1.NodePrepareResourceResponse{
+				Error: fmt.Sprintf("error publishing resources: %v", err),
+			}
+		}
 	}
 
 	return response
@@ -180,10 +186,15 @@ func (d *driver) freeDevice(ctx context.Context, claim *drav1.Claim) *drav1.Node
 		if updated, err := d.devices.Free(requestedDeviceUID, claim.GetUID()); err != nil {
 			klog.Warningf("Could not free device %s claim '%s': %v", requestedDeviceUID, claim.GetUID(), err)
 		} else {
+			// FIXME: why savestate only once below, but publish resources is inside the loop?
 			savestate = true
 			klog.V(5).Infof("Claim with uid '%s' freed", claim.GetUID())
 			if updated {
-				d.UpdateDeviceResources(ctx)
+				if err := d.UpdateDeviceResources(ctx); err != nil {
+					return &drav1.NodeUnprepareResourceResponse{
+						Error: fmt.Sprintf("error publihing resources: %v", err),
+					}
+				}
 			}
 		}
 	}
@@ -198,15 +209,16 @@ func (d *driver) freeDevice(ctx context.Context, claim *drav1.Claim) *drav1.Node
 	return &drav1.NodeUnprepareResourceResponse{}
 }
 
-func (d *driver) UpdateDeviceResources(ctx context.Context) {
+func (d *driver) UpdateDeviceResources(ctx context.Context) error {
 	if d.plugin == nil {
-		return
+		return nil
 	}
 
 	resources := kubeletplugin.Resources{
 		Devices: *deviceResources(device.GetResourceDevices(d.devices)),
 	}
-	d.plugin.PublishResources(ctx, resources)
+
+	return d.plugin.PublishResources(ctx, resources)
 }
 
 func newDriver(ctx context.Context) (*driver, error) {
