@@ -1,4 +1,4 @@
-apiVersion: resource.k8s.io/v1alpha3
+apiVersion: resource.k8s.io/v1beta1
 kind: ResourceClaimTemplate
 metadata:
   name: qat-template-sym
@@ -14,7 +14,7 @@ spec:
               device.attributes["qat.intel.com"].services.matches("[^a]?sym")
 
 ---
-apiVersion: resource.k8s.io/v1alpha3
+apiVersion: resource.k8s.io/v1beta1
 kind: ResourceClaimTemplate
 metadata:
   name: qat-template-dc

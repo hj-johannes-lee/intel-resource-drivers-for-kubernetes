@@ -61,7 +61,7 @@ rpl-s-gpu.intel.com-mbr6p     rpl-s   gpu.intel.com     rpl-s   30s
 Example contents of the ResourceSlice object:
 ```bash
 $ kubectl get resourceslice/rpl-s-gpu.intel.com-mbr6p -o yaml
-apiVersion: resource.k8s.io/v1alpha3
+apiVersion: resource.k8s.io/v1beta1
 kind: ResourceSlice
 metadata:
   creationTimestamp: "2024-09-27T09:11:24Z"
@@ -130,7 +130,7 @@ to Pod spec to be used in container. The scheduler will allocate suitable GPU re
 ResourceSlice that was published by the Intel GPU resource driver.
 
 ```yaml
-apiVersion: resource.k8s.io/v1alpha3
+apiVersion: resource.k8s.io/v1beta1
 kind: ResourceClaim
 metadata:
   name: claim1
@@ -196,7 +196,7 @@ and needs explicit deletion.
 
 Example of Pod with generated Resource Claim:
 ```YAML
-apiVersion: resource.k8s.io/v1alpha3
+apiVersion: resource.k8s.io/v1beta1
 kind: ResourceClaimTemplate
 metadata:
   name: claim1
@@ -233,7 +233,7 @@ memory should be at least 16Gi. The attributes and capacity properties of the GP
 
 Example of Resource Claim requesting 2 GPUs with at least 16 Gi of local memory each:
 ```yaml
-apiVersion: resource.k8s.io/v1alpha3
+apiVersion: resource.k8s.io/v1beta1
 kind: ResourceClaimTemplate
 metadata:
   name: claim1

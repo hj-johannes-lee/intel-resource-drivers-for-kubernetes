@@ -38,7 +38,7 @@ a suitable device to the Resource Claim when Kubernetes schedules the Pod on the
 
 Example:
 ```
-apiVersion: resource.k8s.io/v1alpha3
+apiVersion: resource.k8s.io/v1beta1
 kind: ResourceClaimTemplate
 metadata:
   name: qat-template-sym-asym
