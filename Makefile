@@ -185,7 +185,11 @@ yamllint:
 .PHONY: test coverage
 COVERAGE_FILE := coverage.out
 test:
-	go test -v -coverprofile=$(COVERAGE_FILE) $(MODULE)/...
+	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
 coverage: test
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html
+
+.PHONY: e2e-qat
+e2e-qat:
+	go test -v ./test/e2e/... --clean-start=true -ginkgo.v -ginkgo.trace -ginkgo.show-node-events
