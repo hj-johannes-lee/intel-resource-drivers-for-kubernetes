@@ -192,7 +192,7 @@ func (d *driver) freeDevice(ctx context.Context, claim *drav1.Claim) *drav1.Node
 			if updated {
 				if err := d.UpdateDeviceResources(ctx); err != nil {
 					return &drav1.NodeUnprepareResourceResponse{
-						Error: fmt.Sprintf("error publihing resources: %v", err),
+						Error: fmt.Sprintf("error publishing resources: %v", err),
 					}
 				}
 			}
