@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build-container:
-    runs-on: "self-hosted"
+    runs-on: [ "self-hosted", "generic" ]
     steps:
     - uses: actions/checkout@v4
     - name: Update vendor
