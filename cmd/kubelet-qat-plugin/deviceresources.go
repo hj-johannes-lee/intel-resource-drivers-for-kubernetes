@@ -5,7 +5,7 @@
 package main
 
 import (
-	resourceapi "k8s.io/api/resource/v1alpha3"
+	resourceapi "k8s.io/api/resource/v1beta1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 

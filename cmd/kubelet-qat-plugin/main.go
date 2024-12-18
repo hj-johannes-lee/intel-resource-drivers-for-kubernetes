@@ -45,7 +45,7 @@ func cmdRun(cmd *cobra.Command, args []string) error {
 
 	plugin, err := kubeletplugin.Start(
 		ctx,
-		d,
+		[]any{d},
 		kubeletplugin.KubeClient(d.kubeclient),
 		kubeletplugin.NodeName(d.nodename),
 		kubeletplugin.DriverName(driverName),
@@ -58,7 +58,9 @@ func cmdRun(cmd *cobra.Command, args []string) error {
 
 	d.plugin = plugin
 
-	d.UpdateDeviceResources(ctx)
+	if err := d.UpdateDeviceResources(ctx); err != nil {
+		return fmt.Errorf("failed to publish resources: %v", err)
+	}
 
 	klog.Infof("DRA kubelet plugin %s running...", driverName)
 
