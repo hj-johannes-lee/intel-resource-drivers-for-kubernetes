@@ -136,6 +136,9 @@ func (s *nodeState) GetResources() kubeletplugin.Resources {
 					"model": {
 						StringValue: &gaudi.ModelName,
 					},
+					"pciRoot": {
+						StringValue: &gaudi.PCIRoot,
+					},
 				},
 			},
 		}
