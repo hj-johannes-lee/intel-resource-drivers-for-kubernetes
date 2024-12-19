@@ -96,7 +96,6 @@ func newCommand() *cobra.Command {
 			var err error
 			var driverName string
 
-			//			for _, argx := range args {
 			switch deviceType {
 			case "gpu":
 				driverName = "gpu.intel.com"
