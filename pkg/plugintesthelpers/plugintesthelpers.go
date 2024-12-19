@@ -51,7 +51,9 @@ func NewTestDirs(driverName string) (TestDirsType, error) {
 	if err := os.Chmod(testRoot, 0755); err != nil {
 		return TestDirsType{}, fmt.Errorf("failed changing permissions to test root dir: %v", err)
 	}
-
+	return NewTestDirsAt(testRoot, driverName)
+}
+func NewTestDirsAt(testRoot string, driverName string) (TestDirsType, error) {
 	cdiRoot := path.Join(testRoot, "cdi")
 	if err := os.MkdirAll(cdiRoot, 0755); err != nil {
 		return TestDirsType{}, fmt.Errorf("failed creating fake CDI root dir: %v", err)
