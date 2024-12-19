@@ -91,7 +91,7 @@ func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo
 		// e.g. /sys/devices/pci0000:16/0000:16:02.0/0000:17:00.0/0000:18:00.0/0000:19:00.0
 		linkTarget, err := filepath.EvalSymlinks(link)
 		if err != nil {
-			klog.Errorf("Failed reading symlink %v: %v. Could not determine PCI root complex ID", link, err)
+			klog.Errorf("Could not determine PCI root complex ID from '%v': %v", link, err)
 		} else {
 			parts := strings.Split(linkTarget, "/")
 			if parts[0] == "" && parts[1] == "sys" && parts[2] == "devices" {
