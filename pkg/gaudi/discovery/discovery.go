@@ -94,7 +94,7 @@ func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo
 			klog.Errorf("Could not determine PCI root complex ID from '%v': %v", link, err)
 		} else {
 			parts := strings.Split(linkTarget, "/")
-			if parts[0] == "" && parts[1] == "sys" && parts[2] == "devices" {
+			if len(parts) > 3 && parts[0] == "" && parts[1] == "sys" && parts[2] == "devices" {
 				newDeviceInfo.PCIRoot = strings.Replace(parts[3], "pci0000:", "", 1)
 			} else {
 				klog.Warningf("could not parse sysfs link target %v: %v", linkTarget, parts)

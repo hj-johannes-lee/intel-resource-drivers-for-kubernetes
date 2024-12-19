@@ -70,22 +70,21 @@ func cobraRunFunc(cmd *cobra.Command, args []string) error {
 		dryRun = true
 	}
 
-	print := false
-	if cmd.Flag("print").Value.String() == "true" {
-		print = true
-	}
-
 	for _, argx := range args {
 		switch strings.ToLower(argx) {
 		case "gpu":
-			if err := handleGPUDevices(cdiCache, namingStyle, dryRun, print); err != nil {
+			if err := handleGPUDevices(cdiCache, namingStyle, dryRun); err != nil {
 				return err
 			}
 		case "gaudi":
-			if err := handleGaudiDevices(cdiCache, namingStyle, dryRun, print); err != nil {
+			if err := handleGaudiDevices(cdiCache, namingStyle, dryRun); err != nil {
 				return err
 			}
 		}
+	}
+
+	if dryRun {
+		return nil
 	}
 
 	if err := cdiCache.Refresh(); err != nil {
@@ -131,14 +130,13 @@ func newCommand() *cobra.Command {
 	cmd.Flags().BoolP("version", "v", false, "Show the version of the binary")
 	cmd.Flags().String("cdi-dir", "/etc/cdi", "CDI spec directory")
 	cmd.Flags().String("naming", "classic", "Naming of CDI devices. Options: classic, machine")
-	cmd.Flags().BoolP("print", "p", false, "Print detected devices")
 	cmd.Flags().BoolP("dry-run", "n", false, "Dry-run, do not create CDI manifests")
 	cmd.SetVersionTemplate("Intel CDI Specs Generator Version: {{.Version}}\n")
 
 	return cmd
 }
 
-func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool, print bool) error {
+func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) error {
 	sysfsDir := gpuDevice.GetSysfsRoot()
 
 	fmt.Println("Scanning for GPUs")
@@ -148,11 +146,9 @@ func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool, p
 		fmt.Println("No supported devices detected")
 	}
 
-	if print {
-		fmt.Println("Detected supported devices")
-		for _, gpu := range detectedDevices {
-			fmt.Printf("GPU: %+v\n", gpu)
-		}
+	fmt.Println("Detected supported devices")
+	for gpuName, gpu := range detectedDevices {
+		fmt.Printf("GPU: %v=%v (%v)\n", gpuDevice.CDIKind, gpuName, gpu.ModelName)
 	}
 
 	if dryRun {
@@ -168,7 +164,7 @@ func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool, p
 	return nil
 }
 
-func handleGaudiDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool, print bool) error {
+func handleGaudiDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) error {
 	sysfsDir := gaudiDevice.GetSysfsRoot()
 
 	fmt.Println("Scanning for Gaudi accelerators")
@@ -178,11 +174,9 @@ func handleGaudiDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool,
 		fmt.Println("No supported devices detected")
 	}
 
-	if print {
-		fmt.Println("Detected supported devices")
-		for _, gaudi := range detectedDevices {
-			fmt.Printf("Gaudi: %+v\n", gaudi)
-		}
+	fmt.Println("Detected supported devices")
+	for gaudiName, gaudi := range detectedDevices {
+		fmt.Printf("Gaudi: %v=%v (%v)\n", gaudiDevice.CDIKind, gaudiName, gaudi.ModelName)
 	}
 
 	if dryRun {
