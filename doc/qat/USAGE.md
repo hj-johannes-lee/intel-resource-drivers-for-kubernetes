@@ -1,6 +1,6 @@
 ## Requirements
 
-- Kubernetes 1.31+, with `DynamicResourceAllocation` feature-flag enabled, and
+- Kubernetes 1.32+, with `DynamicResourceAllocation` feature-flag enabled, and
 [other cluster parameters](../../hack/clusterconfig.yaml)
 - Container runtime needs to support CDI:
   - CRI-O v1.23.0 or newer
