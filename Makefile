@@ -201,4 +201,5 @@ coverage: test
 
 .PHONY: e2e-qat
 e2e-qat:
+	sed -i 's|\(intel/intel-qat-resource-driver:\)[^ ]*|\1devel|' deployments/qat/resource-driver.yaml
 	go test -v ./test/e2e/... --clean-start=true -ginkgo.v -ginkgo.trace -ginkgo.show-node-events
