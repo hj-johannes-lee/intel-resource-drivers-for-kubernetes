@@ -7,7 +7,7 @@ spec:
     devices:
       requests:
       - name: gaudi
-        deviceClassName: gpu.intel.com
+        deviceClassName: gaudi.intel.com
         count: 2
         selectors:
         - cel:
