@@ -51,7 +51,14 @@ spec:
         selectors:
         - cel:
            expression: |-
-              device.attributes["qat.intel.com"].services.matches("sym;asym")
+              device.attributes["qat.intel.com"].services == "sym" ||
+              device.attributes["qat.intel.com"].services == "sym;asym" ||
+              device.attributes["qat.intel.com"].services == "sym;dc" ||
+              device.attributes["qat.intel.com"].services == "asym" ||
+              device.attributes["qat.intel.com"].services == "asym;sym" ||
+              device.attributes["qat.intel.com"].services == "asym;dc" ||
+              device.attributes["qat.intel.com"].services == "dc;sym" ||
+              device.attributes["qat.intel.com"].services == "dc;asym"
 
 ---
 apiVersion: v1
