@@ -49,3 +49,8 @@ qat-container-build: cleanall vendor
 .PHONY: qat-container-push
 qat-container-push: qat-container-build
 	$(DOCKER) push $(QAT_IMAGE_TAG)
+
+.PHONY: e2e-qat
+e2e-qat:
+	sed -i 's|\(intel/intel-qat-resource-driver:\)[^ ]*|\1devel|' deployments/qat/resource-driver.yaml
+	go test -v ./test/e2e/... --clean-start=true -ginkgo.v -ginkgo.trace -ginkgo.show-node-events

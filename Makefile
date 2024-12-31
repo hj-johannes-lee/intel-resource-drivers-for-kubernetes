@@ -198,8 +198,3 @@ coverage: test
 	@echo coverage file: coverage.html
 	@echo "average coverage (except main.go files)"
 	grep '<option value=' coverage.html | grep -v 'main.go' | grep -o '(.*)' | tr -d '()%' | awk 'BEGIN{s=0;}{s+=$$1;}END{print s/NR;}'
-
-.PHONY: e2e-qat
-e2e-qat:
-	sed -i 's|\(intel/intel-qat-resource-driver:\)[^ ]*|\1devel|' deployments/qat/resource-driver.yaml
-	go test -v ./test/e2e/... --clean-start=true -ginkgo.v -ginkgo.trace -ginkgo.show-node-events
