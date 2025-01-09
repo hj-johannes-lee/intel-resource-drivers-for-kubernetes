@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - '**/*qat*/**'
-      - '*qat*'
+      - '**/*qat*'
 
 permissions:
   contents: read
