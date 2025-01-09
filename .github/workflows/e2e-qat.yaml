@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - '**/*qat*/**'
-      - '*qat*'
+      - '**/*qat*'
 
 permissions:
   contents: read
@@ -18,6 +18,8 @@ jobs:
     runs-on: [ "self-hosted", "reserver" ]
     steps:
       - name: Reserve OneCloud System for E2E
+        env:
+          CI_USER_ONECLOUD_TOKEN : ${{ secrets.CI_USER_ONECLOUD_TOKEN }}
         run: ../../../jobs/reserve_onecloud.sh
   setup-system:
     needs: "reserve-onecloud"
@@ -28,6 +30,7 @@ jobs:
           ACTIONS_RUNNER_NAME: qat
           LDAP_USERNAME: ${{ secrets.CI_USER_NAME }}
           LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
+          CI_USER_ONECLOUD_TOKEN : ${{ secrets.CI_USER_ONECLOUD_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: ../../../jobs/setup_actions_runner.sh
   e2e:
@@ -47,4 +50,6 @@ jobs:
     runs-on: [ "self-hosted", "reserver" ]
     steps:
       - name: Release the OneCloud System
+        env:
+          CI_USER_ONECLOUD_TOKEN : ${{ secrets.CI_USER_ONECLOUD_TOKEN }}
         run: ../../../jobs/release_onecloud.sh
