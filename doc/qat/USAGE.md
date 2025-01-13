@@ -41,12 +41,12 @@ Example:
 apiVersion: resource.k8s.io/v1beta1
 kind: ResourceClaimTemplate
 metadata:
-  name: qat-template-sym-asym
+  name: qat-template-sym
 spec:
   spec:
     devices:
       requests:
-      - name: qat-request-sym-asym
+      - name: qat-request-sym
         deviceClassName: qat.intel.com
         selectors:
         - cel:
@@ -54,17 +54,14 @@ spec:
               device.attributes["qat.intel.com"].services == "sym" ||
               device.attributes["qat.intel.com"].services == "sym;asym" ||
               device.attributes["qat.intel.com"].services == "sym;dc" ||
-              device.attributes["qat.intel.com"].services == "asym" ||
               device.attributes["qat.intel.com"].services == "asym;sym" ||
-              device.attributes["qat.intel.com"].services == "asym;dc" ||
               device.attributes["qat.intel.com"].services == "dc;sym" ||
-              device.attributes["qat.intel.com"].services == "dc;asym"
 
 ---
 apiVersion: v1
 kind: Deployment
 metadata:
-  name: qat-sample-sym-asym
+  name: qat-sample-sym
   labels:
     app: inline-qat-deployment
 spec:
@@ -87,10 +84,10 @@ spec:
               ["IPC_LOCK"]
         resources:
           claims:
-          - name: resource-sym-asym
+          - name: resource-sym
       resourceClaims:
-      - name: resource-sym-asym
-        resourceClaimTemplateName: qat-template-sym-asym
+      - name: resource-sym
+        resourceClaimTemplateName: qat-template-sym
 ```
 QAT services are matched by CEL expression; in the example above, `sym` and `asym`
 services are considered in the regular expression. Examples of other common service
