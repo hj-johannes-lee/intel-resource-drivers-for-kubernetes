@@ -216,7 +216,6 @@ func TestNodePrepareResources(t *testing.T) {
 	}
 }
 
-/*
 func TestNodeUnprepareResources(t *testing.T) {
 	type testCase struct {
 		name                   string
@@ -242,14 +241,14 @@ func TestNodeUnprepareResources(t *testing.T) {
 			name: "single claim",
 			request: &drav1.NodeUnprepareResourcesRequest{
 				Claims: []*drav1.Claim{
-					{Name: "claim1", Namespace: "namespace1", Uid: "cuid1"},
+					{Name: "claim1", Namespace: "namespace1", UID: "uid1"},
 				},
 			},
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
-				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"cuid1": {}},
+				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid1": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"cuid1": {{UID: "0000-b3-00-0-0x1020"}},
+				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid1"}}},
 			},
 			expectedPreparedClaims: ClaimPreparations{},
 		},
@@ -257,35 +256,35 @@ func TestNodeUnprepareResources(t *testing.T) {
 			name: "subset of claims",
 			request: &drav1.NodeUnprepareResourcesRequest{
 				Claims: []*drav1.Claim{
-					{Name: "claim2", Namespace: "namespace2", Uid: "cuid2"},
+					{Name: "claim2", Namespace: "namespace2", UID: "uid2"},
 				},
 			},
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
-				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"cuid2": {}},
+				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid2": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"cuid1": {{UID: "0000-af-00-0-0x1020"}},
-				"cuid2": {{UID: "0000-b3-00-0-0x1020"}},
+				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-af-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-af-00-0-0x1020", "intel.com/gaudi=uid1"}}},
+				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-b3-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-b3-00-0-0x1020", "intel.com/gaudi=uid2"}}},
 			},
 			expectedPreparedClaims: ClaimPreparations{
-				"cuid1": {{UID: "0000-af-00-0-0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, ModuleIdx: 1, Model: "0x1020"}},
+				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-af-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-af-00-0-0x1020", "intel.com/gaudi=uid1"}}},
 			},
 		},
 		{
 			name: "non-existent claim success",
 			request: &drav1.NodeUnprepareResourcesRequest{
 				Claims: []*drav1.Claim{
-					{Name: "claim1", Namespace: "namespace1", Uid: "cuid1"},
+					{Name: "claim1", Namespace: "namespace1", UID: "uid1"},
 				},
 			},
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
-				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"cuid1": {}},
+				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid1": {}},
 			},
 			preparedClaims: ClaimPreparations{
-				"cuid2": {{UID: "0000-b3-00-0-0x1020"}},
+				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-b3-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-b3-00-0-0x1020", "intel.com/gaudi=uid2"}}},
 			},
 			expectedPreparedClaims: ClaimPreparations{
-				"cuid2": {{UID: "0000-b3-00-0-0x1020"}},
+				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-b3-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-b3-00-0-0x1020", "intel.com/gaudi=uid2"}}},
 			},
 		},
 	}
@@ -293,7 +292,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := helpers.NewTestDirs()
+		testDirs, err := helpers.NewTestDirs(device.DriverName)
 		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("%v: setup error: %v", testcase.name, err)
@@ -307,14 +306,16 @@ func TestNodeUnprepareResources(t *testing.T) {
 				"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020"},
 				"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020"},
 			},
+			false,
 		); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
 			return
 		}
 
-		preparedClaimFilePath := path.Join(testDirs.DriverPluginRoot, device.PreparedClaimsFileName)
+		preparedClaimFilePath := path.Join(testDirs.KubeletPluginDir, "preparedClaims.json")
 		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
+			continue
 		}
 
 		driver, driverErr := getFakeDriver(testDirs)
@@ -326,11 +327,13 @@ func TestNodeUnprepareResources(t *testing.T) {
 		response, err := driver.NodeUnprepareResources(context.TODO(), testcase.request)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
+			continue
 		}
 
 		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
+			continue
 		}
 
 		if !reflect.DeepEqual(response, testcase.expectedResponse) {
@@ -341,12 +344,27 @@ func TestNodeUnprepareResources(t *testing.T) {
 			preparedClaimsJSON, _ := json.MarshalIndent(preparedClaims, "", "\t")
 			expectedPreparedClaimsJSON, _ := json.MarshalIndent(testcase.expectedPreparedClaims, "", "\t")
 			t.Errorf(
-				"unexpected PreparedClaims:\n%s\nexpected PreparedClaims:\n%s",
-				preparedClaimsJSON, expectedPreparedClaimsJSON,
+				"%v: unexpected PreparedClaims:\n%s\nexpected PreparedClaims:\n%s",
+				testcase.name, string(preparedClaimsJSON), string(expectedPreparedClaimsJSON),
 			)
 			break
 		}
 	}
 }
 
-*/
+func TestShutdown(t *testing.T) {
+	testDirs, err := helpers.NewTestDirs(device.DriverName)
+	if err != nil {
+		t.Fatalf("could not create fake system dirs: %v", err)
+	}
+
+	driver, err := getFakeDriver(testDirs)
+	if err != nil {
+		t.Fatalf("could not create driver: %v", err)
+	}
+
+	err = driver.Shutdown(context.TODO())
+	if err != nil {
+		t.Errorf("Shutdown() error = %v, wantErr %v", err, nil)
+	}
+}
