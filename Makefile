@@ -29,7 +29,7 @@ GIT_BRANCH ?= $(shell git branch --show-current)
 
 EXT_LDFLAGS = -static
 LDFLAGS = \
- -s -w -extldflags $(EXT_LDFLAGS) \
+ -s -w \
  -X ${PKG}/pkg/version.gitCommit=${GIT_COMMIT} \
  -X ${PKG}/pkg/version.buildDate=${BUILD_DATE}
 

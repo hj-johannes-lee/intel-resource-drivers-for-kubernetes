@@ -41,6 +41,8 @@ type driver struct {
 	state    *nodeState
 	sysfsDir string
 	plugin   kubeletplugin.DRAPlugin
+	// If hlml monitoring is running - it will need to be stopped.
+	hlmlShutdown context.CancelFunc
 }
 
 func newDriver(ctx context.Context, config *configType) (*driver, error) {
@@ -91,15 +93,15 @@ KubeletPluginSocketPath: %v`,
 
 	d.plugin = plugin
 
-	resources := d.state.GetResources()
-	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Devices))
-	klog.V(5).Infof("devices: %+v", resources.Devices)
-	if err := plugin.PublishResources(ctx, resources); err != nil {
-		return nil, fmt.Errorf("error publishing resources: %v", err)
+	if err := d.UpdateResourceSlice(ctx); err != nil {
+		return nil, fmt.Errorf("startup error: %v", err)
 	}
 
 	klog.V(3).Infof("Trying HLML library")
-	monitorHealth(ctx)
+	// monitorHealth listens for unhealthy UIDs, has to run in a routine.
+	hlmlListenerContext, hlmlListenerCancel := context.WithCancel(ctx)
+	go d.monitorHealth(hlmlListenerContext)
+	d.hlmlShutdown = hlmlListenerCancel
 
 	klog.V(3).Info("Finished creating new driver")
 	return d, nil
@@ -168,7 +170,13 @@ func (d *driver) nodeUnprepareResource(ctx context.Context, claim *drav1.Claim) 
 	return &drav1.NodeUnprepareResourceResponse{}
 }
 
-func (d *driver) Shutdown(ctx context.Context) error {
-	d.plugin.Stop()
+func (d *driver) UpdateResourceSlice(ctx context.Context) error {
+	resources := d.state.GetResources()
+	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Devices))
+	klog.V(5).Infof("devices: %+v", resources.Devices)
+	if err := d.plugin.PublishResources(ctx, resources); err != nil {
+		return fmt.Errorf("error publishing resources: %v", err)
+	}
+
 	return nil
 }
