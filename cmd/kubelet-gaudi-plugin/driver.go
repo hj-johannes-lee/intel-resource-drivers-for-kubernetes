@@ -98,6 +98,9 @@ KubeletPluginSocketPath: %v`,
 		return nil, fmt.Errorf("error publishing resources: %v", err)
 	}
 
+	klog.V(3).Infof("Trying HLML library")
+	monitorHealth(ctx)
+
 	klog.V(3).Info("Finished creating new driver")
 	return d, nil
 }

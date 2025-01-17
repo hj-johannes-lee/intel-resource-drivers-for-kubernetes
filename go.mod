@@ -30,6 +30,8 @@ require (
 	tags.cncf.io/container-device-interface/specs-go v0.8.0
 )
 
+require github.com/HabanaAI/gohlml v1.16.0
+
 require (
 	cel.dev/expr v0.18.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
