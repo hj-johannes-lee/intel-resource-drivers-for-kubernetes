@@ -49,9 +49,10 @@ const (
 )
 
 type flagsType struct {
-	kubeconfig   *string
-	kubeAPIQPS   *float32
-	kubeAPIBurst *int
+	kubeconfig       *string
+	kubeAPIQPS       *float32
+	kubeAPIBurst     *int
+	healthMonitoring *bool
 }
 
 type configType struct {
@@ -60,6 +61,7 @@ type configType struct {
 	kubeletPluginDir          string
 	kubeletPluginsRegistryDir string
 	nodeName                  string
+	healthcare                bool
 }
 
 func main() {
@@ -115,6 +117,10 @@ func newCommand() *cobra.Command {
 			kubeletPluginsRegistryDir: DefaultKubeletPluginsRegistryDir,
 		}
 
+		if cmd.Flag("health-monitoring").Value.String() == "true" {
+			config.healthcare = true
+		}
+
 		return callPlugin(cmd.Context(), config)
 	}
 
@@ -133,6 +139,9 @@ func addFlags(cmd *cobra.Command, logsconfig *logsapi.LoggingConfiguration) *fla
 	flags.kubeconfig = fs.String("kubeconfig", "", "Absolute path to the kube.config file")
 	flags.kubeAPIQPS = fs.Float32("kube-api-qps", 15, "QPS to use while communicating with the kubernetes apiserver.")
 	flags.kubeAPIBurst = fs.Int("kube-api-burst", 45, "Burst to use while communicating with the kubernetes apiserver.")
+
+	fs = sharedFlagSets.FlagSet("Health Monitoring")
+	flags.healthMonitoring = fs.BoolP("health-monitoring", "m", false, "Actively monitor device health. Requires privileges.")
 
 	fs = cmd.PersistentFlags()
 	for _, f := range sharedFlagSets.FlagSets {

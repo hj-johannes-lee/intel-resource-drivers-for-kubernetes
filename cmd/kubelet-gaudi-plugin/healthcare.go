@@ -58,27 +58,9 @@ func (d *driver) monitorHealth(ctx context.Context) {
 			continue
 		}
 
-		modId, ret := hlmlDevice.ModuleID()
-		if ret != nil {
-			klog.Errorf("failed to get module ID of device at index %d: %v", i, ret)
-			continue
-		}
-
-		uuid, ret := hlmlDevice.UUID()
-		if ret != nil {
-			klog.Errorf("failed to get uuid of device at index %d: %v", i, ret)
-			continue
-		}
-
 		serial, err := hlmlDevice.SerialNumber()
 		if err != nil {
 			klog.Errorf("failed to get serial number of device at index %d: %v", i, ret)
-			continue
-		}
-
-		name, ret := hlmlDevice.Name()
-		if ret != nil {
-			klog.Errorf("failed to get name of device at index %d: %v", i, ret)
 			continue
 		}
 
@@ -95,7 +77,7 @@ func (d *driver) monitorHealth(ctx context.Context) {
 		}
 		pciId := fmt.Sprintf("%x", pciIdHex)
 
-		klog.V(5).Infof("Found %v, module %v, uuid %v, serial %v, PCI bus %v, PCI ID %v\n", name, modId, uuid, serial, pciBus, pciId)
+		klog.V(5).Infof("Found device: serial %v, PCI bus %v, PCI ID %v\n", serial, pciBus, pciId)
 
 		// hlml.Device.PCIID has both vendor and device ID
 		uid := device.DeviceUIDFromPCIinfo(pciBus, fmt.Sprintf("0x%v", pciId[4:]))
@@ -111,6 +93,9 @@ func (d *driver) monitorHealth(ctx context.Context) {
 	if !hlmlSyncOK {
 		return
 	}
+
+	// Publish serial numbers
+	_ = d.UpdateResourceSlice(ctx)
 
 	// Watch for device UIDs to mark unhealthy.
 	idsChan := make(chan string)
@@ -162,7 +147,7 @@ func (d *driver) watchEvents(ctx context.Context, intervalSeconds int, idsChan c
 				continue
 			}
 
-			klog.V(5).Info("hlml event received", "event", e)
+			klog.V(5).Infof("hlml event received: %+v", e)
 
 			if e.Etype != hlml.HlmlCriticalError {
 				continue
@@ -188,19 +173,9 @@ func (d *driver) watchEvents(ctx context.Context, intervalSeconds int, idsChan c
 				continue
 			}
 
-			found := false
 			for _, d := range d.state.allocatable {
 				if d.Serial == serial {
 					klog.Error("critical: the device is unhealthy", "xid", e.Etype, "serial", d.Serial)
-					idsChan <- d.UID
-					found = true
-				}
-			}
-
-			if !found {
-				klog.Error("critical: could not find unhealthy device by serial. All devices will go unhealthy", "serial", serial, "event", e.Etype)
-				// All devices are unhealthy
-				for _, d := range d.state.allocatable {
 					idsChan <- d.UID
 				}
 			}

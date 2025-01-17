@@ -97,11 +97,12 @@ KubeletPluginSocketPath: %v`,
 		return nil, fmt.Errorf("startup error: %v", err)
 	}
 
-	klog.V(3).Infof("Trying HLML library")
-	// monitorHealth listens for unhealthy UIDs, has to run in a routine.
-	hlmlListenerContext, hlmlListenerCancel := context.WithCancel(ctx)
-	go d.monitorHealth(hlmlListenerContext)
-	d.hlmlShutdown = hlmlListenerCancel
+	if config.healthcare {
+		// monitorHealth listens for unhealthy UIDs, has to run in a routine.
+		hlmlListenerContext, hlmlListenerCancel := context.WithCancel(ctx)
+		go d.monitorHealth(hlmlListenerContext)
+		d.hlmlShutdown = hlmlListenerCancel
+	}
 
 	klog.V(3).Info("Finished creating new driver")
 	return d, nil
