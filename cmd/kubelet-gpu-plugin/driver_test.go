@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
+ * Copyright (c) 2025, Intel Corporation.  All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,11 +32,12 @@ import (
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
-	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
+	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
+	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
 func TestFakeSysfs(t *testing.T) {
-	testDirs, err := helpers.NewTestDirs(device.DriverName)
+	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
 		return
@@ -59,26 +60,29 @@ func TestFakeSysfs(t *testing.T) {
 	}
 }
 
-func getFakeDriver(testDirs helpers.TestDirsType) (*driver, error) {
+func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 
-	config := &configType{
-		nodeName:                  "node1",
-		clientset:                 kubefake.NewSimpleClientset(),
-		cdiRoot:                   testDirs.CdiRoot,
-		kubeletPluginDir:          testDirs.KubeletPluginDir,
-		kubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+	config := &helpers.Config{
+		Flags: &helpers.Flags{
+			NodeName:                  "node1",
+			CdiRoot:                   testDirs.CdiRoot,
+			KubeletPluginDir:          testDirs.KubeletPluginDir,
+			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+		},
+		Coreclient: kubefake.NewSimpleClientset(),
 	}
 
-	if err := os.MkdirAll(config.kubeletPluginDir, 0755); err != nil {
+	if err := os.MkdirAll(config.Flags.KubeletPluginDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
 	}
-	if err := os.MkdirAll(config.kubeletPluginsRegistryDir, 0755); err != nil {
+	if err := os.MkdirAll(config.Flags.KubeletPluginsRegistryDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
 
-	return newDriver(context.TODO(), config)
+	d, err := newDriver(context.TODO(), config)
+	return &driver{Driver: d}, err
 }
 
 func TestNodePrepareResources(t *testing.T) {
@@ -87,8 +91,8 @@ func TestNodePrepareResources(t *testing.T) {
 		claims                 []*resourcev1.ResourceClaim
 		request                *drav1.NodePrepareResourcesRequest
 		expectedResponse       *drav1.NodePrepareResourcesResponse
-		preparedClaims         ClaimPreparations
-		expectedPreparedClaims ClaimPreparations
+		preparedClaims         helpers.ClaimPreparations
+		expectedPreparedClaims helpers.ClaimPreparations
 	}
 
 	testcases := []testCase{
@@ -100,12 +104,12 @@ func TestNodePrepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodePrepareResourcesResponse{
 				Claims: map[string]*drav1.NodePrepareResourceResponse{},
 			},
-			preparedClaims: ClaimPreparations{},
+			preparedClaims: helpers.ClaimPreparations{},
 		},
 		{
 			name: "single GPU",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewClaim("namespace1", "claim1", "uid1", "request1", "gpu.intel.com", "node1", []string{"0000-00-02-0-0x56c0"}),
+				testhelpers.NewClaim("namespace1", "claim1", "uid1", "request1", "gpu.intel.com", "node1", []string{"0000-00-02-0-0x56c0"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
@@ -121,8 +125,8 @@ func TestNodePrepareResources(t *testing.T) {
 					},
 				},
 			},
-			preparedClaims: ClaimPreparations{},
-			expectedPreparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{},
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid1": {
 					{
 						RequestNames: []string{"request1"},
@@ -136,7 +140,7 @@ func TestNodePrepareResources(t *testing.T) {
 		{
 			name: "single existing VF",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewClaim("namespace2", "claim2", "uid2", "request2", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}),
+				testhelpers.NewClaim("namespace2", "claim2", "uid2", "request2", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
@@ -152,8 +156,8 @@ func TestNodePrepareResources(t *testing.T) {
 					},
 				},
 			},
-			preparedClaims: ClaimPreparations{},
-			expectedPreparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{},
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid2": {
 					{
 						RequestNames: []string{"request2"},
@@ -167,7 +171,7 @@ func TestNodePrepareResources(t *testing.T) {
 		{
 			name: "monitoring claim",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewMonitoringClaim(
+				testhelpers.NewMonitoringClaim(
 					"namespace3", "monitor", "uid3", "monitor", "gpu.intel.com", "node1", []string{"0000-00-02-0-0x56c0", "0000-00-03-0-0x56c0", "0000-00-03-1-0x56c0", "0000-00-04-0-0x0000"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
@@ -187,8 +191,8 @@ func TestNodePrepareResources(t *testing.T) {
 					},
 				},
 			},
-			preparedClaims: ClaimPreparations{},
-			expectedPreparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{},
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid3": {
 					{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
 					{RequestNames: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0"}},
@@ -200,7 +204,7 @@ func TestNodePrepareResources(t *testing.T) {
 		{
 			name: "single GPU, already prepared claim",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewMonitoringClaim("namespace4", "claim4", "uid4", "request4", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}),
+				testhelpers.NewMonitoringClaim("namespace4", "claim4", "uid4", "request4", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{
@@ -218,7 +222,7 @@ func TestNodePrepareResources(t *testing.T) {
 					},
 				},
 			},
-			preparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{
 				"uid4": {
 					{
 						RequestNames: []string{"request4"},
@@ -228,7 +232,7 @@ func TestNodePrepareResources(t *testing.T) {
 					},
 				},
 			},
-			expectedPreparedClaims: ClaimPreparations{
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid4": {
 					{
 						RequestNames: []string{"request4"},
@@ -244,8 +248,8 @@ func TestNodePrepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := helpers.NewTestDirs(device.DriverName)
-		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
+		testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+		defer testhelpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("%v: setup error: %v", testcase.name, err)
 			return
@@ -268,7 +272,7 @@ func TestNodePrepareResources(t *testing.T) {
 		}
 
 		preparedClaimFilePath := path.Join(testDirs.KubeletPluginDir, device.PreparedClaimsFileName)
-		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
+		if err := helpers.WritePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 		}
 
@@ -279,7 +283,7 @@ func TestNodePrepareResources(t *testing.T) {
 		}
 
 		for _, testClaim := range testcase.claims {
-			createdClaim, err := driver.client.ResourceV1beta1().ResourceClaims(testClaim.Namespace).Create(context.TODO(), testClaim, metav1.CreateOptions{})
+			createdClaim, err := driver.Client.ResourceV1beta1().ResourceClaims(testClaim.Namespace).Create(context.TODO(), testClaim, metav1.CreateOptions{})
 			if err != nil {
 				t.Errorf("could not create test claim: %v", err)
 			}
@@ -297,7 +301,7 @@ func TestNodePrepareResources(t *testing.T) {
 			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, string(responseJSON), string(expectedResponseJSON))
 		}
 
-		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
+		preparedClaims, err := helpers.ReadPreparedClaimsFromFile(preparedClaimFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 			continue
@@ -305,7 +309,7 @@ func TestNodePrepareResources(t *testing.T) {
 
 		expectedPreparedClaims := testcase.expectedPreparedClaims
 		if expectedPreparedClaims == nil {
-			expectedPreparedClaims = ClaimPreparations{}
+			expectedPreparedClaims = helpers.ClaimPreparations{}
 		}
 
 		if !reflect.DeepEqual(expectedPreparedClaims, preparedClaims) {
@@ -324,8 +328,8 @@ func TestNodeUnprepareResources(t *testing.T) {
 		name                   string
 		request                *drav1.NodeUnprepareResourcesRequest
 		expectedResponse       *drav1.NodeUnprepareResourcesResponse
-		preparedClaims         ClaimPreparations
-		expectedPreparedClaims ClaimPreparations
+		preparedClaims         helpers.ClaimPreparations
+		expectedPreparedClaims helpers.ClaimPreparations
 	}
 
 	testcases := []testCase{
@@ -337,8 +341,8 @@ func TestNodeUnprepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{},
 			},
-			preparedClaims:         ClaimPreparations{},
-			expectedPreparedClaims: ClaimPreparations{},
+			preparedClaims:         helpers.ClaimPreparations{},
+			expectedPreparedClaims: helpers.ClaimPreparations{},
 		},
 		{
 			name: "single GPU",
@@ -350,10 +354,10 @@ func TestNodeUnprepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid1": {}},
 			},
-			preparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{
 				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-b3-00-0-0x0bda", CDIDeviceIDs: []string{"intel.com/gpu=0000-b3-00-0-0x0bda"}}},
 			},
-			expectedPreparedClaims: ClaimPreparations{},
+			expectedPreparedClaims: helpers.ClaimPreparations{},
 		},
 		{
 			name: "single VF without cleanup",
@@ -365,11 +369,11 @@ func TestNodeUnprepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid2": {}},
 			},
-			preparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{
 				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-af-00-1-0x0bda", CDIDeviceIDs: []string{"intel.com/gpu=0000-af-00-1-0x0bda"}}},
 				"uid3": {{RequestNames: []string{"request3"}, PoolName: "node1", DeviceName: "0000-af-00-2-0x0bda", CDIDeviceIDs: []string{"intel.com/gpu=0000-af-00-2-0x0bda"}}},
 			},
-			expectedPreparedClaims: ClaimPreparations{
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid3": {{RequestNames: []string{"request3"}, PoolName: "node1", DeviceName: "0000-af-00-2-0x0bda", CDIDeviceIDs: []string{"intel.com/gpu=0000-af-00-2-0x0bda"}}},
 			},
 		},
@@ -378,8 +382,8 @@ func TestNodeUnprepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := helpers.NewTestDirs(device.DriverName)
-		defer helpers.CleanupTest(t, "TestNodeUnprepareResources", testDirs.TestRoot)
+		testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+		defer testhelpers.CleanupTest(t, "TestNodeUnprepareResources", testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("%v: setup error: %v", testcase.name, err)
 			return
@@ -401,7 +405,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 		}
 
 		preparedClaimsFilePath := path.Join(testDirs.KubeletPluginDir, device.PreparedClaimsFileName)
-		if err := writePreparedClaimsToFile(preparedClaimsFilePath, testcase.preparedClaims); err != nil {
+		if err := helpers.WritePreparedClaimsToFile(preparedClaimsFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 			continue
 		}
@@ -418,7 +422,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 			continue
 		}
 
-		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimsFilePath)
+		preparedClaims, err := helpers.ReadPreparedClaimsFromFile(preparedClaimsFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 			continue

@@ -27,6 +27,7 @@ import (
 	gpuCdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/cdihelpers"
 	gpuDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	gpuDiscovery "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 
 	gaudiCdihelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/cdihelpers"
 	gaudiDevice "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
@@ -137,7 +138,7 @@ func newCommand() *cobra.Command {
 }
 
 func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) error {
-	sysfsDir := gpuDevice.GetSysfsRoot()
+	sysfsDir := helpers.GetSysfsRoot(gpuDevice.SysfsDRMpath)
 
 	fmt.Println("Scanning for GPUs")
 
