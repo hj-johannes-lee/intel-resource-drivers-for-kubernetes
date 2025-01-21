@@ -106,8 +106,8 @@ func describeQatDraDriver() {
 			e2ekubectl.RunKubectlOrDie(qatNamespace, "apply", "-k", filepath.Dir(opensslEngineKustomizationYamlPath))
 
 			ginkgo.By("waiting the openssl-qat-engine pod to finish successfully")
-			err := e2epod.WaitForPodSuccessInNamespaceTimeout(ctx, f.ClientSet, "openssl-qat-engine-sym", qatNamespace, 300*time.Second)
-			gomega.Expect(err).To(gomega.BeNil(), utils.GetPodLogs(ctx, f, "openssl-qat-engine-sym", "openssl-qat-engine-sym"))
+			err := e2epod.WaitForPodSuccessInNamespaceTimeout(ctx, f.ClientSet, "openssl-qat-engine-asym", qatNamespace, 300*time.Second)
+			gomega.Expect(err).To(gomega.BeNil(), utils.GetPodLogs(ctx, f, "openssl-qat-engine-asym", "openssl-qat-engine-asym"))
 		})
 
 		ginkgo.It("deploys a qat-dpdk-test pod", func(ctx context.Context) {
