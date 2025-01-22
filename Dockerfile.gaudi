@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.23.4-bookworm@sha256:2e838582004fab0931693a3a84743ceccfbfeeafa8187e87291a1afea457ff7a as build
+FROM golang:1.23.4@sha256:ccdca3b3bde3bfee2518a087b467f2b452fad9ba3e378d3c1578db494c8cb13b as build
 ARG LOCAL_LICENSES
 WORKDIR /build
 COPY . .
@@ -33,7 +33,7 @@ fi && \
 cp -r licenses /install_root/ && \
 cp bin/kubelet-gaudi-plugin /install_root/
 
-FROM debian:bookworm-slim
+FROM ubuntu:24.04@sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab
 
 LABEL description="Intel Gaudi resource driver for Kubernetes"
 

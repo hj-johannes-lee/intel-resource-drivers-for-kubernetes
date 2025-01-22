@@ -27,6 +27,8 @@ pkg/gaudi/cdihelpers/*.go \
 pkg/gaudi/device/*.go \
 pkg/gaudi/discovery/*.go
 
+# Gaudi DRA driver is not statically built, it depends on libhlml.so, therefore
+# the -extldflags ${EXT_LDFLAGS} is not used.
 GAUDI_LDFLAGS = ${LDFLAGS} -X ${PKG}/pkg/version.driverVersion=${GAUDI_VERSION}
 
 .PHONY: gaudi
