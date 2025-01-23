@@ -21,9 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	hlml "github.com/HabanaAI/gohlml"
+	"k8s.io/klog/v2"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 )
