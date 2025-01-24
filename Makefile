@@ -191,7 +191,7 @@ yamllint:
 .PHONY: test coverage
 COVERAGE_FILE := coverage.out
 test:
-	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
+	LD_PRELOAD=/usr/lib/habanalabs/libhlml.so go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
 coverage: test
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html
