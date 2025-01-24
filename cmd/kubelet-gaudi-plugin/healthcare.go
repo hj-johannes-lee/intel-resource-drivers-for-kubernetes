@@ -132,7 +132,7 @@ func (d *driver) watchEvents(ctx context.Context, intervalSeconds int, idsChan c
 		}
 	}
 
-	healthCheckInterval := time.NewTicker(10 * time.Second)
+	healthCheckInterval := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
 
 	for {
 		select {
