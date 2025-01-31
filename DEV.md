@@ -23,20 +23,6 @@ version = 2
     cdi_specs_dir = ["/etc/cdi", "/var/run/cdi"]
 ```
 
-# Generated source code
-
-Custom resource definitions are in `pkg/intel.com/resource/<accelerator>/<apiversion>/*.go`
-(except generated `zz_deepcopy`) and in `pkg/intel.com/resource/<accelerator/<apiversion>/api/`.
-
-When changing those CRDs, remember to re-generate the YAMLs and clientset by running:
-```bash
-make generate
-```
-
-## Required tools
-
-Above step needs `controller-gen` and `client-gen` tools to generate CRD YAMLs (in `deployments/gpu/static/crd/...`).
-
 ### Determine your go binaries location from `go install --help`, quote:
 > Executables are installed in the directory named by the GOBIN environment
 > variable, which defaults to $GOPATH/bin or $HOME/go/bin if the GOPATH

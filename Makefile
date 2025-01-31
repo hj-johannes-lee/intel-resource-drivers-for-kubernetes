@@ -109,9 +109,6 @@ cleanall: clean
 .PHONY: rm-clientsets
 rm-clientsets: rm-gpu-clientset rm-gaudi-clientset
 
-.PHONY: generate
-generate: generate-gpu-crd generate-gaudi-crd
-
 .PHONY: generate-deepcopy
 generate-deepcopy: generate-gpu-deepcopy generate-gaudi-deepcopy
 

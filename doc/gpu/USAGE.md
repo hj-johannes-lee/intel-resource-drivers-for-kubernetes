@@ -39,7 +39,7 @@ To restrict the deployment to GPU-enabled nodes, follow these steps:
 Follow [Node Feature Discovery](https://github.com/kubernetes-sigs/node-feature-discovery) documentation to install and configure NFD in your cluster.
 
 ```bash
-kubectl apply -k "https://github.com/kubernetes-sigs/node-feature-discovery/deployment/overlays/default?ref=v0.17.0"
+kubectl apply -k "https://github.com/kubernetes-sigs/node-feature-discovery/deployment/overlays/default?ref=v0.17.1"
 ```
 
 2. Apply NFD Rules:
@@ -287,11 +287,3 @@ To install Helm Chart:
 helm install intel-gpu-resource-driver intel/intel-gpu-resource-driver \
 --create-namespace --namespace intel-gpu-resource-driver
 ```
-CRDs of the GPU driver are installed as part of the chart first.
-
-If you change the image tag to be used in Helm chart deployment, ensure that the version of the container image is consistent with CRDs and deployment YAMLs - they might change between releases.
-
-Note that Helm does not support _upgrading_ (or deleting) CRDs, only installing them.  Rationale: https://github.com/helm/community/blob/main/hips/hip-0011.md
-
-
-I.e. making sure that CRDs are upgraded correctly is user responsibility when using Helm.
