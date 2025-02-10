@@ -20,10 +20,10 @@ import (
 
 const (
 	qatNamespace                 = "intel-qat-resource-driver"
-	qatDeviceClassYaml           = "deployments/qat/device-class.yaml"
+	qatDeviceClassYaml           = "deployments/qat/base/device-class.yaml"
 	qatConfigMapYaml             = "deployments/qat/examples/intel-qat-resource-driver-configuration.yaml"
-	qatNamespaceYaml             = "deployments/qat/resource-driver-namespace.yaml"
-	qatDriverYaml                = "deployments/qat/resource-driver.yaml"
+	qatNamespaceYaml             = "deployments/qat/base/namespace.yaml"
+	qatDriverYaml                = "deployments/qat/base/resource-driver.yaml"
 	qatResourceClaimTemplateYaml = "deployments/qat/tests/resource-claim-template.yaml"
 )
 

@@ -10,21 +10,39 @@
 
 Deploy DeviceClass, Namespace and ResourceDriver
 ```bash
-kubectl apply -f deployments/qat/device-class.yaml
-kubectl apply -f deployments/qat/resource-driver-namespace.yaml
-kubectl apply -f deployments/qat/resource-driver.yaml
+kubectl apply -k deployments/qat/
 ```
 
-By default the kubelet-plugin will be deployed on _all_ nodes in the cluster, there is no nodeSelector.
+By default, the kubelet-plugin is deployed on _all_ nodes in the cluster, as no nodeSelector is defined.
+To restrict the deployment to QAT-enabled nodes, follow these steps:
+
+1. Install Node Feature Discovery (NFD):
+
+Follow [Node Feature Discovery](https://github.com/kubernetes-sigs/node-feature-discovery) documentation to install and configure NFD in your cluster.
+
+```bash
+kubectl apply -k "https://github.com/kubernetes-sigs/node-feature-discovery/deployment/overlays/default?ref=v0.17.1"
+```
+
+2. Apply NFD Rules:
+
+```bash
+kubectl apply -k deployments/qat/overlays/nfd_labeled_nodes/
+```
+After NFD is installed and running, make sure the target node is labeled with:
+```bash
+intel.feature.node.kubernetes.io/qat: "true"
+```
 
 When deploying custom-built resource driver image, change `image:` lines in
-[resource-driver](../../deployments/qat/resource-driver.yaml) to match its location.
+[resource-driver](../../deployments/qat/base/resource-driver.yaml) to match its location.
+
 
 ## `deployment/` directory contains all required YAMLs:
 
-* `deployments/qat/device-class.yaml` - pre-defined DeviceClass that ResourceClaims can refer to.
-* `deployments/qat/resource-driver-namespace.yaml` - Kubernetes namespace for QAT resource driver.
-* `deployments/qat/resource-driver.yaml` - actual resource driver with service account and RBAC policy
+* `deployments/qat/base/device-class.yaml` - pre-defined DeviceClass that ResourceClaims can refer to.
+* `deployments/qat/base/namespace.yaml` - Kubernetes namespace for QAT resource driver.
+* `deployments/qat/base/resource-driver.yaml` - actual resource driver with service account and RBAC policy
   - kubelet-plugin DaemonSet - node-agent which performs three functions:
     1) discovery of supported hardware on the Kubernetes cluster node and its announcement as a ResourceSlice.
     2) preparation of the hardware allocated to the ResourceClaims for the Pod that is being started on the node.
