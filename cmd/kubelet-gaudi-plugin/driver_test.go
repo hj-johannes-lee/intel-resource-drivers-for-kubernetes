@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
+ * Copyright (c) 2025, Intel Corporation.  All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"reflect"
@@ -31,11 +32,12 @@ import (
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
-	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
+	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
+	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
 func TestFakeSysfs(t *testing.T) {
-	testDirs, err := helpers.NewTestDirs(device.DriverName)
+	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
 		return
@@ -58,19 +60,26 @@ func TestFakeSysfs(t *testing.T) {
 	}
 }
 
-func getFakeDriver(testDirs helpers.TestDirsType) (*driver, error) {
+func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 
-	config := &configType{
-		nodeName:                  "node1",
-		clientset:                 kubefake.NewSimpleClientset(),
-		cdiRoot:                   testDirs.CdiRoot,
-		kubeletPluginDir:          testDirs.KubeletPluginDir,
-		kubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+	config := &helpers.Config{
+		Flags: &helpers.Flags{
+			NodeName:                  "node1",
+			CdiRoot:                   testDirs.CdiRoot,
+			KubeletPluginDir:          testDirs.KubeletPluginDir,
+			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+		},
+		Coreclient: kubefake.NewSimpleClientset(),
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
 
-	return newDriver(context.TODO(), config)
+	helperDriver, err := newDriver(context.TODO(), config)
+	driver, ok := helperDriver.(*driver)
+	if !ok {
+		return nil, fmt.Errorf("type assertion failed: expected driver, got %T", helperDriver)
+	}
+	return driver, err
 }
 
 func TestNodePrepareResources(t *testing.T) {
@@ -79,15 +88,15 @@ func TestNodePrepareResources(t *testing.T) {
 		claims                 []*resourcev1.ResourceClaim
 		request                *drav1.NodePrepareResourcesRequest
 		expectedResponse       *drav1.NodePrepareResourcesResponse
-		preparedClaims         ClaimPreparations
-		expectedPreparedClaims ClaimPreparations
+		preparedClaims         helpers.ClaimPreparations
+		expectedPreparedClaims helpers.ClaimPreparations
 	}
 
 	testcases := []testCase{
 		{
 			name: "one Gaudi success",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewClaim("default", "claim1", "uid1", "request1", "gaudi.intel.com", "node1", []string{"0000-00-02-0-0x1020"}),
+				testhelpers.NewClaim("default", "claim1", "uid1", "request1", "gaudi.intel.com", "node1", []string{"0000-00-02-0-0x1020"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{{UID: "uid1", Name: "claim1", Namespace: "default"}},
@@ -98,14 +107,14 @@ func TestNodePrepareResources(t *testing.T) {
 				},
 			},
 			preparedClaims: nil,
-			expectedPreparedClaims: ClaimPreparations{
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid1"}}},
 			},
 		},
 		{
 			name: "single Gaudi, already prepared claim",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewClaim("namespace2", "claim2", "uid2", "request2", "gaudi.intel.com", "node1", []string{"0000-00-02-0-0x1020"}),
+				testhelpers.NewClaim("namespace2", "claim2", "uid2", "request2", "gaudi.intel.com", "node1", []string{"0000-00-02-0-0x1020"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{{Name: "claim2", Namespace: "namespace2", UID: "uid2"}},
@@ -115,17 +124,17 @@ func TestNodePrepareResources(t *testing.T) {
 					"uid2": {Devices: []*drav1.Device{{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid2"}}}},
 				},
 			},
-			preparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{
 				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid2"}}},
 			},
-			expectedPreparedClaims: ClaimPreparations{
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid2"}}},
 			},
 		},
 		{
 			name: "single unavailable device",
 			claims: []*resourcev1.ResourceClaim{
-				helpers.NewClaim("namespace3", "claim3", "uid3", "request3", "gaudi.intel.com", "node1", []string{"0000-00-05-0-0x1020"}),
+				testhelpers.NewClaim("namespace3", "claim3", "uid3", "request3", "gaudi.intel.com", "node1", []string{"0000-00-05-0-0x1020"}),
 			},
 			request: &drav1.NodePrepareResourcesRequest{
 				Claims: []*drav1.Claim{{Name: "claim3", Namespace: "namespace3", UID: "uid3"}},
@@ -141,8 +150,8 @@ func TestNodePrepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := helpers.NewTestDirs(device.DriverName)
-		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
+		testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+		defer testhelpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("%v: setup error: %v", testcase.name, err)
 			return
@@ -163,7 +172,7 @@ func TestNodePrepareResources(t *testing.T) {
 		}
 
 		preparedClaimFilePath := path.Join(testDirs.KubeletPluginDir, "preparedClaims.json")
-		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
+		if err := helpers.WritePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 			continue
 		}
@@ -194,7 +203,7 @@ func TestNodePrepareResources(t *testing.T) {
 			t.Errorf("%v: unexpected response: %+v, expected response: %v", testcase.name, string(responseJSON), string(expectedResponseJSON))
 		}
 
-		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
+		preparedClaims, err := helpers.ReadPreparedClaimsFromFile(preparedClaimFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 			continue
@@ -202,7 +211,7 @@ func TestNodePrepareResources(t *testing.T) {
 
 		expectedPreparedClaims := testcase.expectedPreparedClaims
 		if expectedPreparedClaims == nil {
-			expectedPreparedClaims = ClaimPreparations{}
+			expectedPreparedClaims = helpers.ClaimPreparations{}
 		}
 
 		if !reflect.DeepEqual(expectedPreparedClaims, preparedClaims) {
@@ -221,8 +230,8 @@ func TestNodeUnprepareResources(t *testing.T) {
 		name                   string
 		request                *drav1.NodeUnprepareResourcesRequest
 		expectedResponse       *drav1.NodeUnprepareResourcesResponse
-		preparedClaims         ClaimPreparations
-		expectedPreparedClaims ClaimPreparations
+		preparedClaims         helpers.ClaimPreparations
+		expectedPreparedClaims helpers.ClaimPreparations
 	}
 
 	testcases := []testCase{
@@ -234,8 +243,8 @@ func TestNodeUnprepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{},
 			},
-			preparedClaims:         ClaimPreparations{},
-			expectedPreparedClaims: ClaimPreparations{},
+			preparedClaims:         helpers.ClaimPreparations{},
+			expectedPreparedClaims: helpers.ClaimPreparations{},
 		},
 		{
 			name: "single claim",
@@ -247,10 +256,10 @@ func TestNodeUnprepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid1": {}},
 			},
-			preparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{
 				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-00-02-0-0x1020", "intel.com/gaudi=uid1"}}},
 			},
-			expectedPreparedClaims: ClaimPreparations{},
+			expectedPreparedClaims: helpers.ClaimPreparations{},
 		},
 		{
 			name: "subset of claims",
@@ -262,11 +271,11 @@ func TestNodeUnprepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid2": {}},
 			},
-			preparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{
 				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-af-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-af-00-0-0x1020", "intel.com/gaudi=uid1"}}},
 				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-b3-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-b3-00-0-0x1020", "intel.com/gaudi=uid2"}}},
 			},
-			expectedPreparedClaims: ClaimPreparations{
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid1": {{RequestNames: []string{"request1"}, PoolName: "node1", DeviceName: "0000-af-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-af-00-0-0x1020", "intel.com/gaudi=uid1"}}},
 			},
 		},
@@ -280,10 +289,10 @@ func TestNodeUnprepareResources(t *testing.T) {
 			expectedResponse: &drav1.NodeUnprepareResourcesResponse{
 				Claims: map[string]*drav1.NodeUnprepareResourceResponse{"uid1": {}},
 			},
-			preparedClaims: ClaimPreparations{
+			preparedClaims: helpers.ClaimPreparations{
 				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-b3-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-b3-00-0-0x1020", "intel.com/gaudi=uid2"}}},
 			},
-			expectedPreparedClaims: ClaimPreparations{
+			expectedPreparedClaims: helpers.ClaimPreparations{
 				"uid2": {{RequestNames: []string{"request2"}, PoolName: "node1", DeviceName: "0000-b3-00-0-0x1020", CDIDeviceIDs: []string{"intel.com/gaudi=0000-b3-00-0-0x1020", "intel.com/gaudi=uid2"}}},
 			},
 		},
@@ -292,8 +301,8 @@ func TestNodeUnprepareResources(t *testing.T) {
 	for _, testcase := range testcases {
 		t.Log(testcase.name)
 
-		testDirs, err := helpers.NewTestDirs(device.DriverName)
-		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
+		testDirs, err := testhelpers.NewTestDirs(device.DriverName)
+		defer testhelpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
 		if err != nil {
 			t.Errorf("%v: setup error: %v", testcase.name, err)
 			return
@@ -313,7 +322,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 		}
 
 		preparedClaimFilePath := path.Join(testDirs.KubeletPluginDir, "preparedClaims.json")
-		if err := writePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
+		if err := helpers.WritePreparedClaimsToFile(preparedClaimFilePath, testcase.preparedClaims); err != nil {
 			t.Errorf("%v: error %v, writing prepared claims to file", testcase.name, err)
 			continue
 		}
@@ -330,7 +339,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 			continue
 		}
 
-		preparedClaims, err := readPreparedClaimsFromFile(preparedClaimFilePath)
+		preparedClaims, err := helpers.ReadPreparedClaimsFromFile(preparedClaimFilePath)
 		if err != nil {
 			t.Errorf("%v: error %v, expected no error", testcase.name, err)
 			continue
@@ -353,7 +362,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 }
 
 func TestShutdown(t *testing.T) {
-	testDirs, err := helpers.NewTestDirs(device.DriverName)
+	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 	if err != nil {
 		t.Fatalf("could not create fake system dirs: %v", err)
 	}

@@ -49,6 +49,7 @@ type Flags struct {
 	loggingConfig    *flags.LoggingConfig
 
 	NodeName                  string
+	Healthcare                bool
 	CdiRoot                   string
 	KubeletPluginDir          string
 	KubeletPluginsRegistryDir string
@@ -94,6 +95,13 @@ func NewApp(driverName string, newDriver func(ctx context.Context, config *Confi
 			Value:       8,
 			Destination: &flags.numDevices,
 			EnvVars:     []string{"NUM_DEVICES"},
+		},
+		&cli.BoolFlag{
+			Name:        "health-monitoring",
+			Aliases:     []string{"m"},
+			Usage:       "Actively monitor device health and update ResourceSlice. Requires privileges.",
+			Value:       false,
+			Destination: &flags.Healthcare,
 		},
 	}
 	cliFlags = append(cliFlags, flags.kubeClientConfig.Flags()...)

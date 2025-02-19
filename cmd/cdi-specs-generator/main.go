@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
+ * Copyright (c) 2025, Intel Corporation.  All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -166,7 +166,7 @@ func handleGPUDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) e
 }
 
 func handleGaudiDevices(cdiCache *cdiapi.Cache, namingStyle string, dryRun bool) error {
-	sysfsDir := gaudiDevice.GetSysfsRoot()
+	sysfsDir := helpers.GetSysfsRoot(gaudiDevice.SysfsAccelPath)
 
 	fmt.Println("Scanning for Gaudi accelerators")
 

@@ -25,6 +25,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
 const (
@@ -69,8 +70,9 @@ func (d *driver) initHLML(ctx context.Context) error {
 		klog.V(5).Infof("HLML: found device: serial %v, PCI bus %v, PCI ID %v\n", serial, pciBus, pciId)
 
 		// hlml.Device.PCIID has both vendor and device ID, but device ID has no '0x' prefix.
-		uid := device.DeviceUIDFromPCIinfo(pciBus, fmt.Sprintf("0x%v", pciId[4:]))
-		gaudi, found := d.state.allocatable[uid]
+		uid := helpers.DeviceUIDFromPCIinfo(pciBus, fmt.Sprintf("0x%v", pciId[4:]))
+		allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
+		gaudi, found := allocatable[uid]
 		if !found {
 			return fmt.Errorf("could not find device with UID %v", uid)
 		}
@@ -112,7 +114,8 @@ func (d *driver) updateHealth(ctx context.Context, healthy bool, uid string) {
 	d.state.Lock()
 	defer d.state.Unlock()
 
-	d.state.allocatable[uid].Healthy = healthy
+	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
+	allocatable[uid].Healthy = healthy
 	// Health is updated from a go routine, nothing we can do when publishing
 	// resource slice fails, so error is ignored.
 	if err := d.PublishResourceSlice(ctx); err != nil {
@@ -125,7 +128,8 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 	eventSet := hlml.NewEventSet()
 	defer hlml.DeleteEventSet(eventSet)
 
-	for _, d := range d.state.allocatable {
+	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
+	for _, d := range allocatable {
 		err := hlml.RegisterEventForDevice(eventSet, hlml.HlmlCriticalError, d.Serial)
 		if err != nil {
 			klog.Error("Failed registering critial event for device. Marking it unhealthy", "UID", d.UID, "error", err)
@@ -159,7 +163,7 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 			if err != nil {
 				klog.Error("critical: could not get device handle by serial. All devices will go unhealthy", "event", e.Etype)
 				// All devices are unhealthy
-				for _, d := range d.state.allocatable {
+				for _, d := range allocatable {
 					idsChan <- d.UID
 				}
 				continue
@@ -169,13 +173,13 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 			if err != nil || len(serial) == 0 {
 				klog.Error("critical: could not get serial. All devices will go unhealthy", "event", e.Etype)
 				// All devices are unhealthy
-				for _, d := range d.state.allocatable {
+				for _, d := range allocatable {
 					idsChan <- d.UID
 				}
 				continue
 			}
 
-			for deviceUID, d := range d.state.allocatable {
+			for deviceUID, d := range allocatable {
 				if d.Serial == serial {
 					klog.Error("critical: the device is unhealthy", "UID", deviceUID, "xid", e.Etype, "serial", d.Serial)
 					idsChan <- d.UID
