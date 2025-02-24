@@ -59,6 +59,63 @@ func TestGetSysfsRoot(t *testing.T) {
 	}
 }
 
+func TestGetDevRoot(t *testing.T) {
+	tests := []struct {
+		name        string
+		envVarName  string
+		envVarValue string
+		devPath     string
+		expected    string
+		setupEnv    bool
+	}{
+		{
+			name:        "Custom devfs location exists",
+			envVarName:  DevfsEnvVarName,
+			envVarValue: "/tmp/devfsroot",
+			devPath:     "devices",
+			expected:    "/tmp/devfsroot",
+			setupEnv:    true,
+		},
+		{
+			name:        "Custom devfs location does not exist",
+			envVarName:  DevfsEnvVarName,
+			envVarValue: "/invalid/dev",
+			devPath:     "devices",
+			expected:    devfsDefaultRoot,
+			setupEnv:    true,
+		},
+		{
+			name:        "Default devfs location",
+			envVarName:  DevfsEnvVarName,
+			envVarValue: "",
+			devPath:     "devices",
+			expected:    devfsDefaultRoot,
+			setupEnv:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupEnv {
+				os.Setenv(tt.envVarName, tt.envVarValue)
+				defer os.Unsetenv(tt.envVarName)
+			}
+
+			if tt.envVarValue != "" {
+				if err := os.MkdirAll(path.Join(tt.envVarValue, tt.devPath), os.ModePerm); err != nil {
+					t.Logf("failed to create directory: %v", err)
+				}
+				defer os.RemoveAll(tt.envVarValue)
+			}
+
+			result := GetDevRoot(tt.envVarName, tt.devPath)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
 func TestPciInfoFromDeviceUID(t *testing.T) {
 	tests := []struct {
 		name               string

@@ -10,6 +10,10 @@ import (
 const (
 	SysfsEnvVarName  = "SYSFS_ROOT"
 	sysfsDefaultRoot = "/sys"
+
+	DevfsEnvVarName  = "DEVFS_ROOT"
+	devfsDefaultRoot = "/dev"
+
 	PCIAddressLength = len("0000:00:00.0")
 )
 
@@ -20,7 +24,7 @@ func GetSysfsRoot(sysfsPath string) string {
 
 	if found {
 		if _, err := os.Stat(path.Join(sysfsRoot, sysfsPath)); err == nil {
-			fmt.Printf("using custom sysfs location: %v\n", sysfsPath)
+			fmt.Printf("using custom sysfs location: %v\n", sysfsRoot)
 			return sysfsRoot
 		} else {
 			fmt.Printf("could not find sysfs at '%v' from %v env var: %v\n", sysfsPath, SysfsEnvVarName, err)
@@ -30,6 +34,22 @@ func GetSysfsRoot(sysfsPath string) string {
 	fmt.Printf("using default sysfs location: %v\n", sysfsDefaultRoot)
 	// If /sys is not available, devices discovery will fail gracefully.
 	return sysfsDefaultRoot
+}
+
+func GetDevRoot(devfsRootEnvVarName string, devPath string) string {
+	devfsRoot, found := os.LookupEnv(devfsRootEnvVarName)
+
+	if found {
+		if _, err := os.Stat(path.Join(devfsRoot, devPath)); err == nil {
+			fmt.Printf("using custom devfs location: %v\n", devfsRoot)
+			return devfsRoot
+		} else {
+			fmt.Printf("could not find devfs at '%v' from %v env var: %v\n", devPath, devfsRootEnvVarName, err)
+		}
+	}
+
+	fmt.Printf("using default devfs root: %v\n", devfsDefaultRoot)
+	return devfsDefaultRoot
 }
 
 func PciInfoFromDeviceUID(deviceUID string) (string, string) {

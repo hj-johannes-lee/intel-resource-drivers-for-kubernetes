@@ -18,7 +18,7 @@ package device
 
 import (
 	"fmt"
-	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
@@ -31,8 +31,7 @@ var (
 )
 
 const (
-	DevDriEnvVarName        = "DEV_DRI_PATH"
-	DefaultDevfsDriLocation = "/dev/dri"
+	DevfsDriPath = "dri"
 
 	// driver.sysfsI915Dir and driver.sysfsDRMDir are sysfsI915path and sysfsDRMpath
 	// respectively prefixed with $SYSFS_ROOT.
@@ -183,14 +182,6 @@ func (g *DevicesInfo) DeepCopy() DevicesInfo {
 	return devicesInfoCopy
 }
 
-func GetDevfsDriDir() string {
-	devfsDriDir, found := os.LookupEnv(DevDriEnvVarName)
-
-	if found {
-		fmt.Printf("using custom devfs dri location: %v\n", devfsDriDir)
-		return devfsDriDir
-	}
-
-	fmt.Println("using default devfs dri location: /dev/dri")
-	return "/dev/dri"
+func GetDriDevPath() string {
+	return filepath.Join(helpers.GetDevRoot(helpers.DevfsEnvVarName, DevfsDriPath), DevfsDriPath)
 }
