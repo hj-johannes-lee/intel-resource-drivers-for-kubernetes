@@ -36,7 +36,7 @@ func PciInfoFromDeviceUID(deviceUID string) (string, string) {
 	// 0000-00-01-0-0x0000 -> 0000:00:01.0, 0x0000
 	rfc1123PCIaddress := deviceUID[:PCIAddressLength]
 	pciAddress := strings.Replace(strings.Replace(rfc1123PCIaddress, "-", ":", 2), "-", ".", 1)
-	deviceId := deviceUID[PCIAddressLength:]
+	deviceId := deviceUID[PCIAddressLength+1:]
 
 	return pciAddress, deviceId
 }
