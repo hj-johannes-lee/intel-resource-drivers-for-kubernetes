@@ -141,7 +141,7 @@ func addFlags(cmd *cobra.Command, logsconfig *logsapi.LoggingConfiguration) *fla
 	flags.kubeAPIBurst = fs.Int("kube-api-burst", 45, "Burst to use while communicating with the kubernetes apiserver.")
 
 	fs = sharedFlagSets.FlagSet("Health Monitoring")
-	flags.healthMonitoring = fs.BoolP("health-monitoring", "m", false, "Actively monitor device health. Requires privileges.")
+	flags.healthMonitoring = fs.BoolP("health-monitoring", "m", false, "Actively monitor device health and update ResourceSlice. Requires privileges.")
 
 	fs = cmd.PersistentFlags()
 	for _, f := range sharedFlagSets.FlagSets {

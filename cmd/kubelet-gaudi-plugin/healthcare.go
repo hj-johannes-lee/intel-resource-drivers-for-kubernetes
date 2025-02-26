@@ -31,75 +31,68 @@ const (
 	healthCheckIntervalSeconds = int(10)
 )
 
-// monitorHealth spawns a single Go routine to watch for events that
-// might signal about device becoming unusable. If such an event
-// happens, the ResourceSlice will be updated with kubernetes.io/healthy
-// attribute set false.
-// See https://github.com/kubernetes/kubernetes/issues/128979
-func (d *driver) monitorHealth(ctx context.Context) {
-	hlmlSyncOK := true
+// initHLML loops through devices HLML detecs to update serial number in allocatable.
+// This is needed for health monitoring, critical events contain device serial ID.
+func (d *driver) initHLML(ctx context.Context) error {
 	ret := hlml.InitWithLogs()
 	if ret != nil {
-		klog.Errorf("failed to initialize HLML: %v", ret)
-		return
+		return fmt.Errorf("failed to initialize HLML: %v", ret)
 	}
 
 	count, ret := hlml.DeviceCount()
 	if ret != nil {
-		klog.Errorf("failed to get device count: %v", ret)
-		return
+		return fmt.Errorf("failed to get device count: %v", ret)
 	}
 
 	for i := uint(0); i < count; i++ {
 		hlmlDevice, ret := hlml.DeviceHandleByIndex(i)
 		if ret != nil {
-			klog.Errorf("failed to get device at index %d: %v", i, ret)
-			continue
+			return fmt.Errorf("failed to get device at index %d: %v", i, ret)
 		}
 
 		serial, err := hlmlDevice.SerialNumber()
 		if err != nil {
-			klog.Errorf("failed to get serial number of device at index %d: %v", i, ret)
-			continue
+			return fmt.Errorf("failed to get serial number of device at index %d: %v", i, ret)
 		}
 
 		pciBus, ret := hlmlDevice.PCIBusID()
 		if ret != nil {
-			klog.Errorf("failed to get PCI bus ID of device at index %d: %v", i, ret)
-			continue
+			return fmt.Errorf("failed to get PCI bus ID of device at index %d: %v", i, ret)
 		}
 
 		pciIdHex, ret := hlmlDevice.PCIID()
 		if ret != nil {
-			klog.Errorf("failed to get PCI ID of device at index %d: %v", i, ret)
-			continue
+			return fmt.Errorf("failed to get PCI ID of device at index %d: %v", i, ret)
 		}
 		pciId := fmt.Sprintf("%x", pciIdHex)
 
-		klog.V(5).Infof("Found device: serial %v, PCI bus %v, PCI ID %v\n", serial, pciBus, pciId)
+		klog.V(5).Infof("HLML: found device: serial %v, PCI bus %v, PCI ID %v\n", serial, pciBus, pciId)
 
-		// hlml.Device.PCIID has both vendor and device ID
+		// hlml.Device.PCIID has both vendor and device ID, but device ID has no '0x' prefix.
 		uid := device.DeviceUIDFromPCIinfo(pciBus, fmt.Sprintf("0x%v", pciId[4:]))
-		if gaudi, found := d.state.allocatable[uid]; found {
-			klog.V(5).Infof("Saving serial %v for device %v", serial, uid)
-			gaudi.Serial = serial
-		} else {
-			klog.V(5).Infof("Could not find device with UID %v", uid)
-			hlmlSyncOK = false
+		gaudi, found := d.state.allocatable[uid]
+		if !found {
+			return fmt.Errorf("could not find device with UID %v", uid)
 		}
+
+		gaudi.Serial = serial
 	}
 
-	if !hlmlSyncOK {
-		return
-	}
+	return nil
+}
 
-	// Publish serial numbers
-	_ = d.UpdateResourceSlice(ctx)
-
+// monitorHealth spawns a single Go routine to watch for events that
+// might signal about device becoming unusable. If such an event
+// happens, the ResourceSlice will be updated with kubernetes.io/healthy
+// attribute set false.
+// See https://github.com/kubernetes/kubernetes/issues/128979
+//
+// TODO: use KEP-5055: DRA: device taints and tolerations, when it is implemented.
+func (d *driver) startHealthMonitor(ctx context.Context) {
 	// Watch for device UIDs to mark unhealthy.
 	idsChan := make(chan string)
 	hlmlContext, stopHLMLMonitor := context.WithCancel(ctx)
-	go d.watchEvents(hlmlContext, healthCheckIntervalSeconds, idsChan)
+	go d.watchCriticalHLMLEvents(hlmlContext, healthCheckIntervalSeconds, idsChan)
 
 	for {
 		select {
@@ -108,18 +101,27 @@ func (d *driver) monitorHealth(ctx context.Context) {
 			stopHLMLMonitor()
 			return
 		case unhealthyUID := <-idsChan:
-			d.unhealthy(hlmlContext, unhealthyUID)
+			d.updateHealth(hlmlContext, false, unhealthyUID)
 		}
 	}
 }
 
-func (d *driver) unhealthy(ctx context.Context, uid string) {
-	d.state.allocatable[uid].Healthy = false
-	// ignore updating error
-	_ = d.UpdateResourceSlice(ctx)
+// updateHealth is called from healthMonitor to change device health flag and
+// publish updated resource slice.
+func (d *driver) updateHealth(ctx context.Context, healthy bool, uid string) {
+	d.state.Lock()
+	defer d.state.Unlock()
+
+	d.state.allocatable[uid].Healthy = healthy
+	// Health is updated from a go routine, nothing we can do when publishing
+	// resource slice fails, so error is ignored.
+	if err := d.PublishResourceSlice(ctx); err != nil {
+		klog.Errorf("could not publish updated resoruce slice: %v", err)
+	}
 }
 
-func (d *driver) watchEvents(ctx context.Context, intervalSeconds int, idsChan chan<- string) {
+// watchCriticalHLMLEvents watches for critical events from HLML and marks the devices as unhealthy.
+func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds int, idsChan chan<- string) {
 	eventSet := hlml.NewEventSet()
 	defer hlml.DeleteEventSet(eventSet)
 
@@ -141,14 +143,15 @@ func (d *driver) watchEvents(ctx context.Context, intervalSeconds int, idsChan c
 		case <-healthCheckInterval.C:
 			e, err := hlml.WaitForEvent(eventSet, 1000)
 			if err != nil {
-				klog.Error("hlml WaitForEvent failed", "error", err.Error())
+				klog.Errorf("HLML WaitForEvent failed: %v", err)
 				time.Sleep(2 * time.Second)
 				continue
 			}
 
-			klog.V(5).Infof("hlml event received: %+v", e)
+			klog.V(5).Infof("HLML event received: %+v", e)
 
 			if e.Etype != hlml.HlmlCriticalError {
+				klog.V(5).Infof("Ignoring unexpected non-critical HLML error event: %+v", e)
 				continue
 			}
 
@@ -172,9 +175,9 @@ func (d *driver) watchEvents(ctx context.Context, intervalSeconds int, idsChan c
 				continue
 			}
 
-			for _, d := range d.state.allocatable {
+			for deviceUID, d := range d.state.allocatable {
 				if d.Serial == serial {
-					klog.Error("critical: the device is unhealthy", "xid", e.Etype, "serial", d.Serial)
+					klog.Error("critical: the device is unhealthy", "UID", deviceUID, "xid", e.Etype, "serial", d.Serial)
 					idsChan <- d.UID
 				}
 			}
