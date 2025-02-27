@@ -22,6 +22,7 @@ import (
 	"path"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coreclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 	drav1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
@@ -36,33 +37,33 @@ import (
 var _ drav1.DRAPluginServer = (*driver)(nil)
 
 type driver struct {
-	*helpers.Driver
+	client coreclientset.Interface
+	state  *helpers.NodeState
+	plugin kubeletplugin.DRAPlugin
 }
 
-func newDriver(ctx context.Context, config *helpers.Config) (*helpers.Driver, error) {
+func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
 
 	driver := &driver{
-		Driver: &helpers.Driver{
-			Client: config.Coreclient,
-			State: &helpers.NodeState{
-				PreparedClaimsFilePath: path.Join(config.Flags.KubeletPluginDir, device.PreparedClaimsFileName),
-				SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
-				NodeName:               config.Flags.NodeName,
-			},
+		client: config.Coreclient,
+		state: &helpers.NodeState{
+			PreparedClaimsFilePath: path.Join(config.Flags.KubeletPluginDir, device.PreparedClaimsFileName),
+			SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
+			NodeName:               config.Flags.NodeName,
 		},
 	}
 
-	klog.V(5).Infof("Prepared claims: %v", driver.State)
+	klog.V(5).Infof("Prepared claims: %v", driver.state)
 
-	detectedDevices := discovery.DiscoverDevices(driver.State.SysfsRoot, device.DefaultNamingStyle)
+	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle)
 	if len(detectedDevices) == 0 {
 		klog.Info("No supported devices detected")
 	}
 
 	klog.V(3).Info("Creating new NodeState")
 	var err error
-	driver.State, err = newNodeState(detectedDevices, config.Flags.CdiRoot, driver.State.PreparedClaimsFilePath, driver.State.SysfsRoot, driver.State.NodeName)
+	driver.state, err = newNodeState(detectedDevices, config.Flags.CdiRoot, driver.state.PreparedClaimsFilePath, driver.state.SysfsRoot, driver.state.NodeName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
@@ -90,18 +91,18 @@ KubeletPluginSocketPath: %v`,
 		return nil, fmt.Errorf("failed to start kubelet-plugin: %v", err)
 	}
 
-	driver.Plugin = plugin
+	driver.plugin = plugin
 
-	state := nodeState{NodeState: driver.State}
+	state := nodeState{NodeState: driver.state}
 	resources := state.GetResources()
 	klog.FromContext(ctx).Info("Publishing resources", "len", len(resources.Devices))
 	klog.V(5).Infof("devices: %+v", resources.Devices)
 	if err := plugin.PublishResources(ctx, resources); err != nil {
 		return nil, fmt.Errorf("error publishing resources: %v", err)
 	}
-
 	klog.V(3).Info("Finished creating new driver")
-	return driver.Driver, nil
+
+	return driver, nil
 }
 
 func (d *driver) NodePrepareResources(ctx context.Context, req *drav1.NodePrepareResourcesRequest) (*drav1.NodePrepareResourcesResponse, error) {
@@ -119,30 +120,49 @@ func (d *driver) NodePrepareResources(ctx context.Context, req *drav1.NodePrepar
 func (d *driver) nodePrepareResources(ctx context.Context, claimMetadata *drav1.Claim) *drav1.NodePrepareResourceResponse {
 	klog.V(5).Infof("NodePrepareResource is called: request: %+v", claimMetadata)
 
-	if claimPreparation, found := d.State.Prepared[claimMetadata.UID]; found {
+	if claimPreparation, found := d.state.Prepared[claimMetadata.UID]; found {
 		klog.V(3).Infof("Claim %s was already prepared, nothing to do", claimMetadata.UID)
 		return &drav1.NodePrepareResourceResponse{
 			Devices: claimPreparation,
 		}
 	}
 
-	claim, err := d.Client.ResourceV1beta1().ResourceClaims(claimMetadata.Namespace).Get(ctx, claimMetadata.Name, metav1.GetOptions{})
+	claim, err := d.client.ResourceV1beta1().ResourceClaims(claimMetadata.Namespace).Get(ctx, claimMetadata.Name, metav1.GetOptions{})
 	if err != nil {
 		return &drav1.NodePrepareResourceResponse{
 			Error: fmt.Sprintf("could not find ResourceClaim %s in namespace %s: %v", claimMetadata.Name, claimMetadata.Namespace, err),
 		}
 	}
 
-	state := nodeState{d.State}
+	state := nodeState{d.state}
 	if err := state.Prepare(ctx, claim); err != nil {
 		return &drav1.NodePrepareResourceResponse{
 			Error: fmt.Sprintf("error preparing devices for claim %v: %v", claimMetadata.UID, err),
 		}
 	}
 
-	return &drav1.NodePrepareResourceResponse{Devices: d.State.Prepared[claimMetadata.UID]}
+	return &drav1.NodePrepareResourceResponse{Devices: d.state.Prepared[claimMetadata.UID]}
 }
 
 func (d *driver) NodeUnprepareResources(ctx context.Context, req *drav1.NodeUnprepareResourcesRequest) (*drav1.NodeUnprepareResourcesResponse, error) {
-	return d.Driver.NodeUnprepareResources(ctx, req)
+	klog.V(5).Infof("NodeUnprepareResource is called: number of claims: %d", len(req.Claims))
+	unpreparedResources := &drav1.NodeUnprepareResourcesResponse{
+		Claims: map[string]*drav1.NodeUnprepareResourceResponse{},
+	}
+
+	for _, claim := range req.Claims {
+		result := &drav1.NodeUnprepareResourceResponse{}
+		if err := d.state.Unprepare(ctx, claim.UID); err != nil {
+			result.Error = fmt.Sprintf("could not unprepare resource: %v", err)
+		}
+
+		unpreparedResources.Claims[claim.UID] = result
+	}
+
+	return unpreparedResources, nil
+}
+
+func (d *driver) Shutdown(ctx context.Context) error {
+	d.plugin.Stop()
+	return nil
 }

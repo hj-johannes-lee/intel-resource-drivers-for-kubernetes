@@ -11,8 +11,8 @@ import (
 
 func TestNewAppWithFlags(t *testing.T) {
 	driverName := "test-driver"
-	newDriver := func(ctx context.Context, config *Config) (*Driver, error) {
-		return &Driver{}, nil
+	newDriver := func(ctx context.Context, config *Config) (Driver, error) {
+		return nil, nil
 	}
 
 	app := NewApp(driverName, newDriver)

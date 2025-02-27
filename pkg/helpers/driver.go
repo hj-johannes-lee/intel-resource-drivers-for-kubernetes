@@ -16,42 +16,8 @@
 
 package helpers
 
-import (
-	"context"
-	"fmt"
+import "context"
 
-	"k8s.io/klog/v2"
-	drav1 "k8s.io/kubelet/pkg/apis/dra/v1beta1"
-
-	coreclientset "k8s.io/client-go/kubernetes"
-	"k8s.io/dynamic-resource-allocation/kubeletplugin"
-)
-
-type Driver struct {
-	Client coreclientset.Interface
-	State  *NodeState
-	Plugin kubeletplugin.DRAPlugin
-}
-
-func (d *Driver) NodeUnprepareResources(ctx context.Context, req *drav1.NodeUnprepareResourcesRequest) (*drav1.NodeUnprepareResourcesResponse, error) {
-	klog.V(5).Infof("NodeUnprepareResource is called: number of claims: %d", len(req.Claims))
-	unpreparedResources := &drav1.NodeUnprepareResourcesResponse{
-		Claims: map[string]*drav1.NodeUnprepareResourceResponse{},
-	}
-
-	for _, claim := range req.Claims {
-		result := &drav1.NodeUnprepareResourceResponse{}
-		if err := d.State.Unprepare(ctx, claim.UID); err != nil {
-			result.Error = fmt.Sprintf("could not unprepare resource: %v", err)
-		}
-
-		unpreparedResources.Claims[claim.UID] = result
-	}
-
-	return unpreparedResources, nil
-}
-
-func (d *Driver) Shutdown(ctx context.Context) error {
-	d.Plugin.Stop()
-	return nil
+type Driver interface {
+	Shutdown(ctx context.Context) error
 }

@@ -53,7 +53,7 @@ type Config struct {
 	Coreclient coreclientset.Interface
 }
 
-func NewApp(driverName string, newDriver func(ctx context.Context, config *Config) (*Driver, error)) *cli.App {
+func NewApp(driverName string, newDriver func(ctx context.Context, config *Config) (Driver, error)) *cli.App {
 	nodeName, nodeNameFound := os.LookupEnv("NODE_NAME")
 	if !nodeNameFound {
 		nodeName = "127.0.0.1"
@@ -123,7 +123,7 @@ func NewApp(driverName string, newDriver func(ctx context.Context, config *Confi
 	return app
 }
 
-func StartPlugin(ctx context.Context, config *Config, newDriver func(ctx context.Context, config *Config) (*Driver, error)) error {
+func StartPlugin(ctx context.Context, config *Config, newDriver func(ctx context.Context, config *Config) (Driver, error)) error {
 	err := os.MkdirAll(config.Flags.KubeletPluginDir, 0750)
 	if err != nil {
 		return err

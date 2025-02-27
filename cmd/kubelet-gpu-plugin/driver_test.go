@@ -81,8 +81,12 @@ func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
 
-	d, err := newDriver(context.TODO(), config)
-	return &driver{Driver: d}, err
+	helperDriver, err := newDriver(context.TODO(), config)
+	driver, ok := helperDriver.(*driver)
+	if !ok {
+		return nil, fmt.Errorf("type assertion failed: expected driver, got %T", helperDriver)
+	}
+	return driver, err
 }
 
 func TestNodePrepareResources(t *testing.T) {
@@ -283,7 +287,7 @@ func TestNodePrepareResources(t *testing.T) {
 		}
 
 		for _, testClaim := range testcase.claims {
-			createdClaim, err := driver.Client.ResourceV1beta1().ResourceClaims(testClaim.Namespace).Create(context.TODO(), testClaim, metav1.CreateOptions{})
+			createdClaim, err := driver.client.ResourceV1beta1().ResourceClaims(testClaim.Namespace).Create(context.TODO(), testClaim, metav1.CreateOptions{})
 			if err != nil {
 				t.Errorf("could not create test claim: %v", err)
 			}
