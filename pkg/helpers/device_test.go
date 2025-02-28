@@ -16,9 +16,9 @@ func TestGetSysfsRoot(t *testing.T) {
 	}{
 		{
 			name:        "Custom sysfs location exists",
-			envVarValue: "/tmp/sysfsroot",
+			envVarValue: TestSysfsRoot,
 			sysfsPath:   "devices",
-			expected:    "/tmp/sysfsroot",
+			expected:    TestSysfsRoot,
 			setupEnv:    true,
 		},
 		{
@@ -71,9 +71,9 @@ func TestGetDevRoot(t *testing.T) {
 		{
 			name:        "Custom devfs location exists",
 			envVarName:  DevfsEnvVarName,
-			envVarValue: "/tmp/devfsroot",
+			envVarValue: TestDevfsRoot,
 			devPath:     "devices",
-			expected:    "/tmp/devfsroot",
+			expected:    TestDevfsRoot,
 			setupEnv:    true,
 		},
 		{
