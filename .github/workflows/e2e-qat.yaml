@@ -1,13 +1,13 @@
 name: QAT E2E Run
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    paths:
-      - '**/*qat*/**'
-      - '**/*qat*'
+#on:
+#  push:
+#    branches:
+#      - main
+#  pull_request:
+#    paths:
+#      - '**/*qat*/**'
+#      - '**/*qat*'
 
 permissions:
   contents: read
