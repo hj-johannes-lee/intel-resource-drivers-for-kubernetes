@@ -14,19 +14,10 @@
  * limitations under the License.
  */
 
-package main
+package helpers
 
-import (
-	"fmt"
-	"os"
+import "context"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
-)
-
-func main() {
-	if err := helpers.NewApp(device.DriverName, newDriver).Run(os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+type Driver interface {
+	Shutdown(ctx context.Context) error
 }
