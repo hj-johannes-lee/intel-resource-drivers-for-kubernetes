@@ -12,7 +12,7 @@ hardware.
 - GPU
 - Gaudi
 
-## Supported parameters
+## Parameters
 
 ```shell
 device-faker -h
