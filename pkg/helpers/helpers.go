@@ -18,6 +18,8 @@ package helpers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/signal"
@@ -35,6 +37,11 @@ const (
 	DefaultKubeletPath               = "/var/lib/kubelet/"
 	DefaultKubeletPluginDir          = DefaultKubeletPath + "plugins/"
 	DefaultKubeletPluginsRegistryDir = DefaultKubeletPath + "plugins_registry/"
+)
+
+var (
+	TestSysfsRoot = AddRandomString("/tmp/sysfsroot")
+	TestDevfsRoot = AddRandomString("/tmp/devfsroot")
 )
 
 type Flags struct {
@@ -175,4 +182,13 @@ func WriteFile(filePath string, fileContents string) error {
 	}
 
 	return nil
+}
+
+func AddRandomString(str string) string {
+	b := make([]byte, 4)
+	_, err := rand.Read(b)
+	if err != nil {
+		panic(err)
+	}
+	return fmt.Sprintf(str+"_%s", hex.EncodeToString(b))
 }
