@@ -34,10 +34,12 @@ When used without `--real-devices` parameter, the implied device files are plain
 therefore container runtime will not be able to mount them as actual device nodes, and the Pod
 requested them will never get to a `Running` state .
 
-If it is needed for your use case to get the Pod to a `Running` state, consider creating real
-device files by using `-r | --real-devices` parameter (requires root). In this case the device
-file will be a `null`-device, but container runtime will be able to mount it inside the workload
-to the same place where real HW accelerator would end up.
+"Real" device files, needed to get the requesting Pod to a `Running` state, are created with the `-r (`--real-devices`) parameter, when tool has `CAP_MKNOD` capability. Device files are `null`-devices, which is enough for container runtime to provide them as devices[^1] to the workload container.
+
+[^1] Cgroup `device` (whitelist) controller requires files specified in OCI spec to be real devices:
+* https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md#devices
+* https://www.kernel.org/doc/Documentation/cgroup-v1/devices.txt
+* https://www.kernel.org/doc/Documentation/cgroup-v2.txt
 
 
 ## Example usage
