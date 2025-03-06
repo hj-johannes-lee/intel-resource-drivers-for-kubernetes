@@ -32,7 +32,8 @@ Flags:
 
 When used without `--real-devices` parameter, the implied device files are plain text files and
 therefore container runtime will not be able to mount them as actual device nodes, and the Pod
-requesting them will never get to a `Running` state.
+requesting them will never get to a `Running` state.  But it allows testing e.g. discovery,
+discovery announcement and allocation without need for extra privileges.
 
 "Real" device files, needed to get the requesting Pod to a `Running` state, are created with the `-r (`--real-devices`) parameter, when tool has `CAP_MKNOD` capability. Device files are `null`-devices, which is enough for container runtime to provide them as devices[^1] to the workload container.
 
