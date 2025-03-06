@@ -1,6 +1,6 @@
 # device-faker
 
-is a tool to generate fake sysfs and devfs simulating presence of supported accelerator devices.
+A tool to generate fake sysfs and devfs simulating presence of supported accelerator devices.
 
 Device-faker can be used with Intel DRA drivers to run experiments with Kubernetes and DRA without
 having access to the real hardware, and running dummy workloads that do not require actual accelerator
