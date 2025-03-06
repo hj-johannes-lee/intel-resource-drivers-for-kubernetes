@@ -188,13 +188,35 @@ yamllint:
 	git ls-files '*.yaml' | xargs grep -L '^ *{{-' | xargs yamllint -d relaxed --no-warnings
 
 
-.PHONY: test coverage
+.PHONY: test html-coverage
 COVERAGE_FILE := coverage.out
 test:
 	LD_PRELOAD=/usr/lib/habanalabs/libhlml.so go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
-coverage: test
+html-coverage: $(COVERAGE_FILE)
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html
 	@echo coverage file: coverage.html
-	@echo "average coverage (except main.go files)"
-	grep '<option value=' coverage.html | grep -v 'main.go' | grep -o '(.*)' | tr -d '()%' | awk 'BEGIN{s=0;}{s+=$$1;}END{print s/NR;}'
+
+$(COVERAGE_FILE): $(shell find cmd pkg -name '*.go')
+	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
+
+.PHONY: gpu-coverage gaudi-coverage qat-coverage cdispecsgen-coverage excluded-coverage
+
+gpu-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gaudi-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gaudi|pkg/fakesysfs|plugintesthelpers"
+gpu-coverage: excluded-coverage
+# See: https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html
+
+gaudi-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gpu-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gpu|pkg/fakesysfs|plugintesthelpers"
+gaudi-coverage: excluded-coverage
+
+qat-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gpu-plugin|kubelet-gaudi-plugin|pkg/gpu|pkg/gaudi|pkg/fakesysfs|plugintesthelpers"
+qat-coverage: excluded-coverage
+
+cdispecsgen-coverage: COVERAGE_EXCLUDE="device-faker|kubelet-gpu-plugin|kubelet-gaudi-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gpu|pkg/gaudi|pkg/fakesysfs|plugintesthelpers"
+cdispecsgen-coverage: excluded-coverage
+
+COVERAGE_EXCLUDE ?= "$^"
+excluded-coverage: $(COVERAGE_FILE)
+	@grep -v -E $(COVERAGE_EXCLUDE) $(COVERAGE_FILE) > $(COVERAGE_FILE).tmp && \
+	go tool cover -func=$(COVERAGE_FILE).tmp && \
+	rm $(COVERAGE_FILE).tmp
