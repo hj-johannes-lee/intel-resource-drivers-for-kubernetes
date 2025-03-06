@@ -24,7 +24,7 @@ import (
 	hlml "github.com/HabanaAI/gohlml"
 	"k8s.io/klog/v2"
 
-	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 )
 
 const (
