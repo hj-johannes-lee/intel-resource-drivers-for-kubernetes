@@ -42,7 +42,11 @@ bin/kubelet-gaudi-plugin: cmd/kubelet-gaudi-plugin/*.go $(GAUDI_COMMON_SRC)
 gaudi-container-build: cleanall vendor
 	@echo "Building Gaudi resource driver container..."
 	$(DOCKER) build --pull --platform="linux/$(ARCH)" -t $(GAUDI_IMAGE_TAG) \
-	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.gaudi .
+	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) \
+	--build-arg HTTP_PROXY=$(http_proxy) \
+	--build-arg HTTPS_PROXY=$(https_proxy) \
+	--build-arg NO_PROXY=$(no_proxy) \
+	-f Dockerfile.gaudi .
 
 .PHONY: gaudi-container-push
 gaudi-container-push: gaudi-container-build
