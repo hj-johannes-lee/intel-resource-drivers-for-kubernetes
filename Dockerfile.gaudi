@@ -12,13 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+
 FROM golang:1.23.4@sha256:ccdca3b3bde3bfee2518a087b467f2b452fad9ba3e378d3c1578db494c8cb13b as build
 ARG LOCAL_LICENSES
 WORKDIR /build
 COPY . .
 
 # install libhlml.so
-RUN curl -fsSL https://vault.habana.ai/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/habanalabs.gpg > /dev/null && \
+RUN \
+export http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} no_proxy=${NO_PROXY} && \
+curl -fsSL https://vault.habana.ai/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/habanalabs.gpg > /dev/null && \
 wget -q -O /etc/apt/sources.list.d/habanalabs_synapseai.list "https://vault.habana.ai/artifactory/gaudi-installer/repos/1.19.1/debian10.10/habanalabs_synapseai.list" > /dev/null && \
 apt-get update && \
 apt-get download habanalabs-firmware-tools && \
