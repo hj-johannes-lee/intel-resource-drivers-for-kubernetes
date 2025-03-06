@@ -75,6 +75,7 @@ func DiscoverDevices(sysfsDir, namingStyle string) map[string]*device.DeviceInfo
 			PCIAddress: devicePCIAddress,
 			Model:      deviceId,
 			DeviceIdx:  0,
+			Healthy:    true,
 		}
 		newDeviceInfo.SetModelName()
 

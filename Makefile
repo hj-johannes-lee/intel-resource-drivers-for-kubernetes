@@ -29,7 +29,7 @@ GIT_BRANCH ?= $(shell git branch --show-current)
 
 EXT_LDFLAGS = -static
 LDFLAGS = \
- -s -w -extldflags $(EXT_LDFLAGS) \
+ -s -w \
  -X ${PKG}/pkg/version.gitCommit=${GIT_COMMIT} \
  -X ${PKG}/pkg/version.buildDate=${BUILD_DATE}
 
@@ -69,13 +69,16 @@ include $(CURDIR)/qat.mk
 build: gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker
 
 
+
 bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/cdi-specs-generator
+	  go build -a -ldflags "${LDFLAGS} -extldflags $(EXT_LDFLAGS)" \
+	  -mod vendor -o $@ ./cmd/cdi-specs-generator
 
 bin/device-faker: cmd/device-faker/*.go
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" -mod vendor -o $@ ./cmd/device-faker
+	  go build -a -ldflags "${LDFLAGS} -extldflags ${EXT_LDFLAGS}" \
+	  -mod vendor -o $@ ./cmd/device-faker
 
 
 .PHONY: branch-build
@@ -188,7 +191,7 @@ yamllint:
 .PHONY: test coverage
 COVERAGE_FILE := coverage.out
 test:
-	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
+	LD_PRELOAD=/usr/lib/habanalabs/libhlml.so go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
 coverage: test
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html

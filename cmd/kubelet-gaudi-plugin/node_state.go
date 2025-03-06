@@ -139,6 +139,12 @@ func (s *nodeState) GetResources() kubeletplugin.Resources {
 					"pciRoot": {
 						StringValue: &gaudi.PCIRoot,
 					},
+					"serial": {
+						StringValue: &gaudi.Serial,
+					},
+					"healthy": {
+						BoolValue: &gaudi.Healthy,
+					},
 				},
 			},
 		}
@@ -217,6 +223,10 @@ func (s *nodeState) syncPreparedDevicesFromFile(preparedClaims ClaimPreparations
 */
 
 func (s *nodeState) Prepare(ctx context.Context, claim *resourcev1.ResourceClaim) error {
+	// To prevent concurrent writing of prepared claims file and potential data loss.
+	s.Lock()
+	defer s.Unlock()
+
 	if claim.Status.Allocation == nil {
 		return fmt.Errorf("no allocation found in claim %v/%v status", claim.Namespace, claim.Name)
 	}
