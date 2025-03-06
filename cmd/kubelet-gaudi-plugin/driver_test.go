@@ -358,6 +358,19 @@ func TestShutdown(t *testing.T) {
 		t.Fatalf("could not create fake system dirs: %v", err)
 	}
 
+	if err := fakesysfs.FakeSysFsGaudiContents(
+		testDirs.SysfsRoot,
+		testDirs.DevfsRoot,
+		device.DevicesInfo{
+			"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020"},
+			"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020"},
+		},
+		false,
+	); err != nil {
+		t.Errorf("setup error: could not create fake sysfs: %v", err)
+		return
+	}
+
 	driver, err := getFakeDriver(testDirs)
 	if err != nil {
 		t.Fatalf("could not create driver: %v", err)

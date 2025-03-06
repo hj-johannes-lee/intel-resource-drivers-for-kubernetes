@@ -187,14 +187,19 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 
 func (d *driver) Shutdown(ctx context.Context) error {
 	d.plugin.Stop()
+
+	// When health monitoring with HLML was initiated, d.hlmlShutdown will get
+	// context cancel function, which we can call to signal health monitoring
+	// goroutine to stop.
 	if d.hlmlShutdown != nil {
 		d.hlmlShutdown()
-		time.Sleep(1 * time.Second)
-	}
 
-	ret := hlml.Shutdown()
-	if ret != nil {
-		klog.Errorf("failed to shutdown HLML: %v", ret)
+		time.Sleep(1 * time.Second)
+
+		ret := hlml.Shutdown()
+		if ret != nil {
+			klog.Errorf("failed to shutdown HLML: %v", ret)
+		}
 	}
 
 	return nil
