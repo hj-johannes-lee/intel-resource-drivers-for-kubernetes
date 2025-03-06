@@ -1,6 +1,8 @@
 package helpers
 
 import (
+	"fmt"
+
 	"github.com/urfave/cli/v2"
 
 	"context"
@@ -78,6 +80,81 @@ func TestWriteFile(t *testing.T) {
 					t.Errorf("Expected file contents to be %v, got %v", tt.fileContents, string(content))
 				}
 				os.Remove(tt.filePath)
+			}
+		})
+	}
+}
+
+func TestStartPlugin(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *Config
+		newDriver   func(ctx context.Context, config *Config) (Driver, error)
+		setup       func()
+		expectError bool
+	}{
+		{
+			name: "CDI root is not a directory",
+			config: &Config{
+				Flags: &Flags{
+					KubeletPluginDir: "/tmp/testplugin",
+					CdiRoot:          "/tmp/testfile",
+				},
+			},
+			setup: func() {
+				if err := os.WriteFile("/tmp/testfile", []byte("not a directory"), 0644); err != nil {
+					t.Fatalf("Failed to write file: %v", err)
+				}
+			},
+			expectError: true,
+		},
+		{
+			name: "KubeletPluginDir does not exist",
+			config: &Config{
+				Flags: &Flags{
+					KubeletPluginDir: "/does-not-exist",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "CDIRoot does not exist",
+			config: &Config{
+				Flags: &Flags{
+					KubeletPluginDir: AddRandomString("/tmp/test"),
+					CdiRoot:          "/does-not-exist",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "NewDriver returns error",
+			config: &Config{
+				Flags: &Flags{
+					KubeletPluginDir: "/tmp/testplugin",
+					CdiRoot:          "/tmp/testcdi",
+				},
+			},
+			newDriver: func(ctx context.Context, config *Config) (Driver, error) {
+				return nil, fmt.Errorf("fake error %v", "from newDriver")
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup()
+			}
+			defer os.RemoveAll("/tmp/testplugin")
+			defer os.RemoveAll("/tmp/testcdi")
+			defer os.Remove("/tmp/testfile")
+
+			ctx := context.Background()
+			err := StartPlugin(ctx, tt.config, tt.newDriver)
+			if (err != nil) != tt.expectError {
+				t.Errorf("StartPlugin() error = %v, expectError %v", err, tt.expectError)
 			}
 		})
 	}
