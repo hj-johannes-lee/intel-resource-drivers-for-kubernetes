@@ -189,12 +189,13 @@ func (d *driver) Shutdown(ctx context.Context) error {
 	d.plugin.Stop()
 	if d.hlmlShutdown != nil {
 		d.hlmlShutdown()
-		time.Sleep(1 * time.Second)
-	}
 
-	ret := hlml.Shutdown()
-	if ret != nil {
-		klog.Errorf("failed to shutdown HLML: %v", ret)
+		time.Sleep(1 * time.Second)
+
+		ret := hlml.Shutdown()
+		if ret != nil {
+			klog.Errorf("failed to shutdown HLML: %v", ret)
+		}
 	}
 
 	return nil
