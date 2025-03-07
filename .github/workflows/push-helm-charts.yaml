@@ -1,0 +1,54 @@
+name: Package and Push Helm charts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'charts/**'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  REGISTRY_USER: ${{ github.repository_owner }}
+  RELEASE_REGISTRY: ghcr.io/intel/intel-resource-drivers-for-kubernetes
+
+jobs:
+  push-helm-charts:
+    runs-on: [self-hosted, generic]
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - name: Set up Helm
+        run: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
+
+      - name: Login to registry
+        run: |
+          echo "${{ secrets.GH_PUBLIC_TOKEN }}" | \
+          helm registry login ${{ env.REGISTRY }} -u ${{ env.REGISTRY_USER }} --password-stdin
+
+      - name: Update Helm chart dependencies
+        run: make update-dependencies
+
+      - name: Package Helm charts
+        run: make package-helm-charts
+
+      - name: Push packaged Helm charts
+        run: make push-helm-charts
