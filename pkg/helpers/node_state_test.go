@@ -207,7 +207,7 @@ func TestUnprepare(t *testing.T) {
 
 			if tt.expectError {
 				if err == nil {
-					t.Fatalf("expected an error but got none")
+					t.Fatalf("expected an error but got none: %v", err)
 				}
 			} else {
 				if err != nil {

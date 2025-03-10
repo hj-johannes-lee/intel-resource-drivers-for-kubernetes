@@ -90,6 +90,7 @@ func TestNodePrepareResources(t *testing.T) {
 		expectedResponse       *drav1.NodePrepareResourcesResponse
 		preparedClaims         helpers.ClaimPreparations
 		expectedPreparedClaims helpers.ClaimPreparations
+		noDetectedDevices      bool
 	}
 
 	testcases := []testCase{
@@ -145,6 +146,35 @@ func TestNodePrepareResources(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "wrong namespace in claims",
+			claims: []*resourcev1.ResourceClaim{
+				testhelpers.NewClaim("wrong-namespace", "claim4", "uid4", "request4", "gaudi.intel.com", "node1", []string{"0000-00-05-0-0x1020"}),
+			},
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{{Name: "claim4", Namespace: "namespace4", UID: "uid4"}},
+			},
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
+					"uid4": {Error: "could not find ResourceClaim claim4 in namespace namespace4: resourceclaims.resource.k8s.io \"claim4\" not found"},
+				},
+			},
+		},
+		{
+			name:              "no devices detected",
+			noDetectedDevices: true,
+			claims: []*resourcev1.ResourceClaim{
+				testhelpers.NewClaim("default", "claim5", "uid5", "request5", "gaudi.intel.com", "node1", []string{"0000-00-02-0-0x1020"}),
+			},
+			request: &drav1.NodePrepareResourcesRequest{
+				Claims: []*drav1.Claim{{UID: "uid5", Name: "claim5", Namespace: "default"}},
+			},
+			expectedResponse: &drav1.NodePrepareResourcesResponse{
+				Claims: map[string]*drav1.NodePrepareResourceResponse{
+					"uid5": {Error: "could not find allocatable device 0000-00-02-0-0x1020 (pool node1)"},
+				},
+			},
+		},
 	}
 
 	for _, testcase := range testcases {
@@ -157,16 +187,17 @@ func TestNodePrepareResources(t *testing.T) {
 			return
 		}
 
-		if err := fakesysfs.FakeSysFsGaudiContents(
-			testDirs.SysfsRoot,
-			testDirs.DevfsRoot,
-			device.DevicesInfo{
-				"0000-00-02-0-0x1020": {Model: "0x1020", DeviceIdx: 0, PCIAddress: "0000:00:02.0", UID: "0000-00-02-0-0x1020"},
-				"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020"},
-				"0000-00-04-0-0x1020": {Model: "0x1020", DeviceIdx: 2, PCIAddress: "0000:00:04.0", UID: "0000-00-04-0-0x1020"},
-			},
-			false,
-		); err != nil {
+		fakeGaudis := device.DevicesInfo{
+			"0000-00-02-0-0x1020": {Model: "0x1020", DeviceIdx: 0, PCIAddress: "0000:00:02.0", UID: "0000-00-02-0-0x1020"},
+			"0000-00-03-0-0x1020": {Model: "0x1020", DeviceIdx: 1, PCIAddress: "0000:00:03.0", UID: "0000-00-03-0-0x1020"},
+			"0000-00-04-0-0x1020": {Model: "0x1020", DeviceIdx: 2, PCIAddress: "0000:00:04.0", UID: "0000-00-04-0-0x1020"},
+		}
+
+		if testcase.noDetectedDevices {
+			fakeGaudis = device.DevicesInfo{}
+		}
+
+		if err := fakesysfs.FakeSysFsGaudiContents(testDirs.SysfsRoot, testDirs.DevfsRoot, fakeGaudis, false); err != nil {
 			t.Errorf("setup error: could not create fake sysfs: %v", err)
 			return
 		}
