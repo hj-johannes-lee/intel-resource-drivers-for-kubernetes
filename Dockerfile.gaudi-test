@@ -27,6 +27,6 @@ make && \
 mkdir /usr/lib/habanalabs && \
 cp fake_hlml.so /usr/lib/habanalabs/libhlml.so
 
-FROM golang::1.23.4@sha256:ccdca3b3bde3bfee2518a087b467f2b452fad9ba3e378d3c1578db494c8cb13b
+FROM golang:1.23.4@sha256:ccdca3b3bde3bfee2518a087b467f2b452fad9ba3e378d3c1578db494c8cb13b
 
 COPY --from=build /usr/lib/habanalabs/libhlml.so /usr/lib/habanalabs/libhlml.so
