@@ -36,6 +36,11 @@ import (
 	testhelpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
+const (
+	NO_HEALTHCARE   = false
+	WITH_HEALTHCARE = true
+)
+
 func TestFakeSysfs(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 	if err != nil {
@@ -60,16 +65,17 @@ func TestFakeSysfs(t *testing.T) {
 	}
 }
 
-func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
+func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver, error) {
 
 	config := &helpers.Config{
 		Flags: &helpers.Flags{
-			NodeName:                  "node1",
-			CdiRoot:                   testDirs.CdiRoot,
-			KubeletPluginDir:          testDirs.KubeletPluginDir,
-			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+			nodeName:                  "node1",
+			cdiRoot:                   testDirs.CdiRoot,
+			kubeletPluginDir:          testDirs.KubeletPluginDir,
+			kubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
 		Coreclient: kubefake.NewSimpleClientset(),
+		Healthcare: healthcare,
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -208,7 +214,7 @@ func TestNodePrepareResources(t *testing.T) {
 			continue
 		}
 
-		driver, driverErr := getFakeDriver(testDirs)
+		driver, driverErr := getFakeDriver(testDirs, NO_HEALTHCARE)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue
@@ -358,7 +364,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 			continue
 		}
 
-		driver, driverErr := getFakeDriver(testDirs)
+		driver, driverErr := getFakeDriver(testDirs, NO_HEALTHCARE)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue
@@ -398,20 +404,7 @@ func TestShutdown(t *testing.T) {
 		t.Fatalf("could not create fake system dirs: %v", err)
 	}
 
-	if err := fakesysfs.FakeSysFsGaudiContents(
-		testDirs.SysfsRoot,
-		testDirs.DevfsRoot,
-		device.DevicesInfo{
-			"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020"},
-			"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020"},
-		},
-		false,
-	); err != nil {
-		t.Errorf("setup error: could not create fake sysfs: %v", err)
-		return
-	}
-
-	driver, err := getFakeDriver(testDirs)
+	driver, err := getFakeDriver(testDirs, NO_HEALTHCARE)
 	if err != nil {
 		t.Fatalf("could not create driver: %v", err)
 	}

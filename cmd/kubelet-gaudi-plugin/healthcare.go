@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
+ * Copyright (c) 2024, Intel Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,8 @@ func (d *driver) initHLML(ctx context.Context) error {
 		return fmt.Errorf("failed to get device count: %v", ret)
 	}
 
+	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
+
 	for i := uint(0); i < count; i++ {
 		hlmlDevice, ret := hlml.DeviceHandleByIndex(i)
 		if ret != nil {
@@ -56,7 +58,7 @@ func (d *driver) initHLML(ctx context.Context) error {
 			return fmt.Errorf("failed to get serial number of device at index %d: %v", i, ret)
 		}
 
-		pciBus, ret := hlmlDevice.PCIBusID()
+		pciAddress, ret := hlmlDevice.PCIBusID()
 		if ret != nil {
 			return fmt.Errorf("failed to get PCI bus ID of device at index %d: %v", i, ret)
 		}
@@ -65,13 +67,10 @@ func (d *driver) initHLML(ctx context.Context) error {
 		if ret != nil {
 			return fmt.Errorf("failed to get PCI ID of device at index %d: %v", i, ret)
 		}
-		pciId := fmt.Sprintf("%x", pciIdHex)
-
-		klog.V(5).Infof("HLML: found device: serial %v, PCI bus %v, PCI ID %v\n", serial, pciBus, pciId)
-
 		// hlml.Device.PCIID has both vendor and device ID, but device ID has no '0x' prefix.
-		uid := helpers.DeviceUIDFromPCIinfo(pciBus, fmt.Sprintf("0x%v", pciId[4:]))
-		allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
+		pciId := fmt.Sprintf("%08x", pciIdHex)
+		klog.V(5).Infof("HLML: found device: serial %v, PCI bus %v, PCI ID %v\n", serial, pciAddress, pciId)
+		uid := helpers.DeviceUIDFromPCIinfo(pciAddress,, fmt.Sprintf("0x%v", pciId[4:]))
 		gaudi, found := allocatable[uid]
 		if !found {
 			return fmt.Errorf("could not find device with UID %v", uid)
@@ -115,7 +114,13 @@ func (d *driver) updateHealth(ctx context.Context, healthy bool, uid string) {
 	defer d.state.Unlock()
 
 	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
-	allocatable[uid].Healthy = healthy
+	foundDevice, found := allocatable[uid]
+	if !found {
+		klog.Errorf("could not find device with UID %v", uid)
+		return
+	}
+
+	foundDevice.Healthy = healthy
 	// Health is updated from a go routine, nothing we can do when publishing
 	// resource slice fails, so error is ignored.
 	if err := d.PublishResourceSlice(ctx); err != nil {
@@ -129,6 +134,8 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 	defer hlml.DeleteEventSet(eventSet)
 
 	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
+
+	allFailed := true
 	for _, d := range allocatable {
 		err := hlml.RegisterEventForDevice(eventSet, hlml.HlmlCriticalError, d.Serial)
 		if err != nil {
@@ -136,6 +143,11 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 			idsChan <- d.UID
 			continue
 		}
+		allFailed = false
+	}
+
+	if allFailed {
+		return
 	}
 
 	healthCheckInterval := time.NewTicker(time.Duration(intervalSeconds) * time.Second)

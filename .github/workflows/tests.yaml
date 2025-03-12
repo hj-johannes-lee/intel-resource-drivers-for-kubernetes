@@ -11,13 +11,19 @@ permissions:
   pull-requests: read
 
 jobs:
+  build-test-image:
+    runs-on: [ "self-hosted", "generic" ]
+    steps:
+    - name: Build test image
+      run: make test-image
   test:
     runs-on: [ "self-hosted", "generic" ]
+    needs: build-test-image
+    container:
+      image: gaudi-test
     steps:
     - uses: actions/checkout@v4
     - name: Update vendor
       run: go mod vendor
-    - name: Build
-      run: make build
     - name: Test
       run: make test

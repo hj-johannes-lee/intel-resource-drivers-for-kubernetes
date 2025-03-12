@@ -1,0 +1,32 @@
+# Copyright (c) 2024, Intel Corporation.  All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+
+FROM golang:1.23.4@sha256:ccdca3b3bde3bfee2518a087b467f2b452fad9ba3e378d3c1578db494c8cb13b as build
+ARG LOCAL_LICENSES
+WORKDIR /build
+COPY . .
+
+RUN go mod vendor && \
+cd hack/fake_libhlml && \
+make && \
+mkdir /usr/lib/habanalabs && \
+cp fake_hlml.so /usr/lib/habanalabs/libhlml.so
+
+FROM golang::1.23.4@sha256:ccdca3b3bde3bfee2518a087b467f2b452fad9ba3e378d3c1578db494c8cb13b
+
+COPY --from=build /usr/lib/habanalabs/libhlml.so /usr/lib/habanalabs/libhlml.so

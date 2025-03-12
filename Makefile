@@ -187,11 +187,21 @@ yamllint:
 	@echo -e "\nyamllint: lint non-templated YAML files:"
 	git ls-files '*.yaml' | xargs grep -L '^ *{{-' | xargs yamllint -d relaxed --no-warnings
 
+.PHONE: test-image
+test-image:
+	@echo "Building container image with fake HLML for Gaudi tests..."
+	$(DOCKER) build --platform="linux/$(ARCH)" -t gaudi-test \
+	--build-arg HTTP_PROXY=$(http_proxy) \
+	--build-arg HTTPS_PROXY=$(https_proxy) \
+	--build-arg NO_PROXY=$(no_proxy) \
+	-f Dockerfile.gaudi-test .
 
 .PHONY: test html-coverage
 COVERAGE_FILE := coverage.out
+# Gaudi tests expect fake HLML library to be present at /usr/lib/habanalabs/libhlml.so
+# Dependency comes from gohlml package hardcoded LD_LIBRARY_PATH pointing to it.
 test:
-	LD_PRELOAD=/usr/lib/habanalabs/libhlml.so go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
+	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
 html-coverage: $(COVERAGE_FILE)
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html
