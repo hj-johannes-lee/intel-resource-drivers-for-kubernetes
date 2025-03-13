@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"reflect"
@@ -138,6 +139,98 @@ func TestWritePreparedClaimsToFile(t *testing.T) {
 
 				if !reflect.DeepEqual(actualOutput, expectedOutput) {
 					t.Fatalf("expected %v but got %v", expectedOutput, actualOutput)
+				}
+			}
+		})
+	}
+}
+
+func TestUnprepare(t *testing.T) {
+	tests := []struct {
+		name             string
+		initialPrepared  ClaimPreparations
+		claimUID         string
+		expectedPrepared ClaimPreparations
+		expectError      bool
+	}{
+		{
+			name: "Unprepare existing claim",
+			initialPrepared: ClaimPreparations{
+				"claim1": {
+					{DeviceName: "device1"},
+				},
+			},
+			claimUID:         "claim1",
+			expectedPrepared: ClaimPreparations{},
+			expectError:      false,
+		},
+		{
+			name: "Unprepare nonexisting claim",
+			initialPrepared: ClaimPreparations{
+				"claim1": {
+					{DeviceName: "device1"},
+				},
+			},
+			claimUID: "claim2",
+			expectedPrepared: ClaimPreparations{
+				"claim1": {
+					{DeviceName: "device1"},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:             "Unprepare when no claims are prepared",
+			initialPrepared:  ClaimPreparations{},
+			claimUID:         "claim2",
+			expectedPrepared: ClaimPreparations{},
+			expectError:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filePath := "test_unprepare_claims.json"
+			defer os.Remove(filePath)
+
+			err := WritePreparedClaimsToFile(filePath, tt.initialPrepared)
+			if err != nil {
+				t.Fatalf("failed to write initial prepared claims to file: %v", err)
+			}
+
+			nodeState := &NodeState{
+				Prepared:               tt.initialPrepared,
+				PreparedClaimsFilePath: filePath,
+			}
+
+			err = nodeState.Unprepare(context.Background(), tt.claimUID)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatalf("expected an error but got none: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				if !reflect.DeepEqual(tt.expectedPrepared, nodeState.Prepared) {
+					t.Fatalf("expected %v but got %v", tt.expectedPrepared, nodeState.Prepared)
+				}
+
+				// Verify file content
+				content, err := os.ReadFile(filePath)
+				if err != nil {
+					t.Fatalf("failed to read file: %v", err)
+				}
+
+				var actualOutput ClaimPreparations
+				if err := json.Unmarshal(content, &actualOutput); err != nil {
+					t.Fatalf("failed to unmarshal actual output: %v", err)
+				}
+
+				if !reflect.DeepEqual(tt.expectedPrepared, actualOutput) {
+					t.Fatalf("expected %v but got %v", tt.expectedPrepared, actualOutput)
 				}
 			}
 		})

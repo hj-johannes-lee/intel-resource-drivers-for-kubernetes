@@ -214,15 +214,15 @@ func addDevicesToNewSpec(cdiCache *cdiapi.Cache, devices device.DevicesInfo) err
 }
 
 func newContainerEditsDeviceNodes(deviceIdx uint64) []*cdiSpecs.DeviceNode {
-	devfsRoot := device.GetDevfsRoot()
+	accelDevPath := device.GetAccelDevfsPath()
 	return []*cdiSpecs.DeviceNode{
 		{
 			Path:     path.Join(containerDevfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)),
-			HostPath: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel%d", deviceIdx)),
+			HostPath: path.Join(accelDevPath, fmt.Sprintf("accel%d", deviceIdx)),
 			Type:     "c"},
 		{
 			Path:     path.Join(containerDevfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)),
-			HostPath: path.Join(devfsRoot, device.DevfsAccelPath, fmt.Sprintf("accel_controlD%d", deviceIdx)),
+			HostPath: path.Join(accelDevPath, fmt.Sprintf("accel_controlD%d", deviceIdx)),
 			Type:     "c",
 		},
 	}

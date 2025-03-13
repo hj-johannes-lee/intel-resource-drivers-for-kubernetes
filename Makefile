@@ -196,35 +196,27 @@ test:
 html-coverage: $(COVERAGE_FILE)
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html
 	@echo coverage file: coverage.html
-	@echo "average coverage (except main.go files)"
-	grep '<option value=' coverage.html | grep -v 'main.go' | grep -o '(.*)' | tr -d '()%' | awk 'BEGIN{s=0;}{s+=$$1;}END{print s/NR;}'
 
+$(COVERAGE_FILE): $(shell find cmd pkg -name '*.go')
+	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
-.PHONY: update-dependencies package-helm-charts push-helm-charts
+.PHONY: gpu-coverage gaudi-coverage qat-coverage cdispecsgen-coverage excluded-coverage
 
-update-dependencies:
-	@helm repo add nfd https://kubernetes-sigs.github.io/node-feature-discovery/charts || true
-	@helm repo update
-	@set -x; for chart in charts/*; do \
-		if [ -d "$$chart" ]; then \
-			echo "Updating dependencies for $$chart"; \
-			helm dependency update $$chart; \
-			helm dependency build $$chart; \
-		fi \
-	done
+gpu-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gaudi-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gaudi|pkg/fakesysfs|plugintesthelpers"
+gpu-coverage: excluded-coverage
+# See: https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html
 
-package-helm-charts:
-	@set -x; for chart in charts/*; do \
-		if [ -d "$$chart" ]; then \
-			chart_name=$$(basename $$chart); \
-			chart_version=$$(awk '/^version:/ {print $$2; exit}' $$chart/Chart.yaml); \
-			release_version=$$(awk '/^appVersion:/ {print $$2; exit}' $$chart/Chart.yaml); \
-			echo "Packaging $$chart_name with chart version $$chart_version and application version $$release_version"; \
-			helm package $$chart --version $$chart_version --app-version $$release_version --destination .charts; \
-		fi \
-	done
+gaudi-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gpu-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gpu|pkg/fakesysfs|plugintesthelpers"
+gaudi-coverage: excluded-coverage
 
-push-helm-charts: package-helm-charts
-	@for tgz in .charts/*.tgz; do \
-		helm push $$tgz oci://${RELEASE_REGISTRY}; \
-	done
+qat-coverage: COVERAGE_EXCLUDE="cdi-specs-generator|device-faker|kubelet-gpu-plugin|kubelet-gaudi-plugin|pkg/gpu|pkg/gaudi|pkg/fakesysfs|plugintesthelpers"
+qat-coverage: excluded-coverage
+
+cdispecsgen-coverage: COVERAGE_EXCLUDE="device-faker|kubelet-gpu-plugin|kubelet-gaudi-plugin|kubelet-qat-plugin|qat-showdevice|pkg/qat|pkg/gpu|pkg/gaudi|pkg/fakesysfs|plugintesthelpers"
+cdispecsgen-coverage: excluded-coverage
+
+COVERAGE_EXCLUDE ?= "$^"
+excluded-coverage: $(COVERAGE_FILE)
+	@grep -v -E $(COVERAGE_EXCLUDE) $(COVERAGE_FILE) > $(COVERAGE_FILE).tmp && \
+	go tool cover -func=$(COVERAGE_FILE).tmp && \
+	rm $(COVERAGE_FILE).tmp
