@@ -21,8 +21,7 @@ jobs:
     runs-on: [ "self-hosted", "generic" ]
     needs: build-test-image
     container:
-      image: gaudi-test:local
-      options: --pull never
+      image: ger-is-registry.caas.intel.com/dgpu-orchestration/test-image:latest
     steps:
     - uses: actions/checkout@v4
     - name: Update vendor

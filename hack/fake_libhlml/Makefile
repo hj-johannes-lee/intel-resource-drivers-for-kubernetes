@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS = -O -Wall -Wextra -fPIC
+CFLAGS = -O -Wall -fPIC
 LDFLAGS = -shared
-TARGET = fake_hlml.so
+TARGET = fake_libhlml.so
 SRCS = $(wildcard *.c)
 OBJS = $(SRCS:.c=.o)
 

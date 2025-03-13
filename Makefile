@@ -27,6 +27,8 @@ GIT_COMMIT = $(shell git rev-parse HEAD)
 BUILD_DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_BRANCH ?= $(shell git branch --show-current)
 
+TEST_IMAGE = ger-is-registry.caas.intel.com/dgpu-orchestration/test-image:latest
+
 EXT_LDFLAGS = -static
 LDFLAGS = \
  -s -w \
@@ -188,13 +190,10 @@ yamllint:
 	git ls-files '*.yaml' | xargs grep -L '^ *{{-' | xargs yamllint -d relaxed --no-warnings
 
 .PHONE: test-image
-test-image:
+test-image: vendor
 	@echo "Building container image with fake HLML for Gaudi tests..."
-	$(DOCKER) build --platform="linux/$(ARCH)" -t gaudi-test:local \
-	--build-arg HTTP_PROXY=$(http_proxy) \
-	--build-arg HTTPS_PROXY=$(https_proxy) \
-	--build-arg NO_PROXY=$(no_proxy) \
-	-f Dockerfile.gaudi-test .
+	$(DOCKER) build --platform="linux/$(ARCH)" -t "$(TEST_IMAGE)" -f Dockerfile.gaudi-test .
+	$(DOCKER) push "$(TEST_IMAGE)"
 
 .PHONY: test html-coverage
 COVERAGE_FILE := coverage.out
