@@ -40,7 +40,7 @@ struct main_struct_t {
 
 // custom_init is called from a test function to populate the main_struct
 // with fake information that otherwise would have been deduced from the
-// sysfs by a read HLML library.
+// sysfs by a real HLML library.
 void add_device(const char *pci_addr, const char *pci_device_id, const char *pci_vendor_id,
                 const char *serial, unsigned int index) {
     if (pci_addr) {
