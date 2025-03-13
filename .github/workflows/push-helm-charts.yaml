@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - 'charts/**'
-  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
