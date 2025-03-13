@@ -190,7 +190,7 @@ yamllint:
 .PHONE: test-image
 test-image:
 	@echo "Building container image with fake HLML for Gaudi tests..."
-	$(DOCKER) build --platform="linux/$(ARCH)" -t gaudi-test \
+	$(DOCKER) build --platform="linux/$(ARCH)" -t gaudi-test:local \
 	--build-arg HTTP_PROXY=$(http_proxy) \
 	--build-arg HTTPS_PROXY=$(https_proxy) \
 	--build-arg NO_PROXY=$(no_proxy) \

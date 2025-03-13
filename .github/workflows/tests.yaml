@@ -21,7 +21,8 @@ jobs:
     runs-on: [ "self-hosted", "generic" ]
     needs: build-test-image
     container:
-      image: gaudi-test
+      image: gaudi-test:local
+      options: --pull never
     steps:
     - uses: actions/checkout@v4
     - name: Update vendor
