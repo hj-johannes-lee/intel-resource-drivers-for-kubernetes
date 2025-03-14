@@ -14,14 +14,26 @@ jobs:
   build-test-image:
     runs-on: [ "self-hosted", "generic" ]
     steps:
+    - uses: actions/checkout@v4
+    - rebuild need assessment:
+      id: rebuild_test_image
+      run: |
+        if $(git diff innersource/main --stat -b -w deployments/ | grep fake_libhlml -q); then
+          echo "test image rebuild is needed"
+          echo "rebuild_test_image=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "test image rebuild is not needed"
+          echo "rebuild_test_image=false" >> "$GITHUB_OUTPUT"
+        fi
     - uses: docker/login-action@v2
       with:
         registry: ger-is-registry.caas.intel.com
         username: ${{ secrets.REGISTRY_USER }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
-    - uses: actions/checkout@v4
+      if: steps.rebuild_test_image.outputs.rebuild_test_image == 'true'
     - name: Build test image
       run: make test-image
+      if: steps.rebuild_test_image.outputs.rebuild_test_image == 'true'
 
   test:
     runs-on: [ "self-hosted", "generic" ]
