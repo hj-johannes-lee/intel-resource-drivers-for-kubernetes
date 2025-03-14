@@ -15,7 +15,7 @@ jobs:
     runs-on: [ "self-hosted", "generic" ]
     steps:
     - uses: actions/checkout@v4
-    - rebuild need assessment:
+    - name: rebuild need assessment
       id: rebuild_test_image
       run: |
         if $(git diff innersource/main --stat -b -w deployments/ | grep fake_libhlml -q); then
