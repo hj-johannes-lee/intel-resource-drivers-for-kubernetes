@@ -49,6 +49,6 @@ jobs:
         echo "--- GO ENV:"
         go env
     - name: Update vendor
-      run: go mod vendor
+      run: id && ls -l /home/ubuntu/.cache/ && go mod vendor
     - name: Test
       run: make test

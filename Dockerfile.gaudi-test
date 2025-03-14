@@ -26,8 +26,12 @@ RUN \
 groupadd -g 1001 ubuntu && \
 useradd -m -g 1001 -u 1001 -s /bin/bash ubuntu && \
 mkdir /github && \
-chmod 777 /github && \
-ln -s /home/ubuntu /github/home
+chmod 777 /github
 
 USER ubuntu
+RUN ln -s /home/ubuntu /github/home && \
+mkdir -m 755 /home/ubuntu/.cache/ && \
+mkdir -m 755 /home/ubuntu/.cache/go-build && \
+mkdir -m 755 /home/ubuntu/.cache/go-mod
+
 WORKDIR /home/ubuntu
