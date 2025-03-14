@@ -28,8 +28,14 @@ jobs:
     container:
       image: ger-is-registry.caas.intel.com/dgpu-orchestration/test-image:latest
       options: --user 1001:1001
+      env:
+        http_proxy=http://proxy-dmz.intel.com:911
+        https_proxy=http://proxy-dmz.intel.com:912
+        no_proxy=10.0.0.0/8,intel.com,*.intel.com,.intel.com
     steps:
     - uses: actions/checkout@v4
+    - name: debug
+      run: pwd && ls -l && id && env
     - name: Update vendor
       run: go mod vendor
     - name: Test
