@@ -100,9 +100,9 @@ hlml_return_t hlml_device_get_handle_by_pci_bus_id(const char *pci_addr, hlml_de
 
     struct device_info_t *device_info;
 
-    if (!main_struct.initialized) {
+    if (!main_struct.initialized)
         return HLML_ERROR_UNINITIALIZED;
-    }
+
 
     if (!device || !pci_addr)
         return HLML_ERROR_INVALID_ARGUMENT;
@@ -123,9 +123,8 @@ hlml_return_t hlml_device_get_handle_by_index(unsigned int index, hlml_device_t 
 
     struct device_info_t *device_info;
 
-    if (!main_struct.initialized) {
+    if (!main_struct.initialized)
         return HLML_ERROR_UNINITIALIZED;
-    }
 
     if (!device || ((int)index >= main_struct.devices_num))
         return HLML_ERROR_INVALID_ARGUMENT;
@@ -154,19 +153,18 @@ hlml_return_t hlml_device_get_name(hlml_device_t device, char *name,
 hlml_return_t hlml_device_get_pci_info(hlml_device_t device, hlml_pci_info_t *pci) {
     printf("hlml_device_get_pci_info called\n");
 
-    if (!main_struct.initialized) {
+    if (!main_struct.initialized)
         return HLML_ERROR_UNINITIALIZED;
-    }
 
-	if (!device || !pci)
-		return HLML_ERROR_INVALID_ARGUMENT;
+    if (!device || !pci)
+        return HLML_ERROR_INVALID_ARGUMENT;
 
     struct device_info_t *device_info = (struct device_info_t *)device;
 
     strncpy(pci->bus_id, device_info->pci_addr, PCI_ADDR_LEN);
-	pci->bus_id[PCI_ADDR_LEN - 1] = '\0';
+    pci->bus_id[PCI_ADDR_LEN - 1] = '\0';
 
-	pci->pci_device_id = device_info->device_id | (device_info->vendor_id << 16);
+    pci->pci_device_id = device_info->device_id | (device_info->vendor_id << 16);
 
     return HLML_SUCCESS;
 };
@@ -351,12 +349,11 @@ hlml_return_t hlml_device_get_pcb_info(hlml_device_t device, hlml_pcb_info_t *pc
 hlml_return_t hlml_device_get_serial(hlml_device_t device, char *serial, unsigned int length) {
     printf("hlml_device_get_serial called\n");
 
-    if (SERIAL_MAX > (int)length) {
-		return HLML_ERROR_INSUFFICIENT_SIZE;
-	}
+    if (SERIAL_MAX > (int)length)
+        return HLML_ERROR_INSUFFICIENT_SIZE;
 
     struct device_info_t *device_info = (struct device_info_t *)device;
-	strncpy(serial, device_info->serial, length);
+    strncpy(serial, device_info->serial, length);
 
     return HLML_SUCCESS;
 };
