@@ -29,9 +29,9 @@ jobs:
       image: ger-is-registry.caas.intel.com/dgpu-orchestration/test-image:latest
       options: --user 1001:1001
       env:
-        http_proxy=http://proxy-dmz.intel.com:911
-        https_proxy=http://proxy-dmz.intel.com:912
-        no_proxy=10.0.0.0/8,intel.com,*.intel.com,.intel.com
+        http_proxy: http://proxy-dmz.intel.com:911
+        https_proxy: http://proxy-dmz.intel.com:912
+        no_proxy: 10.0.0.0/8,intel.com,*.intel.com,.intel.com
     steps:
     - uses: actions/checkout@v4
     - name: debug
