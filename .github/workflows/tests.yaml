@@ -33,30 +33,11 @@ jobs:
         http_proxy: http://proxy-dmz.intel.com:911
         https_proxy: http://proxy-dmz.intel.com:912
         no_proxy: 10.0.0.0/8,intel.com,*.intel.com,.intel.com
-        GOCACHE: /home/ubuntu/.cache/go-build
-        GOMODCACHE: /home/ubuntu/.cache/go-mod
     steps:
-    - name: test hostname
-      run: hostname && ls -al /home/ubuntu/
     - uses: actions/checkout@v4
-    - name: debug
-      run: |
-        echo "--- PWD:"
-        pwd
-        echo "--- LS:"
-        ls -l
-        echo "--- ID:"
-        id
-        echo "--- ENV:"
-        env
-        echo "--- GO ENV:"
-        go env
-        echo "--- HOSTNAME:"
-        hostname
-        echo "--- LS HOME:"
-        ls -al /home/ubuntu/
-
     - name: Update vendor
-      run: id && ls -l /home/ubuntu/.cache/ && go mod vendor
+      run: go mod vendor
     - name: Test
       run: make test
+    - name: Coverage
+      run: make excluded-coverage
