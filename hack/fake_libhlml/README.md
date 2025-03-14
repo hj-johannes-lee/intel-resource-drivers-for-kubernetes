@@ -20,7 +20,7 @@ sudo cp hack/fake_libhlml/fake_libhlml.so /usr/lib/habanalabs/libhlml.so
   with and without VSCode:
 ```
 cat << EOF | sudo tee /etc/ld.so.conf.d/habanalabs.conf
-/usr/include/habanalabs/
+/usr/lib/habanalabs/
 EOF
 
 sudo ldconfig
