@@ -27,6 +27,7 @@ jobs:
     needs: build-test-image
     container:
       image: ger-is-registry.caas.intel.com/dgpu-orchestration/test-image:latest
+      options: --user 1001:1001
     steps:
     - uses: actions/checkout@v4
     - name: Update vendor
