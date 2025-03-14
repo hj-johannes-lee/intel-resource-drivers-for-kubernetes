@@ -157,48 +157,67 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 		case <-ctx.Done():
 			return
 		case <-healthCheckInterval.C:
-			e, err := hlml.WaitForEvent(eventSet, 1000)
-			if err != nil {
-				klog.Errorf("HLML WaitForEvent failed: %v", err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
-
-			klog.V(5).Infof("HLML event received: %+v", e)
-
-			if e.Etype != hlml.HlmlCriticalError {
-				klog.V(5).Infof("Ignoring unexpected non-critical HLML error event: %+v", e)
-				continue
-			}
-
-			dev, err := hlml.DeviceHandleBySerial(e.Serial)
-			if err != nil {
-				klog.Error("critical: could not get device handle by serial. All devices will go unhealthy", "event", e.Etype)
-				// All devices are unhealthy
-				for _, d := range allocatable {
-					idsChan <- d.UID
-				}
-				continue
-			}
-
-			serial, err := dev.SerialNumber()
-			if err != nil || len(serial) == 0 {
-				klog.Error("critical: could not get serial. All devices will go unhealthy", "event", e.Etype)
-				// All devices are unhealthy
-				for _, d := range allocatable {
-					idsChan <- d.UID
-				}
-				continue
-			}
-
-			for deviceUID, d := range allocatable {
-				if d.Serial == serial {
-					klog.Error("critical: the device is unhealthy", "UID", deviceUID, "xid", e.Etype, "serial", d.Serial)
-					idsChan <- d.UID
+			if pushUIDs, uids := d.timedHLMLEventCheck(eventSet); pushUIDs {
+				for _, uid := range uids {
+					idsChan <- uid
 				}
 			}
 		}
 	}
+}
+
+func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
+	uids := []string{}
+	e, err := hlml.WaitForEvent(eventSet, 1000)
+	if err != nil {
+		klog.Errorf("HLML WaitForEvent failed: %v", err)
+		time.Sleep(2 * time.Second)
+		return false, uids
+	}
+
+	klog.V(5).Infof("HLML event received: %+v", e)
+
+	if e.Etype != hlml.HlmlCriticalError {
+		klog.V(5).Infof("Ignoring unexpected non-critical HLML error event: %+v", e)
+		return false, uids
+	}
+
+	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
+
+	dev, err := hlml.DeviceHandleBySerial(e.Serial)
+	if err != nil {
+		klog.Error("critical: could not get device handle by serial. All devices will go unhealthy", "event", e.Etype)
+		// All devices are unhealthy
+		for _, d := range allocatable {
+			uids = append(uids, d.UID)
+		}
+		return true, uids
+	}
+
+	serial, err := dev.SerialNumber()
+	if err != nil || len(serial) == 0 {
+		klog.Error("critical: could not get serial. All devices will go unhealthy", "event", e.Etype)
+		// All devices are unhealthy
+		for _, d := range allocatable {
+			uids = append(uids, d.UID)
+		}
+		return true, uids
+	}
+
+	for deviceUID, d := range allocatable {
+		if d.Serial == serial {
+			klog.Error("critical: the device is unhealthy", "UID", deviceUID, "xid", e.Etype, "serial", d.Serial)
+			uids = append(uids, d.UID)
+			return true, uids
+		}
+	}
+
+	for _, d := range allocatable {
+		klog.Error("critical: could not find serial in Allocatable. All devices will go unhealthy", "event", e.Etype)
+		uids = append(uids, d.UID)
+	}
+
+	return true, uids
 }
 
 func (d *driver) Shutdown(ctx context.Context) error {

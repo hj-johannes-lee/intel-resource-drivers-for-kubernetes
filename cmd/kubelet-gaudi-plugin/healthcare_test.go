@@ -76,7 +76,7 @@ func TestUpdateHealth(t *testing.T) {
 
 		fakehlml.AddDevices(testDevices)
 
-		driver, driverErr := getFakeDriver(testDirs, WITH_HEALTHCARE)
+		driver, driverErr := getFakeDriver(testDirs, WithHealthcare)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			fakehlml.Reset()
@@ -85,7 +85,9 @@ func TestUpdateHealth(t *testing.T) {
 
 		driver.updateHealth(context.TODO(), testcase.healthy, testcase.uid)
 		// Let health monitoring go routines know they can stop.
-		driver.Shutdown(context.TODO())
+		if err := driver.Shutdown(context.TODO()); err != nil {
+			t.Errorf("could not shutdown driver: %v\n", err)
+		}
 		fakehlml.Reset()
 	}
 }

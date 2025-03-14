@@ -37,8 +37,8 @@ import (
 )
 
 const (
-	NO_HEALTHCARE   = false
-	WITH_HEALTHCARE = true
+	NoHealthcare   = false
+	WithHealthcare = true
 )
 
 func TestFakeSysfs(t *testing.T) {
@@ -214,7 +214,7 @@ func TestNodePrepareResources(t *testing.T) {
 			continue
 		}
 
-		driver, driverErr := getFakeDriver(testDirs, NO_HEALTHCARE)
+		driver, driverErr := getFakeDriver(testDirs, NoHealthcare)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue
@@ -364,7 +364,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 			continue
 		}
 
-		driver, driverErr := getFakeDriver(testDirs, NO_HEALTHCARE)
+		driver, driverErr := getFakeDriver(testDirs, NoHealthcare)
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue
@@ -404,7 +404,7 @@ func TestShutdown(t *testing.T) {
 		t.Fatalf("could not create fake system dirs: %v", err)
 	}
 
-	driver, err := getFakeDriver(testDirs, NO_HEALTHCARE)
+	driver, err := getFakeDriver(testDirs, NoHealthcare)
 	if err != nil {
 		t.Fatalf("could not create driver: %v", err)
 	}
