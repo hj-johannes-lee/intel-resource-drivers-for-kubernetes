@@ -69,13 +69,13 @@ func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver,
 
 	config := &helpers.Config{
 		Flags: &helpers.Flags{
-			nodeName:                  "node1",
-			cdiRoot:                   testDirs.CdiRoot,
-			kubeletPluginDir:          testDirs.KubeletPluginDir,
-			kubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+			NodeName:                  "node1",
+			CdiRoot:                   testDirs.CdiRoot,
+			KubeletPluginDir:          testDirs.KubeletPluginDir,
+			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
+			Healthcare:                healthcare,
 		},
 		Coreclient: kubefake.NewSimpleClientset(),
-		Healthcare: healthcare,
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)

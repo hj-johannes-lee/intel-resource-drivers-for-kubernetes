@@ -70,7 +70,7 @@ func (d *driver) initHLML(ctx context.Context) error {
 		// hlml.Device.PCIID has both vendor and device ID, but device ID has no '0x' prefix.
 		pciId := fmt.Sprintf("%08x", pciIdHex)
 		klog.V(5).Infof("HLML: found device: serial %v, PCI bus %v, PCI ID %v\n", serial, pciAddress, pciId)
-		uid := helpers.DeviceUIDFromPCIinfo(pciAddress,, fmt.Sprintf("0x%v", pciId[4:]))
+		uid := helpers.DeviceUIDFromPCIinfo(pciAddress, fmt.Sprintf("0x%v", pciId[4:]))
 		gaudi, found := allocatable[uid]
 		if !found {
 			return fmt.Errorf("could not find device with UID %v", uid)
