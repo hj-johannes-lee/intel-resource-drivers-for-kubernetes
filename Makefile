@@ -27,7 +27,7 @@ GIT_COMMIT = $(shell git rev-parse HEAD)
 BUILD_DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_BRANCH ?= $(shell git branch --show-current)
 
-TEST_IMAGE = ger-is-registry.caas.intel.com/dgpu-orchestration/test-image:latest
+TEST_IMAGE ?= test-image:latest
 
 EXT_LDFLAGS = -static
 LDFLAGS = \
@@ -189,10 +189,12 @@ yamllint:
 	@echo -e "\nyamllint: lint non-templated YAML files:"
 	git ls-files '*.yaml' | xargs grep -L '^ *{{-' | xargs yamllint -d relaxed --no-warnings
 
-.PHONE: test-image
+.PHONE: test-image test-image-push
 test-image: vendor
 	@echo "Building container image with fake HLML for Gaudi tests..."
 	$(DOCKER) build --platform="linux/$(ARCH)" -t "$(TEST_IMAGE)" -f Dockerfile.gaudi-test .
+
+test-image-push: test-image
 	$(DOCKER) push "$(TEST_IMAGE)"
 
 .PHONY: test html-coverage

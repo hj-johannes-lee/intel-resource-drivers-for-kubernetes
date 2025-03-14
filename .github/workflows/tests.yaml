@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+env:
+  TEST_IMAGE: ger-is-registry.caas.intel.com/dgpu-orchestration/test-image:latest
+
 permissions:
   contents: read
   pull-requests: read
@@ -35,15 +38,15 @@ jobs:
         username: ${{ secrets.REGISTRY_USER }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
       if: steps.rebuild_test_image.outputs.rebuild_test_image == 'true'
-    - name: Build test image
-      run: make test-image
+    - name: Build and push test image
+      run: TEST_IMAGE=$TEST_IMAGE make test-image-push
       if: steps.rebuild_test_image.outputs.rebuild_test_image == 'true'
 
   test:
     runs-on: [ "self-hosted", "generic" ]
     needs: build-test-image
     container:
-      image: ger-is-registry.caas.intel.com/dgpu-orchestration/test-image:latest
+      image: $TEST_IMAGE
       options: --user 1001:1001 --pull always
       env:
         http_proxy: http://proxy-dmz.intel.com:911
