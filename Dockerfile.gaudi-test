@@ -26,6 +26,7 @@ RUN \
 groupadd -g 1001 ubuntu && \
 useradd -m -g 1001 -u 1001 -s /bin/bash ubuntu && \
 mkdir /github && \
+chmod 777 /github && \
 ln -s /home/ubuntu /github/home
 
 USER ubuntu
