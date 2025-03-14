@@ -20,12 +20,9 @@ jobs:
     - name: rebuild need assessment
       id: rebuild_test_image
       run: |
-        git log -1 --decorate
-        git show --stat
-        git branch
+        echo "Changed files:"
         git diff origin/main --stat -b -w
-        git diff origin/main --stat -b -w deployments/
-        if $(git diff origin/main --stat -b -w deployments/ | grep fake_libhlml -q); then
+        if $(git diff origin/main --stat -b -w hack/fake_libhlml | grep fake_libhlml -q); then
           echo "test image rebuild is needed"
           echo "rebuild_test_image=true" >> "$GITHUB_OUTPUT"
         else
