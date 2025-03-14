@@ -22,3 +22,8 @@ make clean && make
 FROM golang:1.23.4@sha256:ccdca3b3bde3bfee2518a087b467f2b452fad9ba3e378d3c1578db494c8cb13b
 
 COPY --from=build /build/hack/fake_libhlml/fake_libhlml.so /usr/lib/habanalabs/libhlml.so
+RUN \
+groupadd -g 1001 ubuntu && \
+useradd -m -g 1001 -u 1001 -D -s /bin/bash ubuntu
+
+WORKDIR /home/ubuntu
