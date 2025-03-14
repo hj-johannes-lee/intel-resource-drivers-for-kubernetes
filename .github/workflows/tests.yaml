@@ -32,6 +32,7 @@ jobs:
         http_proxy: http://proxy-dmz.intel.com:911
         https_proxy: http://proxy-dmz.intel.com:912
         no_proxy: 10.0.0.0/8,intel.com,*.intel.com,.intel.com
+        HOME: /home/ubuntu
     steps:
     - uses: actions/checkout@v4
     - name: debug
