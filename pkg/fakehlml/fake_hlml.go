@@ -27,6 +27,11 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 )
 
+type event_info_t struct {
+	event_type uint64
+	serial     string
+}
+
 func AddDevices(devicesInfo device.DevicesInfo) {
 	for _, deviceInfo := range devicesInfo {
 		C.add_device(
@@ -41,4 +46,16 @@ func AddDevices(devicesInfo device.DevicesInfo) {
 
 func Reset() {
 	C.reset()
+}
+
+func SetReturnCode(callId C.call_identity_t, returnCode C.hlml_return_t) {
+	C.set_error(callId, returnCode)
+}
+
+func SetCriticalEvents(serial string) {
+	C.add_critical_event(C.CString(serial))
+}
+
+func ResetRvents() {
+	C.reset_events()
 }
