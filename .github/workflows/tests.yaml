@@ -46,7 +46,7 @@ jobs:
     runs-on: [ "self-hosted", "generic" ]
     needs: build-test-image
     container:
-      image: $TEST_IMAGE
+      image: ${{ env.TEST_IMAGE }}
       options: --user 1001:1001 --pull always
       env:
         http_proxy: http://proxy-dmz.intel.com:911
