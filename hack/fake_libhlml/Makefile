@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O -Wall -fPIC
+CFLAGS = -O -Wall -Wextra -Wno-unused-parameter -fPIC
 LDFLAGS = -shared
 TARGET = fake_libhlml.so
 SRCS = $(wildcard *.c)
