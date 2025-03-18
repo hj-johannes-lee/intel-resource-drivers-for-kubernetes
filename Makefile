@@ -27,7 +27,7 @@ GIT_COMMIT = $(shell git rev-parse HEAD)
 BUILD_DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_BRANCH ?= $(shell git branch --show-current)
 
-TEST_IMAGE ?= test-image:latest
+TEST_IMAGE ?= gaudi-dra-driver-test-image:latest
 
 EXT_LDFLAGS = -static
 LDFLAGS = \
