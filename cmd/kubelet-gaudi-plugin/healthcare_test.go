@@ -90,7 +90,7 @@ func TestUpdateHealth(t *testing.T) {
 		if len(testcase.expectedUnhealthyUIDs) > 0 {
 			allocatable, ok := driver.state.Allocatable.(map[string]*device.DeviceInfo)
 			if !ok {
-				t.Errorf("could not cast allocatable")
+				t.Error("could not cast allocatable")
 			} else {
 				for _, uid := range testcase.expectedUnhealthyUIDs {
 					device, found := allocatable[uid]
@@ -102,7 +102,7 @@ func TestUpdateHealth(t *testing.T) {
 				}
 			}
 		}
-		t.Logf("shutting down test")
+		t.Log("shutting down test")
 		// Let health monitoring go routines know they can stop.
 		if err := driver.Shutdown(context.TODO()); err != nil {
 			t.Errorf("could not shutdown driver: %v\n", err)

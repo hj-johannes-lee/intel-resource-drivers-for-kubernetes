@@ -27,11 +27,6 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 )
 
-type event_info_t struct {
-	event_type uint64
-	serial     string
-}
-
 func AddDevices(devicesInfo device.DevicesInfo) {
 	for _, deviceInfo := range devicesInfo {
 		C.add_device(

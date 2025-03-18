@@ -224,7 +224,7 @@ func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 }
 
 func (d *driver) Shutdown(ctx context.Context) error {
-	klog.V(5).Infof("Shutting down driver")
+	klog.V(5).Info("Shutting down driver")
 
 	d.plugin.Stop()
 
