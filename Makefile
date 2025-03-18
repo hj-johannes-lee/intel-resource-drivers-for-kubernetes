@@ -161,7 +161,7 @@ licenses: clean-licenses
 # linting targets for Go and other code
 .PHONY: lint format cilint vet shellcheck yamllint
 
-lint: format cilint vet klogformat shellcheck yamllint
+lint: vendor format cilint vet klogformat shellcheck yamllint
 
 format:
 	gofmt -w -s -l ./
