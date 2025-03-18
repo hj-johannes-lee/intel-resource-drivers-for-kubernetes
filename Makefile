@@ -27,6 +27,8 @@ GIT_COMMIT = $(shell git rev-parse HEAD)
 BUILD_DATE = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_BRANCH ?= $(shell git branch --show-current)
 
+TEST_IMAGE ?= gaudi-dra-driver-test-image:latest
+
 EXT_LDFLAGS = -static
 LDFLAGS = \
  -s -w \
@@ -187,11 +189,20 @@ yamllint:
 	@echo -e "\nyamllint: lint non-templated YAML files:"
 	git ls-files '*.yaml' | xargs grep -L '^ *{{-' | xargs yamllint -d relaxed --no-warnings
 
+.PHONE: test-image test-image-push
+test-image: vendor
+	@echo "Building container image with fake HLML for Gaudi tests..."
+	$(DOCKER) build --platform="linux/$(ARCH)" -t "$(TEST_IMAGE)" -f Dockerfile.gaudi-test .
+
+test-image-push: test-image
+	$(DOCKER) push "$(TEST_IMAGE)"
 
 .PHONY: test html-coverage
 COVERAGE_FILE := coverage.out
+# Gaudi tests expect fake HLML library to be present at /usr/lib/habanalabs/libhlml.so
+# Dependency comes from gohlml package hardcoded LD_LIBRARY_PATH pointing to it.
 test:
-	LD_PRELOAD=/usr/lib/habanalabs/libhlml.so go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
+	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
 
 html-coverage: $(COVERAGE_FILE)
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html

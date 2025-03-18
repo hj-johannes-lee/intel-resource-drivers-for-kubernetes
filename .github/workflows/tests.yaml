@@ -11,13 +11,49 @@ permissions:
   pull-requests: read
 
 jobs:
+  build-gaudi-test-image:
+    runs-on: [ "self-hosted", "generic" ]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: rebuild need assessment
+      id: rebuild_test_image
+      run: |
+        echo "Changed files:"
+        git diff origin/main --stat -b -w
+        if $(git diff origin/main --stat -b -w hack/fake_libhlml | grep fake_libhlml -q); then
+          echo "test image rebuild is needed"
+          echo "rebuild_test_image=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "test image rebuild is not needed"
+          echo "rebuild_test_image=false" >> "$GITHUB_OUTPUT"
+        fi
+    - uses: docker/login-action@v2
+      with:
+        registry: ger-is-registry.caas.intel.com
+        username: ${{ secrets.REGISTRY_USER }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+      if: steps.rebuild_test_image.outputs.rebuild_test_image == 'true'
+    - name: Build and push test image
+      run: TEST_IMAGE=ger-is-registry.caas.intel.com/dgpu-orchestration/gaudi-dra-driver-test-image:latest make test-image-push
+      if: steps.rebuild_test_image.outputs.rebuild_test_image == 'true'
+
   test:
     runs-on: [ "self-hosted", "generic" ]
+    needs: build-gaudi-test-image
+    container:
+      image: ger-is-registry.caas.intel.com/dgpu-orchestration/gaudi-dra-driver-test-image:latest
+      options: --user 1001:1001 --pull always
+      env:
+        http_proxy: http://proxy-dmz.intel.com:911
+        https_proxy: http://proxy-dmz.intel.com:912
+        no_proxy: 10.0.0.0/8,intel.com,*.intel.com,.intel.com
     steps:
     - uses: actions/checkout@v4
     - name: Update vendor
       run: go mod vendor
-    - name: Build
-      run: make build
     - name: Test
       run: make test
+    - name: Coverage
+      run: make excluded-coverage

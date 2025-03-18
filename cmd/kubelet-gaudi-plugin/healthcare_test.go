@@ -1,0 +1,93 @@
+/*
+ * Copyright (c) 2024, Intel Corporation. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package main
+
+import (
+	"context"
+	"testing"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakehlml"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
+	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
+)
+
+func TestUpdateHealth(t *testing.T) {
+	tests := []struct {
+		name    string
+		healthy bool
+		uid     string
+	}{
+		{
+			name:    "Set device healthy",
+			healthy: true,
+			uid:     "0000-b3-00-0-0x1020",
+		},
+		{
+			name:    "Set device unhealthy",
+			healthy: false,
+			uid:     "0000-b3-00-0-0x1020",
+		},
+		{
+			name:    "Set missing device unhealthy",
+			healthy: false,
+			uid:     "0000-aa-11-1-0x1020",
+		},
+	}
+
+	for _, testcase := range tests {
+		t.Log(testcase.name)
+
+		testDirs, err := helpers.NewTestDirs(device.DriverName)
+		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
+		if err != nil {
+			t.Errorf("%v: setup error: %v", testcase.name, err)
+			return
+		}
+
+		testDevices := device.DevicesInfo{
+			"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020", Serial: "000001"},
+			"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020", Serial: "000002"},
+		}
+
+		if err := fakesysfs.FakeSysFsGaudiContents(
+			testDirs.SysfsRoot,
+			testDirs.DevfsRoot,
+			testDevices,
+			false,
+		); err != nil {
+			t.Errorf("setup error: could not create fake sysfs: %v", err)
+			return
+		}
+
+		fakehlml.AddDevices(testDevices)
+
+		driver, driverErr := getFakeDriver(testDirs, WithHealthcare)
+		if driverErr != nil {
+			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
+			fakehlml.Reset()
+			continue
+		}
+
+		driver.updateHealth(context.TODO(), testcase.healthy, testcase.uid)
+		// Let health monitoring go routines know they can stop.
+		if err := driver.Shutdown(context.TODO()); err != nil {
+			t.Errorf("could not shutdown driver: %v\n", err)
+		}
+		fakehlml.Reset()
+	}
+}
