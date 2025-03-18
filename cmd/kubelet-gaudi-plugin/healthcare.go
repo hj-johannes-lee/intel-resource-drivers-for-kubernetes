@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	healthCheckIntervalSeconds = int(10)
+	defaultHealthCheckIntervalSeconds = int(10)
 )
 
 // initHLML loops through devices HLML detecs to update serial number in allocatable.
@@ -89,11 +89,14 @@ func (d *driver) initHLML(ctx context.Context) error {
 // See https://github.com/kubernetes/kubernetes/issues/128979
 //
 // TODO: use KEP-5055: DRA: device taints and tolerations, when it is implemented.
-func (d *driver) startHealthMonitor(ctx context.Context) {
+func (d *driver) startHealthMonitor(ctx context.Context, intervalSeconds int) {
+	if intervalSeconds == 0 {
+		intervalSeconds = defaultHealthCheckIntervalSeconds
+	}
 	// Watch for device UIDs to mark unhealthy.
 	idsChan := make(chan string)
 	hlmlContext, stopHLMLMonitor := context.WithCancel(ctx)
-	go d.watchCriticalHLMLEvents(hlmlContext, healthCheckIntervalSeconds, idsChan)
+	go d.watchCriticalHLMLEvents(hlmlContext, intervalSeconds, idsChan)
 
 	for {
 		select {
@@ -206,7 +209,7 @@ func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 
 	for deviceUID, d := range allocatable {
 		if d.Serial == serial {
-			klog.Error("critical: the device is unhealthy", "UID", deviceUID, "xid", e.Etype, "serial", d.Serial)
+			klog.Error("critical: the device is unhealthy. ", "UID: ", deviceUID, " xid: ", e.Etype, " serial: ", d.Serial)
 			uids = append(uids, d.UID)
 			return true, uids
 		}
@@ -221,6 +224,8 @@ func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 }
 
 func (d *driver) Shutdown(ctx context.Context) error {
+	klog.V(5).Infof("Shutting down driver")
+
 	d.plugin.Stop()
 
 	// When health monitoring with HLML was initiated, d.hlmlShutdown will get

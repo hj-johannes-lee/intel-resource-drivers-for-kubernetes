@@ -85,6 +85,7 @@ void add_device(const char *pci_addr, const char *pci_device_id, const char *pci
 void reset() {
     main_struct.initialized = false;
     main_struct.devices_num = 0;
+    flow_control.events_num = 0;
 };
 
 void add_critical_event(const char *serial) {
@@ -470,7 +471,7 @@ hlml_return_t hlml_event_set_wait(hlml_event_set_t set,
         return HLML_SUCCESS;
     }
 
-    return HLML_ERROR_NOT_SUPPORTED;
+    return HLML_ERROR_TIMEOUT;
 };
 
 hlml_return_t hlml_device_get_mac_info(hlml_device_t device,
@@ -499,7 +500,9 @@ hlml_return_t hlml_device_get_serial(hlml_device_t device, char *serial, unsigne
         return HLML_ERROR_INSUFFICIENT_SIZE;
 
     struct device_info_t *device_info = (struct device_info_t *)device;
-    strncpy(serial, device_info->serial, length);
+    if (device_info) {
+        strncpy(serial, device_info->serial, length);
+    }
 
     return HLML_SUCCESS;
 };

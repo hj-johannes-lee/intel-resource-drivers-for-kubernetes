@@ -78,6 +78,10 @@ func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver,
 		Coreclient: kubefake.NewSimpleClientset(),
 	}
 
+	if healthcare {
+		config.Flags.HealthcareInterval = 1
+	}
+
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
 
 	helperDriver, err := newDriver(context.TODO(), config)

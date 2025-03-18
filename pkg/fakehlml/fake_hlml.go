@@ -52,7 +52,7 @@ func SetReturnCode(callId C.call_identity_t, returnCode C.hlml_return_t) {
 	C.set_error(callId, returnCode)
 }
 
-func SetCriticalEvents(serial string) {
+func AddCriticalEvent(serial string) {
 	C.add_critical_event(C.CString(serial))
 }
 

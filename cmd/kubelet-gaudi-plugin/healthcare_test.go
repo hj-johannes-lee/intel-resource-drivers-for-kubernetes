@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakehlml"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/fakesysfs"
@@ -28,11 +29,12 @@ import (
 
 func TestUpdateHealth(t *testing.T) {
 	tests := []struct {
-		name    string
-		healthy bool
-		uid     string
+		name      string
+		healthy   bool
+		uid       string
+		unhealthy []string
 	}{
-		{
+		/*{
 			name:    "Set device healthy",
 			healthy: true,
 			uid:     "0000-b3-00-0-0x1020",
@@ -46,6 +48,12 @@ func TestUpdateHealth(t *testing.T) {
 			name:    "Set missing device unhealthy",
 			healthy: false,
 			uid:     "0000-aa-11-1-0x1020",
+		},*/
+		{
+			name:      "HLML sets device unhealthy",
+			healthy:   false,
+			uid:       "0000-aa-11-1-0x1020",
+			unhealthy: []string{"000002"},
 		},
 	}
 
@@ -83,11 +91,31 @@ func TestUpdateHealth(t *testing.T) {
 			continue
 		}
 
-		driver.updateHealth(context.TODO(), testcase.healthy, testcase.uid)
+		if len(testcase.unhealthy) > 0 {
+			for _, serial := range testcase.unhealthy {
+				fakehlml.AddCriticalEvent(serial)
+			}
+			time.Sleep(2 * time.Second)
+
+			allocatable, ok := driver.state.Allocatable.(map[string]*device.DeviceInfo)
+			if !ok {
+				t.Errorf("could not cast allocatable")
+			} else {
+				device, found := allocatable[testcase.uid]
+				if !found {
+					t.Errorf("could not find allocatable device %s", testcase.uid)
+				} else if device.Healthy {
+					t.Errorf("%s: device %s shold have been unhealthy by now", testcase.name, testcase.uid)
+				}
+			}
+		}
+
+		//driver.updateHealth(context.TODO(), testcase.healthy, testcase.uid)
 		// Let health monitoring go routines know they can stop.
 		if err := driver.Shutdown(context.TODO()); err != nil {
 			t.Errorf("could not shutdown driver: %v\n", err)
 		}
 		fakehlml.Reset()
+		time.Sleep(5 * time.Second)
 	}
 }

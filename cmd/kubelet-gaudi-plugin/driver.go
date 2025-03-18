@@ -107,7 +107,7 @@ KubeletPluginSocketPath: %v`,
 	if config.Flags.Healthcare {
 		// startHealthMonitor listens for unhealthy UIDs, has to run in a routine.
 		hlmlListenerContext, hlmlListenerCancel := context.WithCancel(ctx)
-		go driver.startHealthMonitor(hlmlListenerContext)
+		go driver.startHealthMonitor(hlmlListenerContext, config.Flags.HealthcareInterval)
 		driver.hlmlShutdown = hlmlListenerCancel
 	}
 
