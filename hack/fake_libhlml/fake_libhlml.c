@@ -495,6 +495,10 @@ hlml_return_t hlml_device_get_pcb_info(hlml_device_t device, hlml_pcb_info_t *pc
 
 hlml_return_t hlml_device_get_serial(hlml_device_t device, char *serial, unsigned int length) {
     log_call(__func__);
+    if (!device) {
+        serial[0] = '\0';
+        return HLML_SUCCESS;
+    }
 
     if (SERIAL_MAX > (int)length)
         return HLML_ERROR_INSUFFICIENT_SIZE;

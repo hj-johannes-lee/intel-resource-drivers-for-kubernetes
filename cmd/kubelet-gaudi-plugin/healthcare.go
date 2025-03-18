@@ -215,8 +215,8 @@ func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 		}
 	}
 
+	klog.Error("critical: could not find serial in Allocatable. All devices will go unhealthy", "event", e.Etype)
 	for _, d := range allocatable {
-		klog.Error("critical: could not find serial in Allocatable. All devices will go unhealthy", "event", e.Etype)
 		uids = append(uids, d.UID)
 	}
 

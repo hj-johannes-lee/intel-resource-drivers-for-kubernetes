@@ -29,36 +29,23 @@ import (
 
 func TestUpdateHealth(t *testing.T) {
 	tests := []struct {
-		name      string
-		healthy   bool
-		uid       string
-		unhealthy []string
+		name                  string
+		healthy               bool
+		uid                   string
+		fakeEvents            []string // serial numbers
+		expectedUnhealthyUIDs []string // UIDs
 	}{
-		/*{
-			name:    "Set device healthy",
-			healthy: true,
-			uid:     "0000-b3-00-0-0x1020",
-		},
 		{
-			name:    "Set device unhealthy",
-			healthy: false,
-			uid:     "0000-b3-00-0-0x1020",
-		},
-		{
-			name:    "Set missing device unhealthy",
-			healthy: false,
-			uid:     "0000-aa-11-1-0x1020",
-		},*/
-		{
-			name:      "HLML sets device unhealthy",
-			healthy:   false,
-			uid:       "0000-aa-11-1-0x1020",
-			unhealthy: []string{"000002"},
+			name:                  "HLML sets device unhealthy",
+			healthy:               false,
+			uid:                   "0000-af-00-0-0x1020",
+			fakeEvents:            []string{"000002"},
+			expectedUnhealthyUIDs: []string{"0000-af-00-0-0x1020"},
 		},
 	}
 
 	for _, testcase := range tests {
-		t.Log(testcase.name)
+		t.Logf("\nTEST: %s\n", testcase.name)
 
 		testDirs, err := helpers.NewTestDirs(device.DriverName)
 		defer helpers.CleanupTest(t, testcase.name, testDirs.TestRoot)
@@ -91,31 +78,36 @@ func TestUpdateHealth(t *testing.T) {
 			continue
 		}
 
-		if len(testcase.unhealthy) > 0 {
-			for _, serial := range testcase.unhealthy {
+		if len(testcase.fakeEvents) > 0 {
+			for _, serial := range testcase.fakeEvents {
 				fakehlml.AddCriticalEvent(serial)
 			}
-			time.Sleep(2 * time.Second)
+			// 2 seconds per event
+			totalDelay := 2 * len(testcase.fakeEvents)
+			time.Sleep(time.Duration(totalDelay) * time.Second)
+		}
 
+		if len(testcase.expectedUnhealthyUIDs) > 0 {
 			allocatable, ok := driver.state.Allocatable.(map[string]*device.DeviceInfo)
 			if !ok {
 				t.Errorf("could not cast allocatable")
 			} else {
-				device, found := allocatable[testcase.uid]
-				if !found {
-					t.Errorf("could not find allocatable device %s", testcase.uid)
-				} else if device.Healthy {
-					t.Errorf("%s: device %s shold have been unhealthy by now", testcase.name, testcase.uid)
+				for _, uid := range testcase.expectedUnhealthyUIDs {
+					device, found := allocatable[uid]
+					if !found {
+						t.Errorf("could not find allocatable device %s", uid)
+					} else if device.Healthy {
+						t.Errorf("%s: device %s should have been unhealthy by now", testcase.name, uid)
+					}
 				}
 			}
 		}
-
-		//driver.updateHealth(context.TODO(), testcase.healthy, testcase.uid)
+		t.Logf("shutting down test")
 		// Let health monitoring go routines know they can stop.
 		if err := driver.Shutdown(context.TODO()); err != nil {
 			t.Errorf("could not shutdown driver: %v\n", err)
 		}
 		fakehlml.Reset()
-		time.Sleep(5 * time.Second)
+		time.Sleep(2 * time.Second)
 	}
 }
