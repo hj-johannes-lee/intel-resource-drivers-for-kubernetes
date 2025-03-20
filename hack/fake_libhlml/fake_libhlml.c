@@ -11,17 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
-type hlmlInterface interface {
-    InitWithLogs()
-    NewEventSet()
-    DeleteEventSet(eventSet)
-    RegisterEventForDevice(eventSet, hlml.HlmlCriticalError, d.Serial)
-    WaitForEvent(eventSet, 1000)
-    Shutdown()
-}
-*/
-
 struct device_info_t {
        char pci_addr[PCI_ADDR_LEN];
        unsigned int device_id;
@@ -33,18 +22,18 @@ struct device_info_t {
 struct main_struct_t {
     bool initialized;
     int devices_num;
-    struct device_info_t devices_info[MAX_DEVICES];
+    struct device_info_t devices_info[DEVICES_MAX];
 } main_struct;
 
 struct flow_control_t {
     // this is used by tests to dictate which response should be faked.
     // There are as many items as there are supported calls.
     // Each supported call is assigned a return value it should respond with.
-    hlml_return_t flow_control[SUPPORTED_FAKE_CALLS_NUM];
+    hlml_return_t flow_control[FAKE_CALLS_MAX];
 
     // this is used by tests to dictate which events should be faked.
     // events[event][serial char]
-    char events [MAX_FAKE_EVENTS][SERIAL_MAX];
+    char events [FAKE_EVENTS_MAX][SERIAL_MAX];
     int events_num;
 } flow_control;
 
@@ -53,7 +42,7 @@ struct hlml_device_events {
 };
 
 struct hlml_event_set {
-	struct hlml_device_events dev_events[MAX_DEVICES];
+	struct hlml_device_events dev_events[DEVICES_MAX];
 };
 
 
@@ -85,11 +74,16 @@ void add_device(const char *pci_addr, const char *pci_device_id, const char *pci
 void reset() {
     main_struct.initialized = false;
     main_struct.devices_num = 0;
+    // reset active events in flow control
     flow_control.events_num = 0;
+    // reset flow control map
+    for (int call_id = 0; call_id < FAKE_CALLS_MAX; call_id++) {
+        flow_control.flow_control[call_id] = false;
+    }
 };
 
 void add_critical_event(const char *serial) {
-    if (flow_control.events_num == MAX_FAKE_EVENTS) {
+    if (flow_control.events_num == FAKE_EVENTS_MAX) {
         printf("ERROR: maximum number of fake evets reached");
         return;
     }
@@ -107,15 +101,27 @@ void reset_events() {
     flow_control.events_num = 0;
 }
 
+void set_error(call_identity_t call_id, hlml_return_t errCode) {
+    flow_control.flow_control[call_id] = errCode;
+}
+
 /* supported APIs */
 hlml_return_t hlml_init(void) {
     log_call(__func__);
+
+    if (flow_control.flow_control[FAKE_INIT] != HLML_SUCCESS) {
+        return flow_control.flow_control[FAKE_INIT];
+    }
 
     return hlml_init_with_flags(0);
 };
 
 hlml_return_t hlml_init_with_flags(unsigned int flags) {
     log_call(__func__);
+
+    if (flow_control.flow_control[FAKE_INIT_WITH_FLAGS] != HLML_SUCCESS) {
+        return flow_control.flow_control[FAKE_INIT_WITH_FLAGS];
+    }
 
     main_struct.initialized = true;
 
@@ -125,6 +131,10 @@ hlml_return_t hlml_init_with_flags(unsigned int flags) {
 hlml_return_t hlml_shutdown(void) {
     log_call(__func__);
 
+    if (flow_control.flow_control[FAKE_SHUTDOWN] != HLML_SUCCESS) {
+        return flow_control.flow_control[FAKE_SHUTDOWN];
+    }
+
     main_struct.initialized = false;
 
     return HLML_SUCCESS;
@@ -132,6 +142,10 @@ hlml_return_t hlml_shutdown(void) {
 
 hlml_return_t hlml_device_get_count(unsigned int *device_count) {
     log_call(__func__);
+
+    if (flow_control.flow_control[FAKE_DEVICE_GET_COUNT] != HLML_SUCCESS) {
+        return flow_control.flow_control[FAKE_DEVICE_GET_COUNT];
+    }
 
     if (!device_count)
         return HLML_ERROR_INVALID_ARGUMENT;
@@ -143,6 +157,10 @@ hlml_return_t hlml_device_get_count(unsigned int *device_count) {
 
 hlml_return_t hlml_device_get_handle_by_pci_bus_id(const char *pci_addr, hlml_device_t *device) {
     log_call(__func__);
+
+    if (flow_control.flow_control[FAKE_DEVICE_GET_HANDLE_BY_PCI_BUS_ID] != HLML_SUCCESS) {
+        return flow_control.flow_control[FAKE_DEVICE_GET_HANDLE_BY_PCI_BUS_ID];
+    }
 
     struct device_info_t *device_info;
 
@@ -166,6 +184,10 @@ hlml_return_t hlml_device_get_handle_by_pci_bus_id(const char *pci_addr, hlml_de
 
 hlml_return_t hlml_device_get_handle_by_index(unsigned int index, hlml_device_t *device) {
     log_call(__func__);
+
+    if (flow_control.flow_control[FAKE_DEVICE_GET_HANDLE_BY_INDEX] != HLML_SUCCESS) {
+        return flow_control.flow_control[FAKE_DEVICE_GET_HANDLE_BY_INDEX];
+    }
 
     struct device_info_t *device_info;
 
@@ -198,6 +220,10 @@ hlml_return_t hlml_device_get_name(hlml_device_t device, char *name,
 
 hlml_return_t hlml_device_get_pci_info(hlml_device_t device, hlml_pci_info_t *pci) {
     log_call(__func__);
+
+    if (flow_control.flow_control[FAKE_DEVICE_GET_PCI_INFO] != HLML_SUCCESS) {
+        return flow_control.flow_control[FAKE_DEVICE_GET_PCI_INFO];
+    }
 
     if (!main_struct.initialized)
         return HLML_ERROR_UNINITIALIZED;
@@ -360,7 +386,7 @@ hlml_return_t hlml_device_register_events(hlml_device_t device,
     }
 
     int i;
-	for (i = 0; i < MAX_DEVICES; i++) {
+	for (i = 0; i < DEVICES_MAX; i++) {
 		dev_events = &event_set->dev_events[i];
 		if (!dev_events->device_info) {
 			memset(dev_events, 0, sizeof(*dev_events));
@@ -370,7 +396,7 @@ hlml_return_t hlml_device_register_events(hlml_device_t device,
 		else if (dev_events->device_info == device_info)
 			break;
 	}
-	if (i == MAX_DEVICES)
+	if (i == DEVICES_MAX)
 		return HLML_ERROR_INVALID_ARGUMENT;
 
     return HLML_SUCCESS;
@@ -449,7 +475,7 @@ hlml_return_t hlml_event_set_wait(hlml_event_set_t set,
 
     event_data.event_type = 0;
 
-    for (int i = 0; i < MAX_DEVICES; i++) {
+    for (int i = 0; i < DEVICES_MAX; i++) {
         // check each registered eventset, if any of them has event pending
         dev_events = &event_set->dev_events[i];
         if (!dev_events->device_info) /* no more devices registered */
@@ -495,6 +521,13 @@ hlml_return_t hlml_device_get_pcb_info(hlml_device_t device, hlml_pcb_info_t *pc
 
 hlml_return_t hlml_device_get_serial(hlml_device_t device, char *serial, unsigned int length) {
     log_call(__func__);
+
+    if (flow_control.flow_control[FAKE_DEVICE_GET_SERIAL] != HLML_SUCCESS) {
+        // just in case, set the serial to empty string
+        serial[0] = '\0';
+        return flow_control.flow_control[FAKE_DEVICE_GET_SERIAL];
+    }
+
     if (!device) {
         serial[0] = '\0';
         return HLML_SUCCESS;

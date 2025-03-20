@@ -27,6 +27,41 @@ import (
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 )
 
+// KEEP THIS IDENTICAL TO fake_hlml.h call_identity_t
+const (
+	FAKE_INIT uint32 = iota
+	FAKE_INIT_WITH_FLAGS
+	FAKE_SHUTDOWN
+	FAKE_DEVICE_GET_COUNT
+	FAKE_DEVICE_GET_HANDLE_BY_PCI_BUS_ID
+	FAKE_DEVICE_GET_HANDLE_BY_INDEX
+	FAKE_DEVICE_GET_HANDLE_BY_UUID
+	FAKE_DEVICE_GET_NAME
+	FAKE_DEVICE_GET_PCI_INFO
+	FAKE_DEVICE_GET_SERIAL
+	FAKE_DEVICE_REGISTER_EVENTS
+	FAKE_EVENT_SET_CREATE
+	FAKE_EVENT_SET_FREE
+	FAKE_EVENT_SET_WAIT
+)
+
+// KEEP THIS IDENTICAL TO hlml.h hlml_return_t
+const (
+	HLML_SUCCESS                   = 0
+	HLML_ERROR_UNINITIALIZED       = 1
+	HLML_ERROR_INVALID_ARGUMENT    = 2
+	HLML_ERROR_NOT_SUPPORTED       = 3
+	HLML_ERROR_ALREADY_INITIALIZED = 5
+	HLML_ERROR_NOT_FOUND           = 6
+	HLML_ERROR_INSUFFICIENT_SIZE   = 7
+	HLML_ERROR_DRIVER_NOT_LOADED   = 9
+	HLML_ERROR_TIMEOUT             = 10
+	HLML_ERROR_AIP_IS_LOST         = 15
+	HLML_ERROR_MEMORY              = 20
+	HLML_ERROR_NO_DATA             = 21
+	HLML_ERROR_UNKNOWN             = 49
+)
+
 func AddDevices(devicesInfo device.DevicesInfo) {
 	for _, deviceInfo := range devicesInfo {
 		C.add_device(
@@ -43,8 +78,8 @@ func Reset() {
 	C.reset()
 }
 
-func SetReturnCode(callId C.call_identity_t, returnCode C.hlml_return_t) {
-	C.set_error(callId, returnCode)
+func SetReturnCode(callId uint32, returnCode uint32) {
+	C.set_error(C.call_identity_t(callId), C.hlml_return_t(returnCode))
 }
 
 func AddCriticalEvent(serial string) {

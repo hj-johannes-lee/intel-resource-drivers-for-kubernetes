@@ -27,21 +27,37 @@ import (
 	helpers "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/plugintesthelpers"
 )
 
+// event-based tests, assuming the init succeeds
 func TestUpdateHealth(t *testing.T) {
 	tests := []struct {
 		name                  string
-		healthy               bool
-		uid                   string
 		fakeEvents            []string // serial numbers
 		expectedUnhealthyUIDs []string // UIDs
 	}{
 		{
-			name:                  "HLML sets device unhealthy",
-			healthy:               false,
-			uid:                   "0000-af-00-0-0x1020",
+			name:                  "HLML successfully sets single device unhealthy",
 			fakeEvents:            []string{"000002"},
 			expectedUnhealthyUIDs: []string{"0000-af-00-0-0x1020"},
 		},
+		/*		{
+					name: "HLML init fails before ResourceSlice is published",
+					flowControl: map[int]int{
+						fakehlml.FAKE_INIT_WITH_FLAGS: fakehlml.HLML_ERROR_UNKNOWN,
+					},
+				},
+				{
+					name: "initHLML fails on DeviceCount",
+					flowControl: map[int]int{
+						fakehlml.FAKE_DEVICE_GET_COUNT: fakehlml.HLML_ERROR_UNKNOWN,
+					},
+				},
+				{
+					name:                  "HLML events subscription fails and all devices go unhealthy",
+					expectedUnhealthyUIDs: []string{"0000-af-00-0-0x1020", "0000-b3-00-0-0x1020"},
+					flowControl: map[int]int{
+						fakehlml.FAKE_INIT: fakehlml.HLML_ERROR_UNKNOWN,
+					},
+				},*/
 	}
 
 	for _, testcase := range tests {
@@ -73,7 +89,7 @@ func TestUpdateHealth(t *testing.T) {
 
 		driver, driverErr := getFakeDriver(testDirs, WithHealthcare)
 		if driverErr != nil {
-			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
+			t.Errorf("%s: could not create kubelet-plugin: %v\n", testcase.name, driverErr)
 			fakehlml.Reset()
 			continue
 		}
@@ -83,8 +99,8 @@ func TestUpdateHealth(t *testing.T) {
 				fakehlml.AddCriticalEvent(serial)
 			}
 			// 2 seconds per event
-			totalDelay := 2 * len(testcase.fakeEvents)
-			time.Sleep(time.Duration(totalDelay) * time.Second)
+			totalDelay := time.Duration(2*len(testcase.fakeEvents)) * time.Second
+			time.Sleep(totalDelay)
 		}
 
 		if len(testcase.expectedUnhealthyUIDs) > 0 {
@@ -95,9 +111,9 @@ func TestUpdateHealth(t *testing.T) {
 				for _, uid := range testcase.expectedUnhealthyUIDs {
 					device, found := allocatable[uid]
 					if !found {
-						t.Errorf("could not find allocatable device %s", uid)
+						t.Errorf("unexpected result: could not find allocatable device %s", uid)
 					} else if device.Healthy {
-						t.Errorf("%s: device %s should have been unhealthy by now", testcase.name, uid)
+						t.Errorf("unexpected result: %s: device %s should have been unhealthy by now", testcase.name, uid)
 					}
 				}
 			}
@@ -109,5 +125,138 @@ func TestUpdateHealth(t *testing.T) {
 		}
 		fakehlml.Reset()
 		time.Sleep(2 * time.Second)
+	}
+}
+
+/*
+func init_should_pass(signals map[int]int) bool {
+	if len(signals) {
+		steps := []int{
+			fakehlml.FAKE_INIT,
+			fakehlml.FAKE_DEVICE_GET_HANDLE_BY_INDEX,
+			fakehlml.FAKE_DEVICE_GET_SERIAL,
+			fakehlml.FAKE_DEVICE_GET_PCI_INFO,
+
+		}
+		for _, step := range steps {
+			if _, found := signals[]; found {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+*/
+
+// initHlml has 6 calls to HLML
+func TestInitHLMLErrors(t *testing.T) {
+	tests := []struct {
+		name              string
+		expectedErr       string
+		flowControl       map[uint32]uint32
+		unexpectedDevices device.DevicesInfo
+	}{
+
+		{
+			name: "hlml.InitWithLogs fails",
+			flowControl: map[uint32]uint32{
+				fakehlml.FAKE_INIT_WITH_FLAGS: fakehlml.HLML_ERROR_UNKNOWN,
+			},
+			expectedErr: "failed to initialize HLML: unknown error",
+		},
+		{
+			name: "hlml.DeviceCount fails",
+			flowControl: map[uint32]uint32{
+				fakehlml.FAKE_DEVICE_GET_COUNT: fakehlml.HLML_ERROR_UNKNOWN,
+			},
+			expectedErr: "failed to get device count: unknown error",
+		},
+		{
+			name: "hlml.DeviceHandleByIndex fails",
+			flowControl: map[uint32]uint32{
+				fakehlml.FAKE_DEVICE_GET_HANDLE_BY_INDEX: fakehlml.HLML_ERROR_UNKNOWN,
+			},
+			expectedErr: "failed to get device at index 0: unknown error",
+		},
+		{
+			name: "hlmlDevice.SerialNumber fails",
+			flowControl: map[uint32]uint32{
+				fakehlml.FAKE_DEVICE_GET_SERIAL: fakehlml.HLML_ERROR_UNKNOWN,
+			},
+			expectedErr: "failed to get serial number of device at index 0: unknown error",
+		},
+		{
+			name: "hlmlDevice.PCIBusID fails",
+			flowControl: map[uint32]uint32{
+				fakehlml.FAKE_DEVICE_GET_PCI_INFO: fakehlml.HLML_ERROR_UNKNOWN,
+			},
+			expectedErr: "failed to get PCI bus ID of device at index 0: unknown error",
+		},
+		{
+			name:        "hlmlDevice.PCIBusID fails",
+			flowControl: map[uint32]uint32{},
+			expectedErr: "could not find device with UID 0000-d5-00-0-0x1020",
+			unexpectedDevices: device.DevicesInfo{
+				"0000-d5-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:d5:00.0", DeviceIdx: 2, UID: "0000-d5-00-0-0x1020", Serial: "000003"},
+			},
+		},
+	}
+	/*
+		One test setup for all cases.
+	*/
+	testDirs, err := helpers.NewTestDirs(device.DriverName)
+	defer helpers.CleanupTest(t, "TestInitHLMLErrors", testDirs.TestRoot)
+	if err != nil {
+		t.Errorf("%v: setup error: %v", "TestInitHLMLErrors", err)
+		return
+	}
+
+	testDevices := device.DevicesInfo{
+		"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020", Serial: "000001"},
+		"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020", Serial: "000002"},
+	}
+
+	if err := fakesysfs.FakeSysFsGaudiContents(
+		testDirs.SysfsRoot,
+		testDirs.DevfsRoot,
+		testDevices,
+		false,
+	); err != nil {
+		t.Errorf("setup error: could not create fake sysfs: %v", err)
+		return
+	}
+
+	// start driver without health monitoring so we can break it at any point
+	driver, driverErr := getFakeDriver(testDirs, NoHealthcare)
+	if driverErr != nil {
+		t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
+		return
+	}
+
+	// loop through cases
+	for _, testcase := range tests {
+		t.Logf("\nTEST: %s\n", testcase.name)
+
+		fakehlml.AddDevices(testDevices)
+		if len(testcase.unexpectedDevices) > 0 {
+			fakehlml.AddDevices(testcase.unexpectedDevices)
+		}
+
+		for call, ret := range testcase.flowControl {
+			fakehlml.SetReturnCode(call, ret)
+		}
+
+		if err := driver.initHLML(context.TODO()); err == nil || err.Error() != testcase.expectedErr {
+			t.Errorf("Unexpected return: %s, expected: %s", err, testcase.expectedErr)
+		}
+
+		fakehlml.Reset()
+	}
+
+	t.Log("shutting down test")
+	// Let health monitoring go routines know they can stop.
+	if err := driver.Shutdown(context.TODO()); err != nil {
+		t.Errorf("could not shutdown driver: %v\n", err)
 	}
 }

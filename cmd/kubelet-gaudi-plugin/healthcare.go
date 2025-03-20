@@ -48,24 +48,24 @@ func (d *driver) initHLML(ctx context.Context) error {
 	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
 
 	for i := uint(0); i < count; i++ {
-		hlmlDevice, ret := hlml.DeviceHandleByIndex(i)
-		if ret != nil {
-			return fmt.Errorf("failed to get device at index %d: %v", i, ret)
+		hlmlDevice, err := hlml.DeviceHandleByIndex(i)
+		if err != nil {
+			return fmt.Errorf("failed to get device at index %d: %v", i, err)
 		}
 
 		serial, err := hlmlDevice.SerialNumber()
 		if err != nil {
-			return fmt.Errorf("failed to get serial number of device at index %d: %v", i, ret)
+			return fmt.Errorf("failed to get serial number of device at index %d: %v", i, err)
 		}
 
-		pciAddress, ret := hlmlDevice.PCIBusID()
-		if ret != nil {
-			return fmt.Errorf("failed to get PCI bus ID of device at index %d: %v", i, ret)
+		pciAddress, err := hlmlDevice.PCIBusID()
+		if err != nil {
+			return fmt.Errorf("failed to get PCI bus ID of device at index %d: %v", i, err)
 		}
 
-		pciIdHex, ret := hlmlDevice.PCIID()
-		if ret != nil {
-			return fmt.Errorf("failed to get PCI ID of device at index %d: %v", i, ret)
+		pciIdHex, err := hlmlDevice.PCIID()
+		if err != nil {
+			return fmt.Errorf("failed to get PCI ID of device at index %d: %v", i, err)
 		}
 		// hlml.Device.PCIID has both vendor and device ID, but device ID has no '0x' prefix.
 		pciId := fmt.Sprintf("%08x", pciIdHex)
@@ -236,9 +236,9 @@ func (d *driver) Shutdown(ctx context.Context) error {
 
 		time.Sleep(1 * time.Second)
 
-		ret := hlml.Shutdown()
-		if ret != nil {
-			klog.Errorf("failed to shutdown HLML: %v", ret)
+		err := hlml.Shutdown()
+		if err != nil {
+			klog.Errorf("failed to shutdown HLML: %v", err)
 		}
 	}
 

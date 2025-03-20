@@ -13,11 +13,11 @@ extern "C" {
 
 #include "../../vendor/github.com/HabanaAI/gohlml/hlml.h"
 
-#define MAX_DEVICES              8
-#define MAX_FAKE_EVENTS          8
+#define DEVICES_MAX              8
+#define FAKE_EVENTS_MAX          8
 #define NAME_MAX                 64
 #define SERIAL_MAX               64
-#define SUPPORTED_FAKE_CALLS_NUM 14
+#define FAKE_CALLS_MAX           14
 
 /* Enum for returned values of the different APIs */
 typedef enum call_identity {
