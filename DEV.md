@@ -93,7 +93,7 @@ $ sudo ldconfig
 
 ## Running tests in container
 
-To have your own user ID inside containe rimage without access / permission issues, build a fresh
+To have your own user ID inside container image without access / permission issues, build a fresh
 container image, then run tests. The CI uses its own user ID.
 
 ```shell
