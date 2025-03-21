@@ -63,17 +63,17 @@ echo $PATH | grep -q $HOME/go/bin || export PATH=$HOME/go/bin:$PATH
 ```
 # Running tests
 
-Since Q2 '25 Gaudi DRA driver uses gohlml to retrieve health-related information.
-There is a hardcoded path to the HLML shared library, and hack/fake_libhlml was created based
-on the hlml.h from gohlml project - it is effectively a stub / mock with flow control support.
+Since Q2 '25 Gaudi DRA driver uses `gohlml` to retrieve health-related information.
+There is a hardcoded path to the HLML shared library, and `hack/fake_libhlml` was created based
+on the `hlml.h` from `gohlml` project - it is effectively a stub / mock with flow control support.
 
-When health-related tests call gohlml - it should in turn call fake libhlml instead of the real
-one on the nodes where there is no real Gaudi HW and SW installed (e.g. CI). This means, if the
-tests are run on your development machine - you should either deploy fresh fake libhlml.so, or
-run tests in a test-image container like CI does.
+When health-related tests call `gohlml` - it should in turn call fake `libhlml`, instead of the real
+one, on the nodes where there is no real Gaudi HW and SW installed (e.g. CI). This means, if the
+tests are run on your development machine - you should either deploy fresh fake `libhlml.so`, or
+run tests in a `gaudi-dra-driver-test-image` container like CI does.
 
-Deploying fake hlml to where real libhlml should be allows running tests in VSCode and other IDEs,
-given that ldconfig was [configured properly](hack/fake_libhlml/README.md)
+Deploying fake hlml instead of real `libhlml` should allow running tests in VSCode and other IDEs,
+after `ldconfig` is [configured properly](hack/fake_libhlml/README.md)
 
 ## Deploying 
 ```shell
