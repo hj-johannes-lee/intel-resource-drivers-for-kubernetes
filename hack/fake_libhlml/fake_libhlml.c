@@ -482,7 +482,7 @@ hlml_return_t hlml_event_set_wait(hlml_event_set_t set,
             break;
 
         // if there are events, and the last event is for the current device
-        if (flow_control.events_num != 0 &&
+        if (flow_control.events_num > 0 &&
             strcmp(flow_control.events[flow_control.events_num-1], dev_events->device_info->serial) == 0) {
             printf("fake HLML: event for device %s found", dev_events->device_info->serial);
             // set found
