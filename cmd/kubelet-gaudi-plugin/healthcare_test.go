@@ -349,7 +349,7 @@ func TestTimedHLMLEventCheckErrors(t *testing.T) {
 		t.Logf("\nTEST: %s\n", testcase.name)
 
 		// Initialize needed because driver is not calling it, and driver not created for every testcase.
-		hlml.Initialize()
+		_ = hlml.Initialize()
 		fakehlml.AddDevices(testDevices)
 		if len(testcase.unexpectedDevices) > 0 {
 			fakehlml.AddDevices(testcase.unexpectedDevices)
