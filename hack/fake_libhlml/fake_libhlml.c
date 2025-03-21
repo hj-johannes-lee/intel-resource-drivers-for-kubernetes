@@ -461,8 +461,8 @@ hlml_return_t hlml_event_set_wait(hlml_event_set_t set,
 
     log_call(__func__);
 
-    if (flow_control.flow_control[FAKE_EVENT_SET_FREE] != HLML_SUCCESS) {
-        return flow_control.flow_control[FAKE_EVENT_SET_FREE];
+    if (flow_control.flow_control[FAKE_EVENT_SET_WAIT] != HLML_SUCCESS) {
+        return flow_control.flow_control[FAKE_EVENT_SET_WAIT];
     }
 
     if (!main_struct.initialized) {
@@ -481,8 +481,10 @@ hlml_return_t hlml_event_set_wait(hlml_event_set_t set,
         if (!dev_events->device_info) /* no more devices registered */
             break;
 
+        // if there are events, and the last event is for the current device
         if (flow_control.events_num != 0 &&
-            strcmp(flow_control.events[flow_control.events_num], dev_events->device_info->serial )) {
+            strcmp(flow_control.events[flow_control.events_num-1], dev_events->device_info->serial) == 0) {
+            printf("fake HLML: event for device %s found", dev_events->device_info->serial);
             // set found
             event_data.device = dev_events->device_info;
             event_data.event_type |= HLML_EVENT_CRITICAL_ERR;

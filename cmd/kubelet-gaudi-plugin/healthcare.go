@@ -169,6 +169,7 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 	}
 }
 
+// timedHLMLEventCheck returns true if any device is unhealthy, and list of UIDs of unhealthy devices.
 func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 	uids := []string{}
 	e, err := hlml.WaitForEvent(eventSet, 1000)
@@ -215,6 +216,7 @@ func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 		}
 	}
 
+	// This should be theoretically impossible since we signed up only for devices that we know about.
 	klog.Error("critical: could not find serial in Allocatable. All devices will go unhealthy", "event", e.Etype)
 	for _, d := range allocatable {
 		uids = append(uids, d.UID)

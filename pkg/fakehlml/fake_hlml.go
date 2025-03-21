@@ -29,37 +29,37 @@ import (
 
 // KEEP THIS IDENTICAL TO fake_hlml.h call_identity_t
 const (
-	FAKE_INIT uint32 = iota
-	FAKE_INIT_WITH_FLAGS
-	FAKE_SHUTDOWN
-	FAKE_DEVICE_GET_COUNT
-	FAKE_DEVICE_GET_HANDLE_BY_PCI_BUS_ID
-	FAKE_DEVICE_GET_HANDLE_BY_INDEX
-	FAKE_DEVICE_GET_HANDLE_BY_UUID
-	FAKE_DEVICE_GET_NAME
-	FAKE_DEVICE_GET_PCI_INFO
-	FAKE_DEVICE_GET_SERIAL
-	FAKE_DEVICE_REGISTER_EVENTS
-	FAKE_EVENT_SET_CREATE
-	FAKE_EVENT_SET_FREE
-	FAKE_EVENT_SET_WAIT
+	FakeInit uint32 = iota
+	FakeInitWithFlags
+	FakeShutdown
+	FakeDeviceGetCount
+	FakeDeviceGetHandleByPCIBusID
+	FakeDeviceGetHandleByIndex
+	FakeDeviceGetHandleByUUID
+	FakeDeviceGetName
+	FakeDeviceGetPCIInfo
+	FakeDeviceGetSerial
+	FakeDeviceRegisterEvents
+	FakeEventSetCreate
+	FakeEventSetFree
+	FakeEventSetWait
 )
 
 // KEEP THIS IDENTICAL TO hlml.h hlml_return_t
 const (
-	HLML_SUCCESS                   = 0
-	HLML_ERROR_UNINITIALIZED       = 1
-	HLML_ERROR_INVALID_ARGUMENT    = 2
-	HLML_ERROR_NOT_SUPPORTED       = 3
-	HLML_ERROR_ALREADY_INITIALIZED = 5
-	HLML_ERROR_NOT_FOUND           = 6
-	HLML_ERROR_INSUFFICIENT_SIZE   = 7
-	HLML_ERROR_DRIVER_NOT_LOADED   = 9
-	HLML_ERROR_TIMEOUT             = 10
-	HLML_ERROR_AIP_IS_LOST         = 15
-	HLML_ERROR_MEMORY              = 20
-	HLML_ERROR_NO_DATA             = 21
-	HLML_ERROR_UNKNOWN             = 49
+	HLMLSuccess                 = 0
+	HLMLErrorUninitialized      = 1
+	HLMLErrorInvalidArgument    = 2
+	HLMLErrorNotSupported       = 3
+	HLMLErrorAlreadyInitialized = 5
+	HLMLErrorNotFound           = 6
+	HLMLErrorInsufficientSize   = 7
+	HLMLErrorDriverNotLoaded    = 9
+	HLMLErrorTimeout            = 10
+	HLMLErrorAipIsLost          = 15
+	HLMLErrorMemory             = 20
+	HLMLErrorNoData             = 21
+	HLMLErrorUnknown            = 49
 )
 
 func AddDevices(devicesInfo device.DevicesInfo) {
