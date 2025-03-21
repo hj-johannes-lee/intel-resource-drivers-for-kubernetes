@@ -101,7 +101,7 @@ $ make test-image
 $ make test-containerized
 ```
 
-If you need to see the coverage report - coverage file was created, just run Make target for needed
+Tests provide coverage data. If you need to see the coverage report, just run Make target for needed
 coverage target, e.g.
 
 ```
