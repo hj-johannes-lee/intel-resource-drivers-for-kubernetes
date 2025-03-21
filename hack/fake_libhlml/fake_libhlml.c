@@ -538,6 +538,7 @@ hlml_return_t hlml_device_get_serial(hlml_device_t device, char *serial, unsigne
     if (SERIAL_MAX > (int)length)
         return HLML_ERROR_INSUFFICIENT_SIZE;
 
+    // cast void* type to concrete type
     struct device_info_t *device_info = (struct device_info_t *)device;
     if (device_info) {
         strncpy(serial, device_info->serial, length);
