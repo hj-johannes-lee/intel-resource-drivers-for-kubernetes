@@ -418,11 +418,10 @@ hlml_return_t hlml_event_set_create(hlml_event_set_t *set) {
 		return HLML_ERROR_INVALID_ARGUMENT;
     }
 
-	event_set = (struct hlml_event_set*)malloc(sizeof(struct hlml_event_set));
+	event_set = (struct hlml_event_set*)calloc(1, sizeof(struct hlml_event_set));
 	if (!event_set)
 		return HLML_ERROR_MEMORY;
 
-	memset(event_set, 0, sizeof(*event_set));
 	*set = event_set;
 
 	return HLML_SUCCESS;
