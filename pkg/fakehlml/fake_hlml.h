@@ -17,24 +17,24 @@ extern "C" {
 #define FAKE_EVENTS_MAX          8
 #define NAME_MAX                 64
 #define SERIAL_MAX               64
-#define FAKE_CALLS_MAX           14
 
 /* Enum for returned values of the different APIs */
 typedef enum call_identity {
-	FAKE_INIT = 0,
-	FAKE_INIT_WITH_FLAGS = 1,
-	FAKE_SHUTDOWN = 2,
-    FAKE_DEVICE_GET_COUNT = 3,
-    FAKE_DEVICE_GET_HANDLE_BY_PCI_BUS_ID = 4,
-    FAKE_DEVICE_GET_HANDLE_BY_INDEX = 5,
-    FAKE_DEVICE_GET_HANDLE_BY_UUID = 6,
-    FAKE_DEVICE_GET_NAME = 7,
-    FAKE_DEVICE_GET_PCI_INFO = 8,
-    FAKE_DEVICE_GET_SERIAL = 9,
-    FAKE_DEVICE_REGISTER_EVENTS = 10,
-    FAKE_EVENT_SET_CREATE = 11,
-    FAKE_EVENT_SET_FREE = 12,
-    FAKE_EVENT_SET_WAIT = 13,
+    FAKE_INIT = 0,
+    FAKE_INIT_WITH_FLAGS,
+    FAKE_SHUTDOWN,
+    FAKE_DEVICE_GET_COUNT,
+    FAKE_DEVICE_GET_HANDLE_BY_PCI_BUS_ID,
+    FAKE_DEVICE_GET_HANDLE_BY_INDEX,
+    FAKE_DEVICE_GET_HANDLE_BY_UUID,
+    FAKE_DEVICE_GET_NAME,
+    FAKE_DEVICE_GET_PCI_INFO,
+    FAKE_DEVICE_GET_SERIAL,
+    FAKE_DEVICE_REGISTER_EVENTS,
+    FAKE_EVENT_SET_CREATE,
+    FAKE_EVENT_SET_FREE,
+    FAKE_EVENT_SET_WAIT,
+    FAKE_CALLS_MAX
 } call_identity_t;
 
 void add_device(const char *pci_addr, const char *pci_device_id, const char *pci_vendor_id, const char *serial, unsigned int index);
