@@ -375,8 +375,9 @@ hlml_return_t hlml_device_get_minor_number(hlml_device_t device,
 hlml_return_t hlml_device_register_events(hlml_device_t device,
                       unsigned long long event_types,
                       hlml_event_set_t set) {
+    // cast HLML void* types
     struct device_info_t *device_info = (struct device_info_t *)device;
-	struct hlml_event_set *event_set = (struct hlml_event_set *)set;
+    struct hlml_event_set *event_set = (struct hlml_event_set *)set;
     struct hlml_device_events *dev_events;
 
     log_call(__func__);
