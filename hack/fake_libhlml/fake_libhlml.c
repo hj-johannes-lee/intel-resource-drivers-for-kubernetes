@@ -123,9 +123,7 @@ void set_error(call_identity_t call_id, hlml_return_t errCode) {
 hlml_return_t hlml_init(void) {
     log_call(__func__);
 
-    if (flow_control.func_ret[FAKE_INIT] != HLML_SUCCESS) {
-        return flow_control.func_ret[FAKE_INIT];
-    }
+    RETURN_IF_FAKE_ERROR(FAKE_INIT);
 
     return hlml_init_with_flags(0);
 };
