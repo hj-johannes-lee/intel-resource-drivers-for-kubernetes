@@ -525,6 +525,8 @@ hlml_return_t hlml_device_get_pcb_info(hlml_device_t device, hlml_pcb_info_t *pc
 hlml_return_t hlml_device_get_serial(hlml_device_t device, char *serial, unsigned int length) {
     log_call(__func__);
 
+    assert(serial && lenght >0);
+
     if (flow_control.flow_control[FAKE_DEVICE_GET_SERIAL] != HLML_SUCCESS) {
         // just in case, set the serial to empty string
         serial[0] = '\0';
