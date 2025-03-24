@@ -115,10 +115,10 @@ func TestUpdateHealth(t *testing.T) {
 
 func TestInitHLMLErrors(t *testing.T) {
 	tests := []struct {
-		name              string
-		expectedErr       string
-		flowControl       map[uint32]uint32
-		unexpectedDevices device.DevicesInfo
+		name              string             // gohlml call that is supposed to fail
+		expectedErr       string             // string value of error expected
+		flowControl       map[uint32]uint32  // hlml calls that are supposed to fail
+		unexpectedDevices device.DevicesInfo // devices to be added to fakehlml that are not expected by the driver
 	}{
 
 		{
@@ -229,12 +229,12 @@ func TestTimedHLMLEventCheckErrors(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		expectedRet       bool
-		expectedUIDs      []string
-		flowControl       map[uint32]uint32
-		unexpectedDevices device.DevicesInfo
-		fakeEvents        []string // serial numbers
+		name              string             // gohlml call that is supposed to fail
+		expectedRet       bool               // return value expected from the function under test
+		expectedUIDs      []string           // list of device UIDs expected from the function under test
+		flowControl       map[uint32]uint32  // hlml call that is supposed to fail
+		unexpectedDevices device.DevicesInfo // devices to be added to fakehlml that are not expected by the driver
+		fakeEvents        []string           // serial numbers of devices for which to trigger critical events
 	}{
 		{
 			name: "HLML WaitForEvent fails",
