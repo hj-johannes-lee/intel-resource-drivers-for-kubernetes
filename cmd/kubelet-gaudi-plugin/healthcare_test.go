@@ -18,6 +18,8 @@ package main
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -41,25 +43,6 @@ func TestUpdateHealth(t *testing.T) {
 			fakeEvents:            []string{"000002"},
 			expectedUnhealthyUIDs: []string{"0000-af-00-0-0x1020"},
 		},
-		/*		{
-					name: "HLML init fails before ResourceSlice is published",
-					flowControl: map[int]int{
-						fakehlml.FAKE_INIT_WITH_FLAGS: fakehlml.HLML_ERROR_UNKNOWN,
-					},
-				},
-				{
-					name: "initHLML fails on DeviceCount",
-					flowControl: map[int]int{
-						fakehlml.FAKE_DEVICE_GET_COUNT: fakehlml.HLML_ERROR_UNKNOWN,
-					},
-				},
-				{
-					name:                  "HLML events subscription fails and all devices go unhealthy",
-					expectedUnhealthyUIDs: []string{"0000-af-00-0-0x1020", "0000-b3-00-0-0x1020"},
-					flowControl: map[int]int{
-						fakehlml.FAKE_INIT: fakehlml.HLML_ERROR_UNKNOWN,
-					},
-				},*/
 	}
 
 	for _, testcase := range tests {
@@ -130,27 +113,6 @@ func TestUpdateHealth(t *testing.T) {
 	}
 }
 
-/*
-func init_should_pass(signals map[int]int) bool {
-	if len(signals) {
-		steps := []int{
-			fakehlml.FAKE_INIT,
-			fakehlml.FAKE_DEVICE_GET_HANDLE_BY_INDEX,
-			fakehlml.FAKE_DEVICE_GET_SERIAL,
-			fakehlml.FAKE_DEVICE_GET_PCI_INFO,
-
-		}
-		for _, step := range steps {
-			if _, found := signals[]; found {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-*/
-
 func TestInitHLMLErrors(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -195,7 +157,7 @@ func TestInitHLMLErrors(t *testing.T) {
 			expectedErr: "failed to get PCI bus ID of device at index 0: unknown error",
 		},
 		{
-			name:        "hlmlDevice.PCIBusID fails",
+			name:        "all hlml calls succeed, but device UID is missing from node_state.Allocatable",
 			flowControl: map[uint32]uint32{},
 			expectedErr: "could not find device with UID 0000-d5-00-0-0x1020",
 			unexpectedDevices: device.DevicesInfo{
@@ -261,6 +223,11 @@ func TestInitHLMLErrors(t *testing.T) {
 }
 
 func TestTimedHLMLEventCheckErrors(t *testing.T) {
+	testDevices := device.DevicesInfo{
+		"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020", Serial: "000001"},
+		"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020", Serial: "000002"},
+	}
+
 	tests := []struct {
 		name              string
 		expectedRet       bool
@@ -285,7 +252,7 @@ func TestTimedHLMLEventCheckErrors(t *testing.T) {
 				fakehlml.FakeDeviceGetHandleByIndex: fakehlml.HLMLErrorUnknown,
 			},
 			expectedRet:  true,
-			expectedUIDs: []string{"0000-b3-00-0-0x1020", "0000-af-00-0-0x1020"},
+			expectedUIDs: slices.Collect(maps.Keys(testDevices)),
 			fakeEvents:   []string{"000002"},
 		},
 		{
@@ -294,13 +261,13 @@ func TestTimedHLMLEventCheckErrors(t *testing.T) {
 				fakehlml.FakeDeviceGetSerial: fakehlml.HLMLErrorUnknown,
 			},
 			expectedRet:  true,
-			expectedUIDs: []string{"0000-b3-00-0-0x1020", "0000-af-00-0-0x1020"},
+			expectedUIDs: slices.Collect(maps.Keys(testDevices)),
 			fakeEvents:   []string{"000002"},
 		},
 		{
 			name:         "unexpected device has critical event",
 			expectedRet:  true,
-			expectedUIDs: []string{"0000-b3-00-0-0x1020", "0000-af-00-0-0x1020"},
+			expectedUIDs: slices.Collect(maps.Keys(testDevices)),
 			fakeEvents:   []string{"000003"},
 			unexpectedDevices: device.DevicesInfo{
 				"0000-d5-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:d5:00.0", DeviceIdx: 2, UID: "0000-d5-00-0-0x1020", Serial: "000003"},
@@ -309,15 +276,10 @@ func TestTimedHLMLEventCheckErrors(t *testing.T) {
 	}
 	// One test setup for all cases.
 	testDirs, err := helpers.NewTestDirs(device.DriverName)
-	defer helpers.CleanupTest(t, "TestInitHLMLErrors", testDirs.TestRoot)
+	defer helpers.CleanupTest(t, "TestTimedHLMLEventCheckErrors", testDirs.TestRoot)
 	if err != nil {
-		t.Errorf("%v: setup error: %v", "TestInitHLMLErrors", err)
+		t.Errorf("%v: setup error: %v", "TestTimedHLMLEventCheckErrors", err)
 		return
-	}
-
-	testDevices := device.DevicesInfo{
-		"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020", Serial: "000001"},
-		"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020", Serial: "000002"},
 	}
 
 	if err := fakesysfs.FakeSysFsGaudiContents(
@@ -407,4 +369,104 @@ func newTestEventSet(gaudiDriver *driver, unexpectedDevices device.DevicesInfo) 
 	}
 
 	return eventSet, nil
+}
+
+func TestWatchCriticalHLMLEventsErrors(t *testing.T) {
+	testDevices := device.DevicesInfo{
+		"0000-b3-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:b3:00.0", DeviceIdx: 0, UID: "0000-b3-00-0-0x1020", Serial: "000001"},
+		"0000-af-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:af:00.0", DeviceIdx: 1, UID: "0000-af-00-0-0x1020", Serial: "000002"},
+	}
+
+	testname := "TestWatchCriticalHLMLEventsErrors"
+
+	// setup testcase
+	testDirs, err := helpers.NewTestDirs(device.DriverName)
+	defer helpers.CleanupTest(t, testname, testDirs.TestRoot)
+	if err != nil {
+		t.Errorf("%v: setup error: %v", testname, err)
+		return
+	}
+
+	if err := fakesysfs.FakeSysFsGaudiContents(
+		testDirs.SysfsRoot,
+		testDirs.DevfsRoot,
+		testDevices,
+		false,
+	); err != nil {
+		t.Errorf("setup error: could not create fake sysfs: %v", err)
+		return
+	}
+
+	// start driver without health monitoring so we can break it at any point
+	gaudiDriver, driverErr := getFakeDriver(testDirs, NoHealthcare)
+	if driverErr != nil {
+		t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
+		return
+	}
+
+	// WithHealthcare flag normally would make driver init populate driver.state.Allocatable[].serial
+	// but since we don't call HLML init, we need to populate it manually.
+	allocatable, _ := gaudiDriver.state.Allocatable.(map[string]*device.DeviceInfo)
+	for uid, device := range testDevices {
+		allocatable[uid].Serial = device.Serial
+	}
+
+	t.Logf("\nTEST: %s\n", testname)
+
+	// Initialize needed because driver is not calling it, and driver not created for every testcase.
+	_ = hlml.Initialize()
+	fakehlml.AddDevices(testDevices)
+
+	registeredEventSet, err := newTestEventSet(gaudiDriver, device.DevicesInfo{})
+	if err != nil {
+		t.Errorf("could not create event set: %v", err)
+		hlml.DeleteEventSet(registeredEventSet)
+		fakehlml.Reset()
+		return
+	}
+
+	// Tell hlml to fail registration of eventset.
+	fakehlml.SetReturnCode(fakehlml.FakeDeviceRegisterEvents, fakehlml.HLMLErrorUnknown)
+
+	// Create killable context.
+	hlmlContext, stopHLMLMonitor := context.WithCancel(context.Background())
+
+	// Test failure would be manifested in gaudiDriver.watchCriticalHLMLEvents successfully
+	// proceeding to infinite loop checking devices periodically. To prevent this and fail gracefully
+	// we start a timer before calling function under test with a cancelleable context.
+
+	// Channel where healthcare watcher should push device UIDs.
+	idsChan := make(chan string)
+	// Call the function under test - it will either stop quickly, or run until timeout cancels its context.
+	go gaudiDriver.watchCriticalHLMLEvents(hlmlContext, defaultHealthCheckIntervalSeconds, idsChan)
+
+	uids := []string{}
+	timeout := false
+	allDevicesFailed := false
+	for {
+		select {
+		case uid := <-idsChan:
+			uids = append(uids, uid)
+			if len(uids) == len(testDevices) {
+				allDevicesFailed = true
+			}
+		case <-time.After(5 * time.Second):
+			t.Log("Timeout reached")
+			timeout = true
+		}
+
+		if timeout || allDevicesFailed {
+			break
+		}
+	}
+
+	if len(uids) != len(testDevices) {
+		t.Errorf("unexpected unhealthy UIDS: %v, expected: %v", uids, slices.Collect(maps.Keys(testDevices)))
+	}
+
+	// cancel the context.
+	stopHLMLMonitor()
+
+	hlml.DeleteEventSet(registeredEventSet)
+	fakehlml.Reset()
 }
