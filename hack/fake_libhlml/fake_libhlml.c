@@ -17,7 +17,6 @@
 #define FAKE_EVENTS_MAX          8
 #define NAME_MAX                 64
 #define SERIAL_MAX               64
-#define FAKE_CALLS_MAX           14
 
 struct device_info_t {
        char pci_addr[PCI_ADDR_LEN];
@@ -37,7 +36,7 @@ struct flow_control_t {
     // this is used by tests to dictate which response should be faked.
     // There are as many items as there are supported calls.
     // Each supported call is assigned a return value it should respond with.
-    hlml_return_t func_ret[FAKE_CALLS_MAX];
+    hlml_return_t func_ret[FAKE_CALL_IDENTITY_MAX];
 
     // this is used by tests to dictate which events should be faked.
     // events[event][serial char]
@@ -57,6 +56,8 @@ struct hlml_event_set {
   if (flow_control.func_ret[call_id] != HLML_SUCCESS) { \
     return flow_control.func_ret[call_id]; \
   }
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 static void log_call(const char *name) { printf("%s called\n", name); }
 
@@ -89,7 +90,7 @@ void reset() {
     // reset active events in flow control
     flow_control.events_num = 0;
     // reset flow control map
-    for (int call_id = 0; call_id < FAKE_CALLS_MAX; call_id++) {
+    for (int call_id = 0; call_id < FAKE_CALL_IDENTITY_MAX; call_id++) {
         flow_control.func_ret[call_id] = false;
     }
 };
@@ -114,7 +115,7 @@ void reset_events() {
 }
 
 void set_error(call_identity_t call_id, hlml_return_t errCode) {
-    assert(call_id < FAKE_CALLS_MAX);
+    assert(call_id < FAKE_CALL_IDENTITY_MAX);
 
     flow_control.func_ret[call_id] = errCode;
 }

@@ -115,10 +115,10 @@ func TestUpdateHealth(t *testing.T) {
 
 func TestInitHLMLErrors(t *testing.T) {
 	tests := []struct {
-		name              string             // gohlml call that is supposed to fail
-		expectedErr       string             // string value of error expected
-		flowControl       map[uint32]uint32  // hlml calls that are supposed to fail
-		unexpectedDevices device.DevicesInfo // devices to be added to fakehlml that are not expected by the driver
+		name                 string             // gohlml call that is supposed to fail
+		expectedErr          string             // string value of error expected
+		flowControl          map[uint32]uint32  // hlml calls that are supposed to fail
+		addUnexpectedDevices device.DevicesInfo // devices to be added to fakehlml that are not expected by the driver
 	}{
 
 		{
@@ -160,7 +160,7 @@ func TestInitHLMLErrors(t *testing.T) {
 			name:        "all hlml calls succeed, but device UID is missing from node_state.Allocatable",
 			flowControl: map[uint32]uint32{},
 			expectedErr: "could not find device with UID 0000-d5-00-0-0x1020",
-			unexpectedDevices: device.DevicesInfo{
+			addUnexpectedDevices: device.DevicesInfo{
 				"0000-d5-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:d5:00.0", DeviceIdx: 2, UID: "0000-d5-00-0-0x1020", Serial: "000003"},
 			},
 		},
@@ -200,8 +200,8 @@ func TestInitHLMLErrors(t *testing.T) {
 		t.Logf("\nTEST: %s\n", testcase.name)
 
 		fakehlml.AddDevices(testDevices)
-		if len(testcase.unexpectedDevices) > 0 {
-			fakehlml.AddDevices(testcase.unexpectedDevices)
+		if len(testcase.addUnexpectedDevices) > 0 {
+			fakehlml.AddDevices(testcase.addUnexpectedDevices)
 		}
 
 		for call, ret := range testcase.flowControl {
@@ -229,12 +229,12 @@ func TestTimedHLMLEventCheckErrors(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string             // gohlml call that is supposed to fail
-		expectedRet       bool               // return value expected from the function under test
-		expectedUIDs      []string           // list of device UIDs expected from the function under test
-		flowControl       map[uint32]uint32  // hlml call that is supposed to fail
-		unexpectedDevices device.DevicesInfo // devices to be added to fakehlml that are not expected by the driver
-		fakeEvents        []string           // serial numbers of devices for which to trigger critical events
+		name                 string             // gohlml call that is supposed to fail
+		expectedRet          bool               // return value expected from the function under test
+		expectedUIDs         []string           // list of device UIDs expected from the function under test
+		flowControl          map[uint32]uint32  // hlml call that is supposed to fail
+		addUnexpectedDevices device.DevicesInfo // devices to be added to fakehlml that are not expected by the driver
+		fakeEvents           []string           // serial numbers of devices for which to trigger critical events
 	}{
 		{
 			name: "HLML WaitForEvent fails",
@@ -269,7 +269,7 @@ func TestTimedHLMLEventCheckErrors(t *testing.T) {
 			expectedRet:  true,
 			expectedUIDs: slices.Collect(maps.Keys(testDevices)),
 			fakeEvents:   []string{"000003"},
-			unexpectedDevices: device.DevicesInfo{
+			addUnexpectedDevices: device.DevicesInfo{
 				"0000-d5-00-0-0x1020": {Model: "0x1020", PCIAddress: "0000:d5:00.0", DeviceIdx: 2, UID: "0000-d5-00-0-0x1020", Serial: "000003"},
 			},
 		},
@@ -313,11 +313,11 @@ func TestTimedHLMLEventCheckErrors(t *testing.T) {
 		// Initialize needed because driver is not calling it, and driver not created for every testcase.
 		_ = hlml.Initialize()
 		fakehlml.AddDevices(testDevices)
-		if len(testcase.unexpectedDevices) > 0 {
-			fakehlml.AddDevices(testcase.unexpectedDevices)
+		if len(testcase.addUnexpectedDevices) > 0 {
+			fakehlml.AddDevices(testcase.addUnexpectedDevices)
 		}
 
-		registeredEventSet, err := newTestEventSet(gaudiDriver, testcase.unexpectedDevices)
+		registeredEventSet, err := newTestEventSet(gaudiDriver, testcase.addUnexpectedDevices)
 		if err != nil {
 			t.Errorf("could not create event set: %v", err)
 			hlml.DeleteEventSet(registeredEventSet)

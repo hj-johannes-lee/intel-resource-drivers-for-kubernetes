@@ -13,11 +13,6 @@ extern "C" {
 
 #include "../../vendor/github.com/HabanaAI/gohlml/hlml.h"
 
-#define DEVICES_MAX              8
-#define FAKE_EVENTS_MAX          8
-#define NAME_MAX                 64
-#define SERIAL_MAX               64
-
 /* Enum for returned values of the different APIs */
 typedef enum call_identity {
     FAKE_INIT = 0,
@@ -34,7 +29,7 @@ typedef enum call_identity {
     FAKE_EVENT_SET_CREATE,
     FAKE_EVENT_SET_FREE,
     FAKE_EVENT_SET_WAIT,
-    FAKE_CALLS_MAX
+    FAKE_CALL_IDENTITY_MAX
 } call_identity_t;
 
 void add_device(const char *pci_addr, const char *pci_device_id, const char *pci_vendor_id, const char *serial, unsigned int index);
