@@ -34,7 +34,7 @@ const (
 
 // initHLML loops through devices HLML detecs to update serial number in allocatable.
 // This is needed for health monitoring, critical events contain device serial ID.
-func (d *driver) initHLML(ctx context.Context) error {
+func (d *driver) initHLML() error {
 	ret := hlml.InitWithLogs()
 	if ret != nil {
 		return fmt.Errorf("failed to initialize HLML: %v", ret)

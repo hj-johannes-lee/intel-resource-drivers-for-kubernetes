@@ -208,7 +208,7 @@ func TestInitHLMLErrors(t *testing.T) {
 			fakehlml.SetReturnCode(call, ret)
 		}
 
-		if err := driver.initHLML(context.TODO()); err == nil || err.Error() != testcase.expectedErr {
+		if err := driver.initHLML(); err == nil || err.Error() != testcase.expectedErr {
 			t.Errorf("Unexpected return: %s, expected: %s", err, testcase.expectedErr)
 		}
 

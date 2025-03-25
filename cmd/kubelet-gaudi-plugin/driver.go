@@ -95,7 +95,7 @@ KubeletPluginSocketPath: %v`,
 
 	// Init HLML healthcare to get details needed for health monitor.
 	if config.Flags.Healthcare {
-		if err := driver.initHLML(ctx); err != nil {
+		if err := driver.initHLML(); err != nil {
 			return nil, fmt.Errorf("failed to initialize HLML for health monitoring: %v", err)
 		}
 	}

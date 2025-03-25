@@ -57,8 +57,6 @@ struct hlml_event_set {
     return flow_control.func_ret[call_id]; \
   }
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-
 static void log_call(const char *name) { printf("%s called\n", name); }
 
 // custom_init is called from a test function to populate the main_struct
