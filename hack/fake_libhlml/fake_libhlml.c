@@ -101,7 +101,7 @@ void add_critical_event(const char *serial) {
     }
 
     if (serial) {
-        snprintf(flow_control.events[flow_control.events_num], SERIAL_MAX, "%s", serial);
+        snprintf(flow_control.events[flow_control.events_num], sizeof(flow_control.events[0]), "%s", serial);
     } else {
         flow_control.events[flow_control.events_num][0] = '\0';
     }
