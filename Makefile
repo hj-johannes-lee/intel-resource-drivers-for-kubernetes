@@ -161,7 +161,7 @@ licenses: clean-licenses
 # linting targets for Go and other code
 .PHONY: lint format cilint vet shellcheck yamllint
 
-lint: format cilint vet klogformat shellcheck yamllint
+lint: vendor format cilint vet klogformat shellcheck yamllint
 
 format:
 	gofmt -w -s -l ./
@@ -191,18 +191,35 @@ yamllint:
 
 .PHONE: test-image test-image-push
 test-image: vendor
-	@echo "Building container image with fake HLML for Gaudi tests..."
-	$(DOCKER) build --platform="linux/$(ARCH)" -t "$(TEST_IMAGE)" -f Dockerfile.gaudi-test .
+	@echo "Building container image with fake HLML for Gaudi tests with user $(shell id -u):$(shell id -g)"
+	$(DOCKER) build \
+	--build-arg UID=$(shell id -u) --build-arg GID=$(shell id -g) \
+	--platform="linux/$(ARCH)" \
+	-t "$(TEST_IMAGE)" 	-f Dockerfile.gaudi-test .
 
 test-image-push: test-image
 	$(DOCKER) push "$(TEST_IMAGE)"
 
-.PHONY: test html-coverage
+.PHONY: test html-coverage test-containerized
 COVERAGE_FILE := coverage.out
 # Gaudi tests expect fake HLML library to be present at /usr/lib/habanalabs/libhlml.so
 # Dependency comes from gohlml package hardcoded LD_LIBRARY_PATH pointing to it.
 test:
-	go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
+ifeq ("$(container)","yes")
+		@echo setting safe directory
+		go test -buildvcs=false -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
+else
+		@echo running tests
+		go test -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
+endif
+
+test-containerized:
+	$(DOCKER) run \
+	-it -e container=yes \
+	--user 1000:1000 \
+	-v "$(shell pwd)":/home/ubuntu/src:rw \
+	"$(TEST_IMAGE)" \
+	bash -c "cd src && make test"
 
 html-coverage: $(COVERAGE_FILE)
 	go tool cover -html=$(COVERAGE_FILE) -o coverage.html

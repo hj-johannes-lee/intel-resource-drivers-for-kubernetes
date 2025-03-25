@@ -95,7 +95,7 @@ KubeletPluginSocketPath: %v`,
 
 	// Init HLML healthcare to get details needed for health monitor.
 	if config.Flags.Healthcare {
-		if err := driver.initHLML(ctx); err != nil {
+		if err := driver.initHLML(); err != nil {
 			return nil, fmt.Errorf("failed to initialize HLML for health monitoring: %v", err)
 		}
 	}
@@ -107,8 +107,8 @@ KubeletPluginSocketPath: %v`,
 	if config.Flags.Healthcare {
 		// startHealthMonitor listens for unhealthy UIDs, has to run in a routine.
 		hlmlListenerContext, hlmlListenerCancel := context.WithCancel(ctx)
-		go driver.startHealthMonitor(hlmlListenerContext)
 		driver.hlmlShutdown = hlmlListenerCancel
+		go driver.startHealthMonitor(hlmlListenerContext, config.Flags.HealthcareInterval)
 	}
 
 	klog.V(3).Info("Finished creating new driver")

@@ -78,9 +78,17 @@ func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver,
 		Coreclient: kubefake.NewSimpleClientset(),
 	}
 
+	if healthcare {
+		config.Flags.HealthcareInterval = 1
+	}
+
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
 
 	helperDriver, err := newDriver(context.TODO(), config)
+	if err != nil {
+		return nil, err
+	}
+
 	driver, ok := helperDriver.(*driver)
 	if !ok {
 		return nil, fmt.Errorf("type assertion failed: expected driver, got %T", helperDriver)

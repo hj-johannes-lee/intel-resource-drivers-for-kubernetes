@@ -105,6 +105,9 @@ func newNodeState(detectedDevices map[string]*device.DeviceInfo, cdiRoot string,
 }
 
 func (s *nodeState) GetResources() kubeletplugin.Resources {
+	s.Lock()
+	defer s.Unlock()
+
 	devices := []resourcev1.Device{}
 
 	allocatableDevices, _ := s.Allocatable.(map[string]*device.DeviceInfo)

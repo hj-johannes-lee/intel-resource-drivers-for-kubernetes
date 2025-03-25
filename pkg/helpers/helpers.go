@@ -50,6 +50,7 @@ type Flags struct {
 
 	NodeName                  string
 	Healthcare                bool
+	HealthcareInterval        int
 	CdiRoot                   string
 	KubeletPluginDir          string
 	KubeletPluginsRegistryDir string

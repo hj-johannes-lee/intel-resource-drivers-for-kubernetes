@@ -6,23 +6,17 @@
  */
 
 #include "../../vendor/github.com/HabanaAI/gohlml/hlml.h"
+#include "../../pkg/fakehlml/fake_hlml.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
-/*
-type hlmlInterface interface {
-    InitWithLogs()
-    NewEventSet()
-    DeleteEventSet(eventSet)
-    RegisterEventForDevice(eventSet, hlml.HlmlCriticalError, d.Serial)
-    WaitForEvent(eventSet, 1000)
-    Shutdown()
-}
-*/
 
-#define MAX_DEVICES 8
-#define NAME_MAX    64
-#define SERIAL_MAX  64
+#define DEVICES_MAX              8
+#define FAKE_EVENTS_MAX          8
+#define NAME_MAX                 64
+#define SERIAL_MAX               64
 
 struct device_info_t {
        char pci_addr[PCI_ADDR_LEN];
@@ -35,8 +29,33 @@ struct device_info_t {
 struct main_struct_t {
     bool initialized;
     int devices_num;
-    struct device_info_t devices_info[MAX_DEVICES];
+    struct device_info_t devices_info[DEVICES_MAX];
 } main_struct;
+
+struct flow_control_t {
+    // this is used by tests to dictate which response should be faked.
+    // There are as many items as there are supported calls.
+    // Each supported call is assigned a return value it should respond with.
+    hlml_return_t func_ret[FAKE_CALL_IDENTITY_MAX];
+
+    // this is used by tests to dictate which events should be faked.
+    // events[event][serial char]
+    char events [FAKE_EVENTS_MAX][SERIAL_MAX];
+    int events_num;
+} flow_control;
+
+struct hlml_device_events {
+	struct device_info_t *device_info;
+};
+
+struct hlml_event_set {
+	struct hlml_device_events dev_events[DEVICES_MAX];
+};
+
+#define RETURN_IF_FAKE_ERROR(call_id) \
+  if (flow_control.func_ret[call_id] != HLML_SUCCESS) { \
+    return flow_control.func_ret[call_id]; \
+  }
 
 static void log_call(const char *name) { printf("%s called\n", name); }
 
@@ -66,17 +85,53 @@ void add_device(const char *pci_addr, const char *pci_device_id, const char *pci
 void reset() {
     main_struct.initialized = false;
     main_struct.devices_num = 0;
-    return;
+    // reset active events in flow control
+    flow_control.events_num = 0;
+    // reset flow control map
+    for (int call_id = 0; call_id < FAKE_CALL_IDENTITY_MAX; call_id++) {
+        flow_control.func_ret[call_id] = false;
+    }
 };
+
+void add_critical_event(const char *serial) {
+    if (flow_control.events_num == FAKE_EVENTS_MAX) {
+        printf("ERROR: maximum number of fake evets reached");
+        return;
+    }
+
+    if (serial) {
+        snprintf(flow_control.events[flow_control.events_num], sizeof(flow_control.events[0]), "%s", serial);
+    } else {
+        flow_control.events[flow_control.events_num][0] = '\0';
+    }
+
+    flow_control.events_num ++;
+}
+
+void reset_events() {
+    flow_control.events_num = 0;
+}
+
+void set_error(call_identity_t call_id, hlml_return_t errCode) {
+    assert(call_id < FAKE_CALL_IDENTITY_MAX);
+
+    flow_control.func_ret[call_id] = errCode;
+}
 
 /* supported APIs */
 hlml_return_t hlml_init(void) {
     log_call(__func__);
+
+    RETURN_IF_FAKE_ERROR(FAKE_INIT);
+
     return hlml_init_with_flags(0);
 };
 
 hlml_return_t hlml_init_with_flags(unsigned int flags) {
     log_call(__func__);
+
+    RETURN_IF_FAKE_ERROR(FAKE_INIT_WITH_FLAGS);
+
     main_struct.initialized = true;
 
     return HLML_SUCCESS;
@@ -84,6 +139,9 @@ hlml_return_t hlml_init_with_flags(unsigned int flags) {
 
 hlml_return_t hlml_shutdown(void) {
     log_call(__func__);
+
+    RETURN_IF_FAKE_ERROR(FAKE_SHUTDOWN);
+
     main_struct.initialized = false;
 
     return HLML_SUCCESS;
@@ -91,14 +149,21 @@ hlml_return_t hlml_shutdown(void) {
 
 hlml_return_t hlml_device_get_count(unsigned int *device_count) {
     log_call(__func__);
+
+    RETURN_IF_FAKE_ERROR(FAKE_DEVICE_GET_COUNT);
+
     if (!device_count)
         return HLML_ERROR_INVALID_ARGUMENT;
+
     *device_count = main_struct.devices_num;
+
     return HLML_SUCCESS;
 };
 
 hlml_return_t hlml_device_get_handle_by_pci_bus_id(const char *pci_addr, hlml_device_t *device) {
     log_call(__func__);
+
+    RETURN_IF_FAKE_ERROR(FAKE_DEVICE_GET_HANDLE_BY_PCI_BUS_ID);
 
     struct device_info_t *device_info;
 
@@ -122,6 +187,8 @@ hlml_return_t hlml_device_get_handle_by_pci_bus_id(const char *pci_addr, hlml_de
 
 hlml_return_t hlml_device_get_handle_by_index(unsigned int index, hlml_device_t *device) {
     log_call(__func__);
+
+    RETURN_IF_FAKE_ERROR(FAKE_DEVICE_GET_HANDLE_BY_INDEX);
 
     struct device_info_t *device_info;
 
@@ -154,6 +221,8 @@ hlml_return_t hlml_device_get_name(hlml_device_t device, char *name,
 
 hlml_return_t hlml_device_get_pci_info(hlml_device_t device, hlml_pci_info_t *pci) {
     log_call(__func__);
+
+    RETURN_IF_FAKE_ERROR(FAKE_DEVICE_GET_PCI_INFO);
 
     if (!main_struct.initialized)
         return HLML_ERROR_UNINITIALIZED;
@@ -302,31 +371,126 @@ hlml_return_t hlml_device_get_minor_number(hlml_device_t device,
     return HLML_ERROR_NOT_SUPPORTED;
 };
 
-// TODO: implement registration and events sending
 hlml_return_t hlml_device_register_events(hlml_device_t device,
                       unsigned long long event_types,
                       hlml_event_set_t set) {
+    // cast HLML void* types
+    struct device_info_t *device_info = (struct device_info_t *)device;
+    struct hlml_event_set *event_set = (struct hlml_event_set *)set;
+    struct hlml_device_events *dev_events;
+
     log_call(__func__);
-    return HLML_ERROR_INVALID_ARGUMENT;
+
+    RETURN_IF_FAKE_ERROR(FAKE_DEVICE_REGISTER_EVENTS);
+
+    int i;
+	for (i = 0; i < DEVICES_MAX; i++) {
+		dev_events = &event_set->dev_events[i];
+		if (!dev_events->device_info) {
+			memset(dev_events, 0, sizeof(*dev_events));
+			dev_events->device_info = device_info;
+			break;
+		}
+		else if (dev_events->device_info == device_info)
+			break;
+	}
+	if (i == DEVICES_MAX)
+		return HLML_ERROR_INVALID_ARGUMENT;
+
+    return HLML_SUCCESS;
 };
 
-// TODO: implement registration and events sending
 hlml_return_t hlml_event_set_create(hlml_event_set_t *set) {
+    struct hlml_event_set *event_set;
+
     log_call(__func__);
-    return HLML_ERROR_NOT_SUPPORTED;
+
+    RETURN_IF_FAKE_ERROR(FAKE_EVENT_SET_CREATE);
+
+    if (!main_struct.initialized) {
+        return HLML_ERROR_UNINITIALIZED;
+    }
+
+	if (!set) {
+		return HLML_ERROR_INVALID_ARGUMENT;
+    }
+
+	event_set = (struct hlml_event_set*)calloc(1, sizeof(struct hlml_event_set));
+	if (!event_set)
+		return HLML_ERROR_MEMORY;
+
+	*set = event_set;
+
+	return HLML_SUCCESS;
 };
 
-// TODO: implement registration and events sending
 hlml_return_t hlml_event_set_free(hlml_event_set_t set) {
+    struct hlml_event_set *event_set = (struct hlml_event_set*)set;
+
     log_call(__func__);
-    return HLML_ERROR_NOT_SUPPORTED;
+
+    RETURN_IF_FAKE_ERROR(FAKE_EVENT_SET_FREE);
+
+    if (!main_struct.initialized) {
+        return HLML_ERROR_UNINITIALIZED;
+    }
+
+	if (!event_set) {
+		return HLML_ERROR_INVALID_ARGUMENT;
+    }
+
+	free(event_set);
+	event_set = NULL;
+
+	return HLML_SUCCESS;
 };
 
 hlml_return_t hlml_event_set_wait(hlml_event_set_t set,
                   hlml_event_data_t *data,
                   unsigned int timeoutms) {
+    struct hlml_event_set *event_set = (struct hlml_event_set *)set;
+    struct hlml_device_events *dev_events;
+    struct hlml_event_data event_data;
+
     log_call(__func__);
-    return HLML_ERROR_NOT_SUPPORTED;
+
+    RETURN_IF_FAKE_ERROR(FAKE_EVENT_SET_WAIT);
+
+    if (!main_struct.initialized) {
+        return HLML_ERROR_UNINITIALIZED;
+    }
+
+	if (!event_set || !data) {
+		return HLML_ERROR_INVALID_ARGUMENT;
+    }
+
+    event_data.event_type = 0;
+
+    for (int i = 0; i < DEVICES_MAX; i++) {
+        // check each registered eventset, if any of them has event pending
+        dev_events = &event_set->dev_events[i];
+        if (!dev_events->device_info) /* no more devices registered */
+            break;
+
+        // if there are events, and the last event is for the current device
+        if (flow_control.events_num > 0 &&
+            strcmp(flow_control.events[flow_control.events_num-1], dev_events->device_info->serial) == 0) {
+            printf("fake HLML: event for device %s found", dev_events->device_info->serial);
+            // set found
+            event_data.device = dev_events->device_info;
+            event_data.event_type |= HLML_EVENT_CRITICAL_ERR;
+            flow_control.events_num --;
+            break;
+        }
+    }
+
+    if (event_data.event_type != 0) {
+        event_data.device = dev_events->device_info;
+        *data = event_data;
+        return HLML_SUCCESS;
+    }
+
+    return HLML_ERROR_TIMEOUT;
 };
 
 hlml_return_t hlml_device_get_mac_info(hlml_device_t device,
@@ -351,11 +515,27 @@ hlml_return_t hlml_device_get_pcb_info(hlml_device_t device, hlml_pcb_info_t *pc
 hlml_return_t hlml_device_get_serial(hlml_device_t device, char *serial, unsigned int length) {
     log_call(__func__);
 
+    assert(serial && length >0);
+
+    if (flow_control.func_ret[FAKE_DEVICE_GET_SERIAL] != HLML_SUCCESS) {
+        // just in case, set the serial to empty string
+        serial[0] = '\0';
+        return flow_control.func_ret[FAKE_DEVICE_GET_SERIAL];
+    }
+
+    if (!device) {
+        serial[0] = '\0';
+        return HLML_SUCCESS;
+    }
+
     if (SERIAL_MAX > (int)length)
         return HLML_ERROR_INSUFFICIENT_SIZE;
 
+    // cast void* type to concrete type
     struct device_info_t *device_info = (struct device_info_t *)device;
-    strncpy(serial, device_info->serial, length);
+    if (device_info) {
+        strncpy(serial, device_info->serial, length);
+    }
 
     return HLML_SUCCESS;
 };

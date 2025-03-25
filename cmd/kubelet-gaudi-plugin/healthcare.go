@@ -29,12 +29,12 @@ import (
 )
 
 const (
-	healthCheckIntervalSeconds = int(10)
+	defaultHealthCheckIntervalSeconds = int(10)
 )
 
 // initHLML loops through devices HLML detecs to update serial number in allocatable.
 // This is needed for health monitoring, critical events contain device serial ID.
-func (d *driver) initHLML(ctx context.Context) error {
+func (d *driver) initHLML() error {
 	ret := hlml.InitWithLogs()
 	if ret != nil {
 		return fmt.Errorf("failed to initialize HLML: %v", ret)
@@ -48,24 +48,24 @@ func (d *driver) initHLML(ctx context.Context) error {
 	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
 
 	for i := uint(0); i < count; i++ {
-		hlmlDevice, ret := hlml.DeviceHandleByIndex(i)
-		if ret != nil {
-			return fmt.Errorf("failed to get device at index %d: %v", i, ret)
+		hlmlDevice, err := hlml.DeviceHandleByIndex(i)
+		if err != nil {
+			return fmt.Errorf("failed to get device at index %d: %v", i, err)
 		}
 
 		serial, err := hlmlDevice.SerialNumber()
 		if err != nil {
-			return fmt.Errorf("failed to get serial number of device at index %d: %v", i, ret)
+			return fmt.Errorf("failed to get serial number of device at index %d: %v", i, err)
 		}
 
-		pciAddress, ret := hlmlDevice.PCIBusID()
-		if ret != nil {
-			return fmt.Errorf("failed to get PCI bus ID of device at index %d: %v", i, ret)
+		pciAddress, err := hlmlDevice.PCIBusID()
+		if err != nil {
+			return fmt.Errorf("failed to get PCI bus ID of device at index %d: %v", i, err)
 		}
 
-		pciIdHex, ret := hlmlDevice.PCIID()
-		if ret != nil {
-			return fmt.Errorf("failed to get PCI ID of device at index %d: %v", i, ret)
+		pciIdHex, err := hlmlDevice.PCIID()
+		if err != nil {
+			return fmt.Errorf("failed to get PCI ID of device at index %d: %v", i, err)
 		}
 		// hlml.Device.PCIID has both vendor and device ID, but device ID has no '0x' prefix.
 		pciId := fmt.Sprintf("%08x", pciIdHex)
@@ -89,11 +89,14 @@ func (d *driver) initHLML(ctx context.Context) error {
 // See https://github.com/kubernetes/kubernetes/issues/128979
 //
 // TODO: use KEP-5055: DRA: device taints and tolerations, when it is implemented.
-func (d *driver) startHealthMonitor(ctx context.Context) {
+func (d *driver) startHealthMonitor(ctx context.Context, intervalSeconds int) {
+	if intervalSeconds == 0 {
+		intervalSeconds = defaultHealthCheckIntervalSeconds
+	}
 	// Watch for device UIDs to mark unhealthy.
 	idsChan := make(chan string)
 	hlmlContext, stopHLMLMonitor := context.WithCancel(ctx)
-	go d.watchCriticalHLMLEvents(hlmlContext, healthCheckIntervalSeconds, idsChan)
+	go d.watchCriticalHLMLEvents(hlmlContext, intervalSeconds, idsChan)
 
 	for {
 		select {
@@ -166,6 +169,7 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 	}
 }
 
+// timedHLMLEventCheck returns true if any device is unhealthy, and list of UIDs of unhealthy devices.
 func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 	uids := []string{}
 	e, err := hlml.WaitForEvent(eventSet, 1000)
@@ -206,14 +210,15 @@ func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 
 	for deviceUID, d := range allocatable {
 		if d.Serial == serial {
-			klog.Error("critical: the device is unhealthy", "UID", deviceUID, "xid", e.Etype, "serial", d.Serial)
+			klog.Error("critical: the device is unhealthy. ", "UID: ", deviceUID, " xid: ", e.Etype, " serial: ", d.Serial)
 			uids = append(uids, d.UID)
 			return true, uids
 		}
 	}
 
+	// This should be theoretically impossible since we signed up only for devices that we know about.
+	klog.Error("critical: could not find event device serial in Allocatable. All devices will go unhealthy", "event", e.Etype)
 	for _, d := range allocatable {
-		klog.Error("critical: could not find serial in Allocatable. All devices will go unhealthy", "event", e.Etype)
 		uids = append(uids, d.UID)
 	}
 
@@ -221,6 +226,8 @@ func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 }
 
 func (d *driver) Shutdown(ctx context.Context) error {
+	klog.V(5).Info("Shutting down driver")
+
 	d.plugin.Stop()
 
 	// When health monitoring with HLML was initiated, d.hlmlShutdown will get
@@ -231,9 +238,9 @@ func (d *driver) Shutdown(ctx context.Context) error {
 
 		time.Sleep(1 * time.Second)
 
-		ret := hlml.Shutdown()
-		if ret != nil {
-			klog.Errorf("failed to shutdown HLML: %v", ret)
+		err := hlml.Shutdown()
+		if err != nil {
+			klog.Errorf("failed to shutdown HLML: %v", err)
 		}
 	}
 
