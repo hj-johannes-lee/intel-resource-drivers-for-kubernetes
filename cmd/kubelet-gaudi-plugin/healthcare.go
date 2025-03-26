@@ -172,11 +172,23 @@ func (d *driver) watchCriticalHLMLEvents(ctx context.Context, intervalSeconds in
 // timedHLMLEventCheck returns true if any device is unhealthy, and list of UIDs of unhealthy devices.
 func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 	uids := []string{}
+	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
+	updateHealth := false
+
 	e, err := hlml.WaitForEvent(eventSet, 1000)
 	if err != nil {
 		klog.Errorf("HLML WaitForEvent failed: %v", err)
+
+		for _, device := range allocatable {
+			if _, err := hlml.DeviceHandleBySerial(device.Serial); err != nil {
+				klog.Errorf("critical: could not get device %v handle by serial, marking unhealthy", device.UID)
+				uids = append(uids, device.UID)
+				updateHealth = true
+			}
+		}
+
 		time.Sleep(2 * time.Second)
-		return false, uids
+		return updateHealth, uids
 	}
 
 	klog.V(5).Infof("HLML event received: %+v", e)
@@ -185,8 +197,6 @@ func (d *driver) timedHLMLEventCheck(eventSet hlml.EventSet) (bool, []string) {
 		klog.V(5).Infof("Ignoring unexpected non-critical HLML error event: %+v", e)
 		return false, uids
 	}
-
-	allocatable, _ := d.state.Allocatable.(map[string]*device.DeviceInfo)
 
 	dev, err := hlml.DeviceHandleBySerial(e.Serial)
 	if err != nil {
