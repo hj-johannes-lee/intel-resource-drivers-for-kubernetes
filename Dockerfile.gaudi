@@ -39,8 +39,10 @@ fi && \
 cp -r licenses /install_root/ && \
 cp bin/kubelet-gaudi-plugin /install_root/
 
-FROM gcr.io/distroless/static-debian12:latest@sha256:95ea148e8e9edd11cc7f639dc11825f38af86a14e5c7361753c741ceadef2167
+FROM ubuntu:25.04
 LABEL description="Intel Gaudi resource driver for Kubernetes"
 
 COPY --from=build /install_root /
 COPY --from=build /usr/lib/habanalabs/libhlml.so /usr/lib/habanalabs/libhlml.so
+COPY --from=build /build/ld.conf /etc/ld.so.conf.d/habanalabs.conf
+RUN ldconfig
