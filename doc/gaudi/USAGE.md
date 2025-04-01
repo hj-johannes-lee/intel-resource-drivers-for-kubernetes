@@ -13,6 +13,10 @@ Deploy DeviceClass, Namespace and ResourceDriver
 kubectl apply -k deployments/gaudi/
 ```
 
+**Note:** By default, the plugin's health monitoring functionality (with the -m flag) is enabled, which requires a privileged container.
+Since this is the only reason for using a privileged container, it is recommended to set `privileged: false`
+when the functionality is disabled, for security reasons. This matter will be improved in the future.
+
 By default, the kubelet-plugin is deployed on _all_ nodes in the cluster, as no nodeSelector is defined.
 To restrict the deployment to Gaudi-enabled nodes, follow these steps:
 
