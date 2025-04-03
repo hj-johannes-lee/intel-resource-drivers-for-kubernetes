@@ -46,11 +46,18 @@ type driver struct {
 	hlmlShutdown context.CancelFunc
 }
 
-func sanitizeGaudiFlags(gaudiFlags GaudiFlags) bool {
-	if gaudiFlags.HealthcareInterval < HealthcareIntervalFlagMin || gaudiFlags.HealthcareInterval > HealthcareIntervalFlagMax {
-		return false
+func getGaudiFlags(someFlags interface{}) (GaudiFlags, error) {
+	gaudiFlags, OK := someFlags.(GaudiFlags)
+	if !OK {
+		return GaudiFlags{}, fmt.Errorf("could not parse driver flags as GaudiFlags")
 	}
-	return true
+
+	if gaudiFlags.HealthcareInterval < HealthcareIntervalFlagMin || gaudiFlags.HealthcareInterval > HealthcareIntervalFlagMax {
+		return gaudiFlags, fmt.Errorf("unsupported health interval value %v. Should be [%v~%v]",
+			gaudiFlags.HealthcareInterval, HealthcareIntervalFlagMin, HealthcareIntervalFlagMax)
+	}
+
+	return gaudiFlags, nil
 }
 
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
@@ -58,15 +65,10 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	sysfsDir := helpers.GetSysfsRoot(device.SysfsAccelPath)
 	preparedClaimsFilePath := path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName)
 
-	gaudiFlags, OK := config.DriverFlags.(GaudiFlags)
-	if !OK {
-		klog.Error("FATAL: Could not parse driver flags as GaudiFlags")
-		return nil, fmt.Errorf("FATAL: Could not parse driver flags as GaudiFlags")
-	}
-
-	if !sanitizeGaudiFlags(gaudiFlags) {
-		klog.Error("FATAL: Could not sanitize Gaudi flags")
-		return nil, fmt.Errorf("FATAL: Could not sanitize Gaudi flags")
+	gaudiFlags, err := getGaudiFlags(config.DriverFlags)
+	if err != nil {
+		klog.Errorf("FATAL: %v", err)
+		return nil, fmt.Errorf("FATAL: %v", err)
 	}
 
 	detectedDevices := discovery.DiscoverDevices(sysfsDir, device.DefaultNamingStyle)

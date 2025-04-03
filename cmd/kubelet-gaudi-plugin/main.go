@@ -32,16 +32,16 @@ type GaudiFlags struct {
 }
 
 const (
-	HealthCareFlagDefault                = false
-	HealthcareIntervalFlagMin            = 1
-	HealthcareIntervalFlagMax            = 3600
-	HealthcareIntervalSecondsFlagDefault = 5
+	HealthCareFlagDefault         = false
+	HealthcareIntervalFlagMin     = 1
+	HealthcareIntervalFlagMax     = 3600
+	HealthcareIntervalFlagDefault = 5
 )
 
 func main() {
 	gaudiFlags := &GaudiFlags{
 		Healthcare:         HealthCareFlagDefault,
-		HealthcareInterval: HealthcareIntervalSecondsFlagDefault,
+		HealthcareInterval: HealthcareIntervalFlagDefault,
 	}
 
 	cliFlags := []cli.Flag{
@@ -56,8 +56,8 @@ func main() {
 		&cli.IntFlag{
 			Name:        "health-interval",
 			Aliases:     []string{"i"},
-			Usage:       "Number of seconds betweek health-monitoring checks [1~3600]",
-			Value:       HealthcareIntervalSecondsFlagDefault,
+			Usage:       fmt.Sprintf("Number of seconds betweek health-monitoring checks [%v ~ %v]", HealthcareIntervalFlagMin, HealthcareIntervalFlagMax),
+			Value:       HealthcareIntervalFlagDefault,
 			Destination: &gaudiFlags.HealthcareInterval,
 			EnvVars:     []string{"HEALTH_INTERVAL"},
 		},
