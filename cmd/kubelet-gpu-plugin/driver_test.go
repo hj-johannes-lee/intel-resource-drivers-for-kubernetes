@@ -63,7 +63,7 @@ func TestFakeSysfs(t *testing.T) {
 func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 
 	config := &helpers.Config{
-		Flags: &helpers.Flags{
+		CommonFlags: &helpers.Flags{
 			NodeName:                  "node1",
 			CdiRoot:                   testDirs.CdiRoot,
 			KubeletPluginDir:          testDirs.KubeletPluginDir,
@@ -72,10 +72,10 @@ func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 		Coreclient: kubefake.NewSimpleClientset(),
 	}
 
-	if err := os.MkdirAll(config.Flags.KubeletPluginDir, 0755); err != nil {
+	if err := os.MkdirAll(config.CommonFlags.KubeletPluginDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
 	}
-	if err := os.MkdirAll(config.Flags.KubeletPluginsRegistryDir, 0755); err != nil {
+	if err := os.MkdirAll(config.CommonFlags.KubeletPluginsRegistryDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed creating fake driver plugin dir: %v", err)
 	}
 

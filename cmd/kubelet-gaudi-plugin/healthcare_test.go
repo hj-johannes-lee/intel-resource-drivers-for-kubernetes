@@ -32,7 +32,7 @@ import (
 )
 
 // Event-based tests, assuming the init succeeds.
-func TestUpdateHealth(t *testing.T) {
+func TestGaudiUpdateHealth(t *testing.T) {
 	tests := []struct {
 		name                  string
 		fakeEvents            []string // serial numbers

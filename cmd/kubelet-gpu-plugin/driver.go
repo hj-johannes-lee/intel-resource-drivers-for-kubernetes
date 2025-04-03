@@ -48,9 +48,9 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	driver := &driver{
 		client: config.Coreclient,
 		state: &helpers.NodeState{
-			PreparedClaimsFilePath: path.Join(config.Flags.KubeletPluginDir, device.PreparedClaimsFileName),
+			PreparedClaimsFilePath: path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName),
 			SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
-			NodeName:               config.Flags.NodeName,
+			NodeName:               config.CommonFlags.NodeName,
 		},
 	}
 
@@ -63,13 +63,13 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 
 	klog.V(3).Info("Creating new NodeState")
 	var err error
-	driver.state, err = newNodeState(detectedDevices, config.Flags.CdiRoot, driver.state.PreparedClaimsFilePath, driver.state.SysfsRoot, driver.state.NodeName)
+	driver.state, err = newNodeState(detectedDevices, config.CommonFlags.CdiRoot, driver.state.PreparedClaimsFilePath, driver.state.SysfsRoot, driver.state.NodeName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
 
-	registrarSocket := path.Join(config.Flags.KubeletPluginsRegistryDir, device.PluginRegistrarFileName)
-	pluginSocket := path.Join(config.Flags.KubeletPluginDir, device.PluginSocketFileName)
+	registrarSocket := path.Join(config.CommonFlags.KubeletPluginsRegistryDir, device.PluginRegistrarFileName)
+	pluginSocket := path.Join(config.CommonFlags.KubeletPluginDir, device.PluginSocketFileName)
 	klog.Infof(`Starting DRA resource-driver kubelet-plugin
 RegistrarSocketPath: %v
 PluginSocketPath: %v
@@ -82,7 +82,7 @@ KubeletPluginSocketPath: %v`,
 		ctx,
 		[]any{driver},
 		kubeletplugin.KubeClient(config.Coreclient),
-		kubeletplugin.NodeName(config.Flags.NodeName),
+		kubeletplugin.NodeName(config.CommonFlags.NodeName),
 		kubeletplugin.DriverName(device.DriverName),
 		kubeletplugin.RegistrarSocketPath(registrarSocket),
 		kubeletplugin.PluginSocketPath(pluginSocket),

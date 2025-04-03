@@ -20,12 +20,50 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/urfave/cli/v2"
+
 	gaudi "github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gaudi/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
+type GaudiFlags struct {
+	Healthcare         bool
+	HealthcareInterval int
+}
+
+const (
+	HealthCareFlagDefault                = false
+	HealthcareIntervalFlagMin            = 1
+	HealthcareIntervalFlagMax            = 3600
+	HealthcareIntervalSecondsFlagDefault = 5
+)
+
 func main() {
-	if err := helpers.NewApp(gaudi.DriverName, newDriver).Run(os.Args); err != nil {
+	gaudiFlags := &GaudiFlags{
+		Healthcare:         HealthCareFlagDefault,
+		HealthcareInterval: HealthcareIntervalSecondsFlagDefault,
+	}
+
+	cliFlags := []cli.Flag{
+		&cli.BoolFlag{
+			Name:        "health-monitoring",
+			Aliases:     []string{"m"},
+			Usage:       "Actively monitor device health and update ResourceSlice. Requires privileges.",
+			Value:       HealthCareFlagDefault,
+			Destination: &gaudiFlags.Healthcare,
+			EnvVars:     []string{"HEALTH_MONITORING"},
+		},
+		&cli.IntFlag{
+			Name:        "health-interval",
+			Aliases:     []string{"i"},
+			Usage:       "Number of seconds betweek health-monitoring checks [1~3600]",
+			Value:       HealthcareIntervalSecondsFlagDefault,
+			Destination: &gaudiFlags.HealthcareInterval,
+			EnvVars:     []string{"HEALTH_INTERVAL"},
+		},
+	}
+
+	if err := helpers.NewApp(gaudi.DriverName, newDriver, cliFlags, gaudiFlags).Run(os.Args); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

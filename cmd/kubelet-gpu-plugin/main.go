@@ -20,12 +20,34 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
+type GPUFlags struct {
+	Partitioning bool
+}
+
+const (
+	PartitioningDefault = false
+)
+
 func main() {
-	if err := helpers.NewApp(device.DriverName, newDriver).Run(os.Args); err != nil {
+	gpuFlags := GPUFlags{}
+	cliFlags := []cli.Flag{
+		&cli.BoolFlag{
+			Name:        "partitioning-management",
+			Aliases:     []string{"p"},
+			Usage:       "Manage partitioning physical devices into virtual. [Not Supported]",
+			Value:       PartitioningDefault,
+			Destination: &gpuFlags.Partitioning,
+			EnvVars:     []string{"PARTITIONING"},
+		},
+	}
+
+	if err := helpers.NewApp(device.DriverName, newDriver, cliFlags, &gpuFlags).Run(os.Args); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

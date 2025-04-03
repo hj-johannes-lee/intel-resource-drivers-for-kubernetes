@@ -90,9 +90,6 @@ func (d *driver) initHLML() error {
 //
 // TODO: use KEP-5055: DRA: device taints and tolerations, when it is implemented.
 func (d *driver) startHealthMonitor(ctx context.Context, intervalSeconds int) {
-	if intervalSeconds == 0 {
-		intervalSeconds = defaultHealthCheckIntervalSeconds
-	}
 	// Watch for device UIDs to mark unhealthy.
 	idsChan := make(chan string)
 	hlmlContext, stopHLMLMonitor := context.WithCancel(ctx)
