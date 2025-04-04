@@ -49,20 +49,19 @@ type Flags struct {
 	loggingConfig    *flags.LoggingConfig
 
 	NodeName                  string
-	Healthcare                bool
-	HealthcareInterval        int
-	CdiRoot                   string
 	KubeletPluginDir          string
 	KubeletPluginsRegistryDir string
-	numDevices                int
+
+	CdiRoot string
 }
 
 type Config struct {
-	Flags      *Flags
-	Coreclient coreclientset.Interface
+	CommonFlags *Flags
+	Coreclient  coreclientset.Interface
+	DriverFlags interface{}
 }
 
-func NewApp(driverName string, newDriver func(ctx context.Context, config *Config) (Driver, error)) *cli.App {
+func NewApp(driverName string, newDriver func(ctx context.Context, config *Config) (Driver, error), driverCliFlags []cli.Flag, driverConfigFlags interface{}) *cli.App {
 	nodeName, nodeNameFound := os.LookupEnv("NODE_NAME")
 	if !nodeNameFound {
 		nodeName = "127.0.0.1"
@@ -90,21 +89,8 @@ func NewApp(driverName string, newDriver func(ctx context.Context, config *Confi
 			Destination: &flags.CdiRoot,
 			EnvVars:     []string{"CDI_ROOT"},
 		},
-		&cli.IntFlag{
-			Name:        "num-devices",
-			Usage:       "The number of devices to be generated.",
-			Value:       8,
-			Destination: &flags.numDevices,
-			EnvVars:     []string{"NUM_DEVICES"},
-		},
-		&cli.BoolFlag{
-			Name:        "health-monitoring",
-			Aliases:     []string{"m"},
-			Usage:       "Actively monitor device health and update ResourceSlice. Requires privileges.",
-			Value:       false,
-			Destination: &flags.Healthcare,
-		},
 	}
+	cliFlags = append(cliFlags, driverCliFlags...)
 	cliFlags = append(cliFlags, flags.kubeClientConfig.Flags()...)
 	cliFlags = append(cliFlags, flags.loggingConfig.Flags()...)
 
@@ -128,8 +114,9 @@ func NewApp(driverName string, newDriver func(ctx context.Context, config *Confi
 			}
 
 			config := &Config{
-				Flags:      flags,
-				Coreclient: clientSets.Core,
+				CommonFlags: flags,
+				Coreclient:  clientSets.Core,
+				DriverFlags: driverConfigFlags,
 			}
 
 			return StartPlugin(ctx, config, newDriver)
@@ -140,15 +127,15 @@ func NewApp(driverName string, newDriver func(ctx context.Context, config *Confi
 }
 
 func StartPlugin(ctx context.Context, config *Config, newDriver func(ctx context.Context, config *Config) (Driver, error)) error {
-	err := os.MkdirAll(config.Flags.KubeletPluginDir, 0750)
+	err := os.MkdirAll(config.CommonFlags.KubeletPluginDir, 0750)
 	if err != nil {
 		return err
 	}
 
-	info, err := os.Stat(config.Flags.CdiRoot)
+	info, err := os.Stat(config.CommonFlags.CdiRoot)
 	switch {
 	case err != nil && os.IsNotExist(err):
-		err := os.MkdirAll(config.Flags.CdiRoot, 0750)
+		err := os.MkdirAll(config.CommonFlags.CdiRoot, 0750)
 		if err != nil {
 			return err
 		}

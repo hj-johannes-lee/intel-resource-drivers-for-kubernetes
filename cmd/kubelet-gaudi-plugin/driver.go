@@ -46,10 +46,30 @@ type driver struct {
 	hlmlShutdown context.CancelFunc
 }
 
+func getGaudiFlags(someFlags interface{}) (GaudiFlags, error) {
+	gaudiFlags, OK := someFlags.(GaudiFlags)
+	if !OK {
+		return GaudiFlags{}, fmt.Errorf("could not parse driver flags as GaudiFlags")
+	}
+
+	if gaudiFlags.HealthcareInterval < HealthcareIntervalFlagMin || gaudiFlags.HealthcareInterval > HealthcareIntervalFlagMax {
+		return gaudiFlags, fmt.Errorf("unsupported health interval value %v. Should be [%v~%v]",
+			gaudiFlags.HealthcareInterval, HealthcareIntervalFlagMin, HealthcareIntervalFlagMax)
+	}
+
+	return gaudiFlags, nil
+}
+
 func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, error) {
 	driverVersion.PrintDriverVersion(device.DriverName)
 	sysfsDir := helpers.GetSysfsRoot(device.SysfsAccelPath)
-	preparedClaimsFilePath := path.Join(config.Flags.KubeletPluginDir, device.PreparedClaimsFileName)
+	preparedClaimsFilePath := path.Join(config.CommonFlags.KubeletPluginDir, device.PreparedClaimsFileName)
+
+	gaudiFlags, err := getGaudiFlags(config.DriverFlags)
+	if err != nil {
+		klog.Errorf("FATAL: %v", err)
+		return nil, fmt.Errorf("FATAL: %v", err)
+	}
 
 	detectedDevices := discovery.DiscoverDevices(sysfsDir, device.DefaultNamingStyle)
 	if len(detectedDevices) == 0 {
@@ -57,7 +77,7 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	}
 
 	klog.V(3).Info("Creating new NodeState")
-	state, err := newNodeState(detectedDevices, config.Flags.CdiRoot, preparedClaimsFilePath, config.Flags.NodeName)
+	state, err := newNodeState(detectedDevices, config.CommonFlags.CdiRoot, preparedClaimsFilePath, config.CommonFlags.NodeName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new NodeState: %v", err)
 	}
@@ -67,8 +87,8 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 		client: config.Coreclient,
 	}
 
-	registrarSocket := path.Join(config.Flags.KubeletPluginsRegistryDir, device.PluginRegistrarFileName)
-	pluginSocket := path.Join(config.Flags.KubeletPluginDir, device.PluginSocketFileName)
+	registrarSocket := path.Join(config.CommonFlags.KubeletPluginsRegistryDir, device.PluginRegistrarFileName)
+	pluginSocket := path.Join(config.CommonFlags.KubeletPluginDir, device.PluginSocketFileName)
 	klog.Infof(`Starting DRA resource-driver kubelet-plugin
 RegistrarSocketPath: %v
 PluginSocketPath: %v
@@ -81,7 +101,7 @@ KubeletPluginSocketPath: %v`,
 		ctx,
 		[]any{driver},
 		kubeletplugin.KubeClient(config.Coreclient),
-		kubeletplugin.NodeName(config.Flags.NodeName),
+		kubeletplugin.NodeName(config.CommonFlags.NodeName),
 		kubeletplugin.DriverName(device.DriverName),
 		kubeletplugin.RegistrarSocketPath(registrarSocket),
 		kubeletplugin.PluginSocketPath(pluginSocket),
@@ -94,7 +114,7 @@ KubeletPluginSocketPath: %v`,
 	driver.plugin = plugin
 
 	// Init HLML healthcare to get details needed for health monitor.
-	if config.Flags.Healthcare {
+	if gaudiFlags.Healthcare {
 		if err := driver.initHLML(); err != nil {
 			return nil, fmt.Errorf("failed to initialize HLML for health monitoring: %v", err)
 		}
@@ -104,11 +124,11 @@ KubeletPluginSocketPath: %v`,
 		return nil, fmt.Errorf("startup error: %v", err)
 	}
 
-	if config.Flags.Healthcare {
+	if gaudiFlags.Healthcare {
 		// startHealthMonitor listens for unhealthy UIDs, has to run in a routine.
 		hlmlListenerContext, hlmlListenerCancel := context.WithCancel(ctx)
 		driver.hlmlShutdown = hlmlListenerCancel
-		go driver.startHealthMonitor(hlmlListenerContext, config.Flags.HealthcareInterval)
+		go driver.startHealthMonitor(hlmlListenerContext, gaudiFlags.HealthcareInterval)
 	}
 
 	klog.V(3).Info("Finished creating new driver")

@@ -41,7 +41,7 @@ const (
 	WithHealthcare = true
 )
 
-func TestFakeSysfs(t *testing.T) {
+func TestGaudiFakeSysfs(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 	if err != nil {
 		t.Errorf("could not create fake system dirs: %v", err)
@@ -67,19 +67,20 @@ func TestFakeSysfs(t *testing.T) {
 
 func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver, error) {
 
+	gaudiFlags := GaudiFlags{
+		Healthcare:         healthcare,
+		HealthcareInterval: 1,
+	}
+
 	config := &helpers.Config{
-		Flags: &helpers.Flags{
+		CommonFlags: &helpers.Flags{
 			NodeName:                  "node1",
 			CdiRoot:                   testDirs.CdiRoot,
 			KubeletPluginDir:          testDirs.KubeletPluginDir,
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
-			Healthcare:                healthcare,
 		},
-		Coreclient: kubefake.NewSimpleClientset(),
-	}
-
-	if healthcare {
-		config.Flags.HealthcareInterval = 1
+		Coreclient:  kubefake.NewSimpleClientset(),
+		DriverFlags: gaudiFlags,
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
@@ -96,7 +97,7 @@ func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver,
 	return driver, err
 }
 
-func TestNodePrepareResources(t *testing.T) {
+func TestGaudiNodePrepareResources(t *testing.T) {
 	type testCase struct {
 		name                   string
 		claims                 []*resourcev1.ResourceClaim
@@ -270,7 +271,7 @@ func TestNodePrepareResources(t *testing.T) {
 	}
 }
 
-func TestNodeUnprepareResources(t *testing.T) {
+func TestGaudiNodeUnprepareResources(t *testing.T) {
 	type testCase struct {
 		name                   string
 		request                *drav1.NodeUnprepareResourcesRequest
@@ -406,7 +407,7 @@ func TestNodeUnprepareResources(t *testing.T) {
 	}
 }
 
-func TestShutdown(t *testing.T) {
+func TestGaudiShutdown(t *testing.T) {
 	testDirs, err := testhelpers.NewTestDirs(device.DriverName)
 	if err != nil {
 		t.Fatalf("could not create fake system dirs: %v", err)

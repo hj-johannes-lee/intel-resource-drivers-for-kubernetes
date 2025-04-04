@@ -17,7 +17,7 @@ func TestNewAppWithFlags(t *testing.T) {
 		return nil, nil
 	}
 
-	app := NewApp(driverName, newDriver)
+	app := NewApp(driverName, newDriver, []cli.Flag{}, (interface{})(nil))
 	set := flag.NewFlagSet("test", 0)
 	set.String("node-name", "test-node", "doc")
 	set.String("cdi-root", "/test/cdi", "doc")
@@ -96,7 +96,7 @@ func TestStartPlugin(t *testing.T) {
 		{
 			name: "CDI root is not a directory",
 			config: &Config{
-				Flags: &Flags{
+				CommonFlags: &Flags{
 					KubeletPluginDir: "/tmp/testplugin",
 					CdiRoot:          "/tmp/testfile",
 				},
@@ -111,7 +111,7 @@ func TestStartPlugin(t *testing.T) {
 		{
 			name: "KubeletPluginDir does not exist",
 			config: &Config{
-				Flags: &Flags{
+				CommonFlags: &Flags{
 					KubeletPluginDir: "/does-not-exist",
 				},
 			},
@@ -120,7 +120,7 @@ func TestStartPlugin(t *testing.T) {
 		{
 			name: "CDIRoot does not exist",
 			config: &Config{
-				Flags: &Flags{
+				CommonFlags: &Flags{
 					KubeletPluginDir: AddRandomString("/tmp/test"),
 					CdiRoot:          "/does-not-exist",
 				},
@@ -130,7 +130,7 @@ func TestStartPlugin(t *testing.T) {
 		{
 			name: "NewDriver returns error",
 			config: &Config{
-				Flags: &Flags{
+				CommonFlags: &Flags{
 					KubeletPluginDir: "/tmp/testplugin",
 					CdiRoot:          "/tmp/testcdi",
 				},
