@@ -39,7 +39,7 @@ const (
 )
 
 func main() {
-	gaudiFlags := &GaudiFlags{
+	gaudiFlags := GaudiFlags{
 		Healthcare:         HealthCareFlagDefault,
 		HealthcareInterval: HealthcareIntervalFlagDefault,
 	}
@@ -63,7 +63,7 @@ func main() {
 		},
 	}
 
-	if err := helpers.NewApp(gaudi.DriverName, newDriver, cliFlags, gaudiFlags).Run(os.Args); err != nil {
+	if err := helpers.NewApp(gaudi.DriverName, newDriver, cliFlags, &gaudiFlags).Run(os.Args); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
