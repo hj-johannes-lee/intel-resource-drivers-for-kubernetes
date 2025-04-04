@@ -46,11 +46,13 @@ type driver struct {
 	hlmlShutdown context.CancelFunc
 }
 
-func getGaudiFlags(someFlags interface{}) (GaudiFlags, error) {
-	gaudiFlags, OK := someFlags.(GaudiFlags)
+func getGaudiFlags(someFlags interface{}) (*GaudiFlags, error) {
+	gaudiFlags, OK := someFlags.(*GaudiFlags)
 	if !OK {
-		return GaudiFlags{}, fmt.Errorf("could not parse driver flags as GaudiFlags")
+		return &GaudiFlags{}, fmt.Errorf("could not parse driver flags as GaudiFlags")
 	}
+
+	klog.V(5).Infof("Gaudi parameters parsing OK: %+v", gaudiFlags)
 
 	if gaudiFlags.HealthcareInterval < HealthcareIntervalFlagMin || gaudiFlags.HealthcareInterval > HealthcareIntervalFlagMax {
 		return gaudiFlags, fmt.Errorf("unsupported health interval value %v. Should be [%v~%v]",

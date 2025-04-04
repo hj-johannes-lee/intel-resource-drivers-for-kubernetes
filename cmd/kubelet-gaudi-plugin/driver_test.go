@@ -80,7 +80,7 @@ func getFakeDriver(testDirs testhelpers.TestDirsType, healthcare bool) (*driver,
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
 		Coreclient:  kubefake.NewSimpleClientset(),
-		DriverFlags: gaudiFlags,
+		DriverFlags: &gaudiFlags,
 	}
 
 	os.Setenv("SYSFS_ROOT", testDirs.SysfsRoot)
