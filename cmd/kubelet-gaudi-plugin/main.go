@@ -56,7 +56,7 @@ func main() {
 		&cli.IntFlag{
 			Name:        "health-interval",
 			Aliases:     []string{"i"},
-			Usage:       fmt.Sprintf("Number of seconds betweek health-monitoring checks [%v ~ %v]", HealthcareIntervalFlagMin, HealthcareIntervalFlagMax),
+			Usage:       fmt.Sprintf("Number of seconds between health-monitoring checks [%v ~ %v]", HealthcareIntervalFlagMin, HealthcareIntervalFlagMax),
 			Value:       HealthcareIntervalFlagDefault,
 			Destination: &gaudiFlags.HealthcareInterval,
 			EnvVars:     []string{"HEALTH_INTERVAL"},
