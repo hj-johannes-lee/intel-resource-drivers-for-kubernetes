@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: intel-gpu-resource-driver-kubelet-plugin
-  namespace: {{ include "intel-gpu-resource-driver.namespace" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "intel-gpu-resource-driver.labels" . | nindent 4 }}
 spec:
@@ -14,7 +14,6 @@ spec:
       labels:
         app: intel-gpu-resource-driver
     spec:
-      serviceAccount: intel-gpu-resource-driver-service-account
       serviceAccountName: {{ include "intel-gpu-resource-driver.serviceAccountName" . }}
       containers:
       - name: kubelet-plugin
