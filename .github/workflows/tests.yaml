@@ -44,7 +44,7 @@ jobs:
     needs: build-gaudi-test-image
     container:
       image: ger-is-registry.caas.intel.com/dgpu-orchestration/gaudi-dra-driver-test-image:latest
-      options: --user 1001:1001 --pull always
+      options: --user 1000:1000 --pull always
       env:
         http_proxy: http://proxy-dmz.intel.com:911
         https_proxy: http://proxy-dmz.intel.com:912
