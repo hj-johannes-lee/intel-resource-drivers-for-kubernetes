@@ -14,10 +14,10 @@ jobs:
   lint:
     runs-on: [self-hosted, generic]
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24.2'
-      - name: Checkout code
-        uses: actions/checkout@v4
       - name: Lint
         run: make lint

@@ -19,10 +19,10 @@ jobs:
   build-container:
     runs-on: [ "self-hosted", "generic" ]
     steps:
+    - uses: actions/checkout@v4
     - uses: actions/setup-go@v5
       with:
         go-version: '1.24.2'
-    - uses: actions/checkout@v4
     - name: Update vendor
       run: go mod vendor
     - run: |
