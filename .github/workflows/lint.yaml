@@ -16,5 +16,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - id: printEnv
+        name: printEnv
+        run: |
+          echo "PWD: $(pwd)"
+          env
+          ls "$HOME"
+
       - name: Lint
         run: make lint
