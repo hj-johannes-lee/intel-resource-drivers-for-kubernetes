@@ -115,6 +115,9 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 					"sriov": {
 						BoolValue: &sriovSupported,
 					},
+					"pciRoot": {
+						StringValue: &gpu.PCIRoot,
+					},
 				},
 				Capacity: map[resourcev1.QualifiedName]resourcev1.DeviceCapacity{
 					"memory":     {Value: resource.MustParse(fmt.Sprintf("%vMi", gpu.MemoryMiB))},
