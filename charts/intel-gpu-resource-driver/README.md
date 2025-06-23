@@ -12,7 +12,7 @@ More info: [Intel Resource Drivers for Kubernetes](https://github.com/intel/inte
 helm install \
     --namespace "intel-gpu-resource-driver" \
     --create-namespace \
-    intel-gpu-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver
+    intel-gpu-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver-chart
 ```
 
 > [!NOTE]
@@ -24,7 +24,7 @@ kubectl create namespace intel-gpu-resource-driver
 kubectl label --overwrite namespace intel-gpu-resource-driver pod-security.kubernetes.io/enforce=privileged
 helm install \
     --namespace intel-gpu-resource-driver \
-    intel-gpu-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver
+    intel-gpu-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver-chart
 ```
 
 ## Uninstalling the chart
@@ -40,7 +40,7 @@ kubectl delete ns intel-gpu-resource-driver
 See [Customizing the Chart Before Installing](https://helm.sh/docs/intro/using_helm/#customizing-the-chart-before-installing). To see all configurable options with detailed comments:
 
 ```console
-helm show values oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver
+helm show values oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-gpu-resource-driver-chart
 ```
 
 You may also run `helm show values` on this chart's dependencies for additional options.
@@ -50,4 +50,4 @@ You may also run `helm show values` on this chart's dependencies for additional 
 | image.repository | string | `intel` |
 | image.name | string | `"intel-gpu-resource-driver"` |
 | image.pullPolicy | string | `"IfNotPresent"` |
-| image.tag | string | `"v0.7.0"` |
+| image.tag | string | `"v0.8.0"` |
