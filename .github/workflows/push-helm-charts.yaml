@@ -16,7 +16,6 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  REGISTRY_USER: ${{ github.repository_owner }}
   RELEASE_REGISTRY: ghcr.io/intel/intel-resource-drivers-for-kubernetes
 
 jobs:
@@ -41,7 +40,7 @@ jobs:
       - name: Login to registry
         run: |
           echo "${{ secrets.GH_PUBLIC_TOKEN }}" | \
-          helm registry login ${{ env.REGISTRY }} -u ${{ env.REGISTRY_USER }} --password-stdin
+          helm registry login ${{ env.REGISTRY }} -u ${{ secrets.CI_USER_EMAIL }} --password-stdin
 
       - name: Update Helm chart dependencies
         run: make update-dependencies
