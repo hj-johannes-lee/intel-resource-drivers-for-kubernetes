@@ -13,7 +13,7 @@ More info: [Intel Resource Drivers for Kubernetes](https://github.com/intel/inte
 helm install \
     --namespace intel-qat-resource-driver \
     --create-namespace \
-    intel-qat-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/     intel-qat-resource-driver \
+    intel-qat-resource-driver oci://ghcr.io/intel/intel-resource-drivers-for-kubernetes/intel-qat-resource-driver
 ```
 
 > [!NOTE]
@@ -51,7 +51,7 @@ You may also run `helm show values` on this chart's dependencies for additional 
 | image.repository | string | `intel` |
 | image.name | string | `"intel-qat-resource-driver"` |
 | image.pullPolicy | string | `"IfNotPresent"` |
-| image.tag | string | `"v0.2.0"` |
+| image.tag | string | `"v0.3.0"` |
 
 If you change the image tag to be used in Helm chart deployment, ensure that the version of the container image is consistent with deployment YAMLs - they might change between releases.
 
