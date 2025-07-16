@@ -1,0 +1,49 @@
+name: Coral E2E Run
+
+on:
+ push:
+   branches:
+     - main
+ pull_request:
+   paths:
+     - '**/*gpu*/**'
+     - '**/*gpu*'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  setup-system:
+    runs-on: [ "self-hosted", "gpu-reserver" ]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Setup system for e2e
+      env:
+        ACTIONS_RUNNER_NAME: coral
+        LDAP_USERNAME: ${{ secrets.CI_USER_NAME }}
+        LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      run: |
+        ssh 10.166.73.134 coral.kmd.setup.for.k8s/run_coral_and_setup_env.sh
+        scp .github/gpu-scripts/setup_actions_runner.sh 10.166.73.134:/home/sdp/
+        ssh 10.166.73.134 "bash -s" <<EOF
+          ACTIONS_RUNNER_NAME="${ACTIONS_RUNNER_NAME}"
+          LDAP_USERNAME="${LDAP_USERNAME}"
+          LDAP_PASSWORD="${LDAP_PASSWORD}"
+          export ACTIONS_RUNNER_NAME LDAP_USERNAME LDAP_PASSWORD
+          bash /home/sdp/setup_actions_runner.sh
+        EOF
+  e2e:
+    needs: "setup-system"
+    runs-on: [ "self-hosted", "coral" ]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Install Go
+      run: .github/gpu-scripts/install_go.sh
+    - name: Build the GPU driver
+      run: .github/gpu-scripts/build.sh
+    - name: Run E2E tests
+      run: ./.github/gpu-scripts/run_e2e.sh

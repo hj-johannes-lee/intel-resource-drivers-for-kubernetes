@@ -12,6 +12,11 @@ SYSTEM_ID="573563"
 SSH_USER="sdp"
 
 get_system_ip() {
+    echo "$ACTIONS_RUNNER_NAME"
+    if [[ "$ACTIONS_RUNNER_NAME" == "coral" ]]; then
+        os_ip=10.10.10.10
+        return 0
+    fi
     echo "Retrieving system IP..."
     local response
     response=$(curl -s -X GET "https://onecloudapi.intel.com/${CI_USER_ONECLOUD_TOKEN}/system/info/${SYSTEM_ID}")
@@ -129,12 +134,72 @@ EOSCRIPT
     ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" "chmod +x ~/run_runner.sh && LDAP_USERNAME='${LDAP_USERNAME}' LDAP_PASSWORD='${LDAP_PASSWORD}' ACTIONS_RUNNER_NAME='${ACTIONS_RUNNER_NAME}' ~/run_runner.sh"
 }
 
+install_docker_and_registry() {
+    echo "🐳 Installing Docker and setting up registry..."
+    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" << 'EOF'
+set -euo pipefail
+
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+
+sudo mkdir -p /etc/apt/keyrings
+sudo rm -f /etc/apt/keyrings/docker.gpg
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+    | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+mkdir -p /home/"$(whoami)"/.docker
+echo '{
+ "proxies":
+ {
+   "default":
+   {
+ 	"httpProxy": "'$http_proxy'",
+ 	"httpsProxy": "'$https_proxy'",
+ 	"noProxy": "'$no_proxy'"
+   }
+ }
+}' > /home/"$(whoami)"/.docker/config.json
+
+sudo mkdir -p /etc/systemd/system/docker.service.d/
+echo '[Service]
+Environment="HTTP_PROXY='$http_proxy'"
+Environment="HTTPS_PROXY='$https_proxy'"
+Environment="NO_PROXY='$no_proxy'"' \
+    | sudo tee /etc/systemd/system/docker.service.d/proxy.conf
+
+sudo tee /etc/docker/daemon.json << JSON
+{
+  "registry-mirrors": ["https://cache-registry.caas.intel/cache"]
+}
+JSON
+
+sudo usermod -aG docker "$USER"
+sudo usermod -aG docker vagrant
+
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+sudo docker run -d -p 5000:5000 --restart=always --name registry registry:2
+EOF
+}
+
 main() {
     echo "🕒 Waiting 12 minutes for system boot..."
     sleep 720
     get_system_ip
     wait_for_ssh
     setup_proxy
+    install_docker_and_registry
     install_intel_certs_and_dt
     cleanup_existing_runner
     install_and_run_runner
