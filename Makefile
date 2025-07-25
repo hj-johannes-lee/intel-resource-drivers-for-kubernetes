@@ -72,7 +72,7 @@ include $(CURDIR)/qat.mk
 
 
 .PHONY: build device-faker device-faker-container-build
-build: gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker bin/goxpusmi
+build: vendor gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker bin/goxpusmi
 
 
 bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
@@ -246,7 +246,7 @@ push-helm-charts: package-helm-charts
 COVERAGE_FILE := coverage.out
 # Gaudi tests expect fake HLML library to be present at /usr/lib/habanalabs/libhlml.so
 # Dependency comes from gohlml package hardcoded LD_LIBRARY_PATH pointing to it.
-test:
+test: vendor
 ifeq ("$(container)","yes")
 		@echo setting safe directory
 		go test -buildvcs=false -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
