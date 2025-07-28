@@ -182,8 +182,7 @@ sudo tee /etc/docker/daemon.json << JSON
 }
 JSON
 
-sudo usermod -aG docker "$USER"
-sudo usermod -aG docker vagrant
+sudo usermod -aG docker "$(whoami)"
 
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
