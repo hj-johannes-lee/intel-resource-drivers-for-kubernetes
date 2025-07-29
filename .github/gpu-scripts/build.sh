@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+#Install build tools
+sudo DEBIAN_FRONTEND=noninteractive apt install -y build-essential
+
 ORG="localhost:5000"
 TAG="${TAG:-devel}"
 
