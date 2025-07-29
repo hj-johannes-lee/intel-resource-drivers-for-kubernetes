@@ -193,8 +193,10 @@ EOF
 }
 
 main() {
-    echo "🕒 Waiting 12 minutes for system boot..."
-    sleep 720
+    if [[ "$ACTIONS_RUNNER_NAME" == "gpu" ]]; then
+        echo "🕒 Waiting 12 minutes for system boot..."
+        sleep 720
+    fi
     get_system_ip
     wait_for_ssh
     setup_proxy
