@@ -45,5 +45,12 @@ jobs:
       run: .github/gpu-scripts/install_go.sh
     - name: Build the GPU driver
       run: .github/gpu-scripts/build.sh
+    - name: Copy kubeconfig
+      run: |
+          mkdir -p $HOME/.kube
+          yes | sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+          sudo chown $(id -u):$(id -g) $HOME/.kube/config
     - name: Run E2E tests
-      run: ./.github/gpu-scripts/run_e2e.sh
+      run: |
+          source /etc/environment
+          ./.github/gpu-scripts/run_e2e.sh
