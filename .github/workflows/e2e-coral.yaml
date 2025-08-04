@@ -14,29 +14,40 @@ permissions:
   pull-requests: read
 
 jobs:
-  setup-system:
+  setup-coral-sim:
     runs-on: [ "self-hosted", "gpu-reserver" ]
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
     - name: Setup system for e2e
       env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      run: |
+        ssh 10.166.73.134 coral.kmd.setup.for.k8s/run_coral_and_setup_env.sh
+  setup-actions-runner:
+    needs: "setup-coral-sim"
+    runs-on: [ "self-hosted", "gpu-reserver" ]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Setup actions runner in coral simulator
+      env:
         ACTIONS_RUNNER_NAME: coral
         LDAP_USERNAME: ${{ secrets.CI_USER_NAME }}
         LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        ssh 10.166.73.134 coral.kmd.setup.for.k8s/run_coral_and_setup_env.sh
-        scp .github/gpu-scripts/setup_actions_runner.sh 10.166.73.134:/home/sdp/
-        ssh 10.166.73.134 "bash -s" <<EOF
-          ACTIONS_RUNNER_NAME="${ACTIONS_RUNNER_NAME}"
-          LDAP_USERNAME="${LDAP_USERNAME}"
-          LDAP_PASSWORD="${LDAP_PASSWORD}"
-          export ACTIONS_RUNNER_NAME LDAP_USERNAME LDAP_PASSWORD
-          bash /home/sdp/setup_actions_runner.sh
-        EOF
+          scp .github/gpu-scripts/setup_actions_runner.sh 10.166.73.134:/home/sdp/
+          ssh 10.166.73.134 "bash -s" <<EOF
+            sudo systemctl stop unattended-upgrades
+            ACTIONS_RUNNER_NAME="${ACTIONS_RUNNER_NAME}"
+            LDAP_USERNAME="${LDAP_USERNAME}"
+            LDAP_PASSWORD="${LDAP_PASSWORD}"
+            export ACTIONS_RUNNER_NAME LDAP_USERNAME LDAP_PASSWORD
+            bash /home/sdp/setup_actions_runner.sh
+          EOF
   e2e:
-    needs: "setup-system"
+    needs: "setup-actions-runner"
     runs-on: [ "self-hosted", "coral" ]
     steps:
     - name: Checkout code
