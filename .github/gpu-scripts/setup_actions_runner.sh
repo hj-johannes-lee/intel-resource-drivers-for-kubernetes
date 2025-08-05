@@ -10,6 +10,9 @@ MAX_SSH_RETRIES=15
 RETRY_DELAY=10
 SYSTEM_ID="573563"
 SSH_USER="sdp"
+if [[ "$ACTIONS_RUNNER_NAME" == "coral" ]]; then
+    SSH_USER="vagrant"
+fi
 
 get_system_ip() {
     echo "$ACTIONS_RUNNER_NAME"
