@@ -75,13 +75,18 @@ sudo unzip -o /tmp/IntelSHA2RootChain-Base64.zip -d /usr/local/share/ca-certific
 sudo update-ca-certificates --fresh
 
 echo "⬇️ Downloading devtool (dt)..."
-curl --retry 3 --fail --location https://gfx-assets.intel.com/artifactory/gfx-build-assets/build-tools/devtool-go/latest/artifacts/linux64/dt --output ~/dt || {
+(set -o pipefail; curl -fL http://goto.intel.com/getdt | sh) || {
     echo "⚠️ SSL cert failed, retrying with --insecure"
-    curl --retry 3 --fail --insecure --location https://gfx-assets.intel.com/artifactory/gfx-build-assets/build-tools/devtool-go/latest/artifacts/linux64/dt --output ~/dt
+    curl -fkL http://goto.intel.com/getdt | sh
 }
 
 echo "📂 Installing devtool..."
 chmod +x ~/dt
+~/dt update
+
+echo "📤 Setting up proxy for dt..."
+sed -i "s#\"https\": *\"[^\"]*\"#\"https\": \"${https_proxy}\"#" ~/.config/dt/cache/proxies.json
+./dt refresh-proxy
 
 echo "✅ Devtool (dt) installed"
 EOF
