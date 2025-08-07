@@ -65,3 +65,10 @@ jobs:
       run: |
           source /etc/environment
           ./.github/gpu-scripts/run_e2e.sh
+  destroy-coral-sim:
+    needs: e2e
+    runs-on: [ "self-hosted", "gpu-reserver" ]
+    steps:
+    - name: Destroy HVT VM
+      run: |
+        ssh 10.166.73.134 ".hvt/hvt vm destroy"
