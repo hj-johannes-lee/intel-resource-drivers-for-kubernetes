@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #Install build tools
 sudo DEBIAN_FRONTEND=noninteractive apt install -y build-essential
+set -euo pipefail
 
 ORG="localhost:5000"
 TAG="${TAG:-devel}"
@@ -17,4 +18,5 @@ else
 fi
 
 echo "📦 Building and pushing container..."
+source /etc/profile.d/go.sh
 make gpu-container-push GPU_IMAGE_TAG="${ORG}/intel-gpu-resource-driver:${TAG}"
