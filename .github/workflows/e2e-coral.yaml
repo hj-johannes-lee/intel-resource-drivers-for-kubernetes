@@ -23,7 +23,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        ssh 10.166.73.134 coral.kmd.setup.for.k8s/run_coral_and_setup_env.sh
+        ssh 811643.intel.com coral.kmd.setup.for.k8s/run_coral_and_setup_env.sh
   setup-actions-runner:
     needs: "setup-coral-sim"
     runs-on: [ "self-hosted", "gpu-reserver" ]
@@ -37,8 +37,8 @@ jobs:
         LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-          scp .github/gpu-scripts/setup_actions_runner.sh 10.166.73.134:/home/sdp/
-          ssh 10.166.73.134 "bash -s" <<EOF
+          scp .github/gpu-scripts/setup_actions_runner.sh 811643.intel.com:/home/sdp/
+          ssh 811643.intel.com "bash -s" <<EOF
             sudo systemctl stop unattended-upgrades
             ACTIONS_RUNNER_NAME="${ACTIONS_RUNNER_NAME}"
             LDAP_USERNAME="${LDAP_USERNAME}"
@@ -71,4 +71,4 @@ jobs:
     steps:
     - name: Destroy HVT VM
       run: |
-        ssh 10.166.73.134 ".hvt/hvt vm destroy"
+        ssh 811643.intel.com ".hvt/hvt vm destroy"
