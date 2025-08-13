@@ -36,6 +36,7 @@ jobs:
         LDAP_USERNAME: ${{ secrets.CI_USER_NAME }}
         LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        PROXY_URL: http://proxy-ir.intel.com:911
       run: |
           scp .github/gpu-scripts/setup_actions_runner.sh 811643.intel.com:/home/sdp/
           ssh 811643.intel.com "bash -s" <<EOF
@@ -43,7 +44,8 @@ jobs:
             ACTIONS_RUNNER_NAME="${ACTIONS_RUNNER_NAME}"
             LDAP_USERNAME="${LDAP_USERNAME}"
             LDAP_PASSWORD="${LDAP_PASSWORD}"
-            export ACTIONS_RUNNER_NAME LDAP_USERNAME LDAP_PASSWORD
+            PROXY_URL="${PROXY_URL}"
+            export ACTIONS_RUNNER_NAME LDAP_USERNAME LDAP_PASSWORD PROXY_URL
             bash /home/sdp/setup_actions_runner.sh
           EOF
   e2e:

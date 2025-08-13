@@ -5,6 +5,7 @@ set -euo pipefail
 ACTIONS_RUNNER_NAME=${ACTIONS_RUNNER_NAME:-}
 LDAP_USERNAME=${LDAP_USERNAME:-}
 LDAP_PASSWORD=${LDAP_PASSWORD:-}
+PROXY_URL=${PROXY_URL:-http://proxy-dmz.intel.com:912}
 
 MAX_SSH_RETRIES=15
 RETRY_DELAY=10
@@ -49,16 +50,23 @@ wait_for_ssh() {
 
 setup_proxy() {
     echo "📤 Setting up proxy..."
-    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" << 'EOF'
-echo "⚙️ Setting proxy..."
+    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" "
+echo '⚙️ Setting proxy...'
 sudo tee -a /etc/environment > /dev/null << 'PROXY_EOF'
-http_proxy=http://proxy-dmz.intel.com:911
-https_proxy=http://proxy-dmz.intel.com:912
-no_proxy=127.0.0.1,localhost,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,downloadmirror.intel.com,devel,.svc,.svc.cluster.local
+http_proxy=\"${PROXY_URL}\"
+https_proxy=\"${PROXY_URL}\"
+no_proxy=\"127.0.0.1,localhost,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.intel.com,devel,.svc,.svc.cluster.local\"
+HTTP_PROXY=\"${PROXY_URL}\"
+HTTPS_PROXY=\"${PROXY_URL}\"
+NO_PROXY=\"127.0.0.1,localhost,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.intel.com,devel,.svc,.svc.cluster.local\"
 PROXY_EOF
 
-echo "✅ Proxy configured."
-EOF
+if [ -f /etc/wgetrc ]; then
+    sudo sed -i 's|http://.*|${PROXY_URL}|' /etc/wgetrc
+fi
+
+echo '✅ Proxy configured.'
+"
 }
 
 install_intel_certs_and_dt() {
