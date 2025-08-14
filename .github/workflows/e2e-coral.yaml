@@ -17,8 +17,6 @@ jobs:
   setup-coral-sim:
     runs-on: [ "self-hosted", "gpu-reserver" ]
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
     - name: Setup system for e2e
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
