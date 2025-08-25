@@ -72,18 +72,23 @@ include $(CURDIR)/qat.mk
 
 
 .PHONY: build device-faker device-faker-container-build
-build: gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker
+build: vendor gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker bin/goxpusmi
 
 
 bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
-	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS} -extldflags $(EXT_LDFLAGS)" \
+	CGO_ENABLED=1 GOOS=linux GOARCH=${ARCH} \
+	  go build -a -ldflags "${LDFLAGS}" \
 	  -mod vendor -o $@ ./cmd/cdi-specs-generator
 
 bin/device-faker: cmd/device-faker/*.go
 	CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} \
 	  go build -a -ldflags "${LDFLAGS} -X ${PKG}/pkg/version.version=${DEVICE_FAKER_VERSION} -extldflags ${EXT_LDFLAGS}" \
 	  -mod vendor -o $@ ./cmd/device-faker
+
+bin/goxpusmi: cmd/goxpusmi/*.go pkg/goxpusmi/*.go
+	GOOS=linux GOARCH=${ARCH} \
+	  go build -a -ldflags "${LDFLAGS}" \
+	  -mod vendor -o $@ ./cmd/goxpusmi
 
 device-faker: bin/device-faker
 	@echo "bin/device-faker"
@@ -202,7 +207,11 @@ yamllint:
 test-image: vendor
 	@echo "Building container image with fake HLML for Gaudi tests with user $(shell id -u):$(shell id -g)"
 	$(DOCKER) build \
-	--build-arg UID=$(shell id -u) --build-arg GID=$(shell id -g) \
+	--build-arg UID=$(shell id -u) \
+	--build-arg GID=$(shell id -g) \
+	--build-arg HTTP_PROXY=$(http_proxy) \
+	--build-arg HTTPS_PROXY=$(https_proxy) \
+	--build-arg NO_PROXY=$(no_proxy) \
 	--platform="linux/$(ARCH)" \
 	-t "$(TEST_IMAGE)" 	-f Dockerfile.gaudi-test .
 
@@ -241,7 +250,7 @@ push-helm-charts: package-helm-charts
 COVERAGE_FILE := coverage.out
 # Gaudi tests expect fake HLML library to be present at /usr/lib/habanalabs/libhlml.so
 # Dependency comes from gohlml package hardcoded LD_LIBRARY_PATH pointing to it.
-test:
+test: vendor
 ifeq ("$(container)","yes")
 		@echo setting safe directory
 		go test -buildvcs=false -v -coverprofile=$(COVERAGE_FILE) $(shell go list ./... | grep -v "test/e2e")
