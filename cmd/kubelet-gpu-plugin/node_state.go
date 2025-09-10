@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	inf "gopkg.in/inf.v0"
@@ -124,12 +125,29 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 					"pciAddress": {
 						StringValue: &gpu.PCIAddress,
 					},
+					"healthy": {
+						BoolValue: &gpu.Healthy,
+					},
 				},
 				Capacity: map[resourcev1.QualifiedName]resourcev1.DeviceCapacity{
 					"memory":     {Value: resource.MustParse(fmt.Sprintf("%vMi", gpu.MemoryMiB))},
 					"millicores": {Value: *resource.NewDecimalQuantity(*inf.NewDec(int64(1000), inf.Scale(0)), resource.DecimalSI)},
 				},
 			},
+		}
+		// FIXME: TODO: K8s 1.33-1.34 only supports plain taint without description.
+		// See https://github.com/kubernetes/enhancements/issues/5055 .
+		if !gpu.Healthy {
+			// e.g. HealthIssues-memorytemperature_coretemperature:NoExecute
+			// The format will change in K8s 1.35+.
+			key := fmt.Sprintf("HealthIssues-%v", gpu.HealthStatus)
+			key = strings.ReplaceAll(key, "[", "")
+			key = strings.ReplaceAll(key, "]", "")
+			key = strings.ReplaceAll(key, ",", "_")
+			newDevice.Basic.Taints = []resourcev1.DeviceTaint{{
+				Key:    key,
+				Effect: resourcev1.DeviceTaintEffectNoExecute,
+			}}
 		}
 
 		devices = append(devices, newDevice)

@@ -30,6 +30,10 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"k8s.io/klog/v2"
+
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
 )
 
 type XPUSMIDeviceDetails struct {
@@ -70,6 +74,24 @@ var (
 		"Number of Tiles":                 C.XPUM_DEVICE_PROPERTY_NUMBER_OF_TILES,
 		"Number of EUs":                   C.XPUM_DEVICE_PROPERTY_NUMBER_OF_EUS,
 	}
+	// Used as Taint keys => need to conform to their format (no spaces etc).
+	healthTypes = map[string]C.xpum_health_type_t{
+		"CoreThermal":   C.XPUM_HEALTH_CORE_THERMAL,
+		"MemoryThermal": C.XPUM_HEALTH_MEMORY_THERMAL,
+		"Power":         C.XPUM_HEALTH_POWER,
+		"Memory":        C.XPUM_HEALTH_MEMORY,
+		"FabricPort":    C.XPUM_HEALTH_FABRIC_PORT,
+		"Frequency":     C.XPUM_HEALTH_FREQUENCY,
+	}
+	healthStatuses = map[C.xpum_health_status_t]string{
+		C.XPUM_HEALTH_STATUS_UNKNOWN:  "Unknown",
+		C.XPUM_HEALTH_STATUS_OK:       "OK",
+		C.XPUM_HEALTH_STATUS_WARNING:  "Warning",
+		C.XPUM_HEALTH_STATUS_CRITICAL: "Critical",
+	}
+	// deviceHealthCache caches last known health status per device per health type.
+	// Outer key: device id, inner key: health type, value: last status.
+	deviceHealthCache = make(map[C.xpum_device_id_t]map[C.xpum_health_type_t]C.xpum_health_status_t)
 )
 
 func errorString(ret C.xpum_result_t) error {
@@ -150,7 +172,7 @@ func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t, deviceDetails *XPU
 		return
 	}
 
-	// iterate over the properties and print them
+	// Iterate over the properties and print them.
 	for propertyName, propertyId := range propertyNames {
 		if C.int(propertyId) >= properties.propertyLen {
 			fmt.Printf("ERROR: Property %s not found in device properties. SKIPPING\n", propertyName)
@@ -170,4 +192,51 @@ func GetAndPrintDeviceProperties(deviceId C.xpum_device_id_t, deviceDetails *XPU
 			deviceDetails.MemoryMiB = propertyUint / 1024 / 1024
 		}
 	}
+}
+
+// HealthCheck performs a health check using libxpum library, updates an internal per-device health cache,
+// and returns only changed health type statuses since the previous call (map[deviceUID]map[healthType]status).
+// An empty map means no changes.
+func HealthCheck(devices map[string]XPUSMIDeviceDetails) (updates map[string]map[string]string) {
+	updates = make(map[string]map[string]string)
+	for _, device := range devices {
+		// If this device is seen for the first time, initialize baseline health
+		// statuses to OK for every health type. This prevents emitting a wave of
+		// "UNKNOWN -> OK" transitions on startup when everything is healthy.
+		devId := C.xpum_device_id_t(device.DeviceId)
+		if _, exists := deviceHealthCache[devId]; !exists {
+			baseline := make(map[C.xpum_health_type_t]C.xpum_health_status_t, len(healthTypes))
+			for _, healthType := range healthTypes {
+				baseline[healthType] = C.XPUM_HEALTH_STATUS_OK
+			}
+			deviceHealthCache[devId] = baseline
+		}
+		for healthTypeName, healthType := range healthTypes {
+			var healthData C.xpum_health_data_t
+			ret := C.xpumGetHealth(C.xpum_device_id_t(device.DeviceId), C.xpum_health_type_t(healthType), &healthData)
+			if ret != C.XPUM_OK {
+				fmt.Printf("Failed to get health for device %d, health type %d\n", device.DeviceId, healthType)
+				continue
+			}
+			prevStatus := deviceHealthCache[healthData.deviceId][healthType]
+			currStatus := healthData.status
+
+			if prevStatus == currStatus {
+				// Health status did not change; skip the following.
+				continue
+			}
+
+			// Update the changed health status.
+			deviceHealthCache[healthData.deviceId][healthType] = currStatus
+			// Ensure updates entry for this device UUID exists.
+			deviceUID := helpers.DeviceUIDFromPCIinfo(device.PCIAddress, device.PCIDeviceId)
+			if _, ok := updates[deviceUID]; !ok {
+				updates[deviceUID] = make(map[string]string)
+			}
+			updates[deviceUID][healthTypeName] = healthStatuses[currStatus]
+			klog.V(3).Infof("Device %d health change. Type='%s' prev='%s' curr='%s' description='%s'",
+				device.DeviceId, healthTypeName, healthStatuses[prevStatus], healthStatuses[currStatus], C.GoString(&healthData.description[0]))
+		}
+	}
+	return updates
 }
