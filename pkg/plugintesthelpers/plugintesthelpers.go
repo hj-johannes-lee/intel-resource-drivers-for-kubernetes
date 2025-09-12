@@ -21,8 +21,9 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
-	resourcev1 "k8s.io/api/resource/v1beta1"
+	resourcev1 "k8s.io/api/resource/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -97,12 +98,16 @@ func CleanupTest(t *testing.T, testname string, testRoot string) {
 
 func NewMonitoringClaim(claimNs, claimName, claimUID, requestName, driverName, pool string, allocatedDevices []string) *resourcev1.ResourceClaim {
 	claim := NewClaim(claimNs, claimName, claimUID, requestName, driverName, pool, allocatedDevices)
-	claim.Spec.Devices.Requests[0].AdminAccess = &[]bool{true}[0]
-	claim.Spec.Devices.Requests[0].AllocationMode = "All"
+	claim.Spec.Devices.Requests[0].Exactly.AdminAccess = &[]bool{true}[0]
+	claim.Spec.Devices.Requests[0].Exactly.AllocationMode = "All"
 
 	return claim
 }
 
+// TODO: only Exactly requests tested ATM, test FirstAvailable as well.
+// See: https://pkg.go.dev/k8s.io/api/resource/v1#DeviceRequest
+// TODO: Test also >1 Count and different AlloctionModes + Selectors.
+// See: https://pkg.go.dev/k8s.io/api/resource/v1#ExactDeviceRequest
 func NewClaim(claimNs, claimName, claimUID, requestName, driverName, pool string, allocatedDevices []string) *resourcev1.ResourceClaim {
 	allocationResults := []resourcev1.DeviceRequestAllocationResult{}
 	for _, deviceUID := range allocatedDevices {
@@ -129,8 +134,8 @@ func NewClaim(claimNs, claimName, claimUID, requestName, driverName, pool string
 		Spec: resourcev1.ResourceClaimSpec{
 			Devices: resourcev1.DeviceClaim{
 				Requests: []resourcev1.DeviceRequest{
-					{Name: requestName, DeviceClassName: driverName, Count: 1},
-					{Name: "complimentaryRequest", DeviceClassName: "NonExistent"},
+					{Name: requestName, Exactly: &resourcev1.ExactDeviceRequest{DeviceClassName: driverName, Count: 1}},
+					{Name: "complimentaryRequest", Exactly: &resourcev1.ExactDeviceRequest{DeviceClassName: "NonExistent"}},
 				},
 			},
 		},
@@ -159,4 +164,8 @@ func NewClaimWithAlienDevice(claimNs, claimName, claimUID, requestName, driverNa
 	allocationDevices.Results = append(allocationDevices.Results, alienDevice)
 
 	return claim
+}
+
+func CDICacheDelay() {
+	time.Sleep(200 * time.Millisecond)
 }
