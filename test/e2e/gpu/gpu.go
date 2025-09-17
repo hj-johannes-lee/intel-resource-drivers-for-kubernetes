@@ -3,6 +3,7 @@ package gpu
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -60,6 +61,15 @@ func describeGpuDraDriver() {
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuDriverYamlPath)
 		_, _ = e2epod.WaitForPodsWithLabelRunningReady(ctx, f.ClientSet, gpuNamespace,
 			labels.Set{"app": "intel-gpu-resource-driver-kubelet-plugin"}.AsSelector(), 1 /* one replica */, 100*time.Second)
+		e2ekubectl.RunKubectlOrDie(gpuNamespace, "rollout", "status", "ds/intel-gpu-resource-driver-kubelet-plugin", "--timeout=180s")
+		e2ekubectl.RunKubectlOrDie(gpuNamespace, "wait", "--for=condition=Ready", "pods", "-l", "app=intel-gpu-resource-driver-kubelet-plugin", "--timeout=120s")
+		out := e2ekubectl.RunKubectlOrDie("", "get", "resourceslices.resource.k8s.io", "--no-headers")
+		if strings.TrimSpace(out) == "" {
+			framework.Logf("❌ No ResourceSlice objects found. Dumping plugin pods and logs…")
+			e2ekubectl.RunKubectlOrDie(gpuNamespace, "get", "pods", "-l", "app=intel-gpu-resource-driver-kubelet-plugin", "-o", "wide")
+			e2ekubectl.RunKubectlOrDie(gpuNamespace, "logs", "-l", "app=intel-gpu-resource-driver-kubelet-plugin", "--tail=200")
+			framework.Failf("GPU DRA plugin did not advertise any ResourceSlice")
+		}
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuDeviceClassYamlPath)
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuResourceClaimTemplateYamlPath)
 		time.Sleep(10 * time.Second)
