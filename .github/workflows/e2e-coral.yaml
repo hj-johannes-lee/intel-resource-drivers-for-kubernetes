@@ -21,7 +21,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        ssh 811643.intel.com coral.kmd.setup.for.k8s/run_coral_and_setup_env.sh
+        $HOME/coral.kmd.setup.for.k8s/run_coral_and_setup_env.sh
   setup-actions-runner:
     needs: "setup-coral-sim"
     runs-on: [ "self-hosted", "gpu-reserver" ]
@@ -36,16 +36,12 @@ jobs:
         GH_TOKEN: ${{ secrets.GH_TOKEN }}
         PROXY_URL: http://proxy-ir.intel.com:911
       run: |
-          scp .github/gpu-scripts/setup_actions_runner.sh 811643.intel.com:/home/sdp/
-          ssh 811643.intel.com "bash -s" <<EOF
-            sudo systemctl stop unattended-upgrades
-            ACTIONS_RUNNER_NAME="${ACTIONS_RUNNER_NAME}"
-            LDAP_USERNAME="${LDAP_USERNAME}"
-            LDAP_PASSWORD="${LDAP_PASSWORD}"
-            PROXY_URL="${PROXY_URL}"
-            export ACTIONS_RUNNER_NAME LDAP_USERNAME LDAP_PASSWORD PROXY_URL
-            bash /home/sdp/setup_actions_runner.sh
-          EOF
+          ACTIONS_RUNNER_NAME="${ACTIONS_RUNNER_NAME}"
+          LDAP_USERNAME="${LDAP_USERNAME}"
+          LDAP_PASSWORD="${LDAP_PASSWORD}"
+          PROXY_URL="${PROXY_URL}"
+          export ACTIONS_RUNNER_NAME LDAP_USERNAME LDAP_PASSWORD PROXY_URL
+          bash .github/gpu-scripts/setup_actions_runner.sh
   e2e:
     needs: "setup-actions-runner"
     runs-on: [ "self-hosted", "coral" ]
@@ -54,13 +50,6 @@ jobs:
       uses: actions/checkout@v4
     - name: Install Go
       run: .github/gpu-scripts/install_go.sh
-    - name: Build the GPU driver
-      run: .github/gpu-scripts/build.sh
-    - name: Copy kubeconfig
-      run: |
-          mkdir -p $HOME/.kube
-          yes | sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-          sudo chown $(id -u):$(id -g) $HOME/.kube/config
     - name: Run E2E tests
       run: |
           source /etc/environment
