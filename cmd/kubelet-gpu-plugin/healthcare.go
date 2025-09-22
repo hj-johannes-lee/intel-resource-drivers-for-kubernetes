@@ -66,7 +66,8 @@ func (d *driver) updateHealth(ctx context.Context, healthStatusUpdates HealthSta
 // watchGPUHealthStatuses polls XPUM metric health info and sends per-interval
 // health status deltas to healthStatusUpdatesCh only when there are updates.
 func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int, healthStatusUpdatesCh chan<- HealthStatusUpdates) {
-	devices, err := goxpusmi.Discover(true)
+	nonVerboseDiscovery := false
+	devices, err := goxpusmi.Discover(nonVerboseDiscovery)
 	if err != nil {
 		klog.Errorf("could not discover devices for health monitoring: %v", err)
 		return
@@ -76,6 +77,9 @@ func (d *driver) watchGPUHealthStatuses(ctx context.Context, intervalSeconds int
 	for {
 		select {
 		case <-ctx.Done():
+			if err = goxpusmi.Shutdown(); err != nil {
+				klog.Errorf("failed to shutdown xpu-smi: %v", err)
+			}
 			return
 		case <-healthCheckInterval.C:
 			if updates := goxpusmi.HealthCheck(devices); len(updates) > 0 {
@@ -98,6 +102,7 @@ func statusHealth(status string) (health bool) {
 		return true
 	default:
 		// This is unexpected, we should never get here.
+		klog.Error("Unsupported health status value: ", status)
 		panic("invalid status value")
 	}
 }

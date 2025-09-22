@@ -27,6 +27,7 @@ import (
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/klog/v2"
 
+	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/goxpusmi"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/device"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/gpu/discovery"
 	"github.com/intel/intel-resource-drivers-for-kubernetes/pkg/helpers"
@@ -34,9 +35,10 @@ import (
 )
 
 type driver struct {
-	client coreclientset.Interface
-	state  *helpers.NodeState
-	helper *kubeletplugin.Helper
+	client     coreclientset.Interface
+	state      *helpers.NodeState
+	helper     *kubeletplugin.Helper
+	healthcare bool
 }
 
 func (d *driver) PublishResourceSlice(ctx context.Context) error {
@@ -77,11 +79,19 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 			SysfsRoot:              helpers.GetSysfsRoot(device.SysfsDRMpath),
 			NodeName:               config.CommonFlags.NodeName,
 		},
+		healthcare: gpuFlags.Healthcare,
 	}
 
 	klog.V(5).Infof("Prepared claims: %v", driver.state)
 
-	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery)
+	// Initialize XPU SMI library.
+	xpusmiInitErr := goxpusmi.Initialize()
+	if xpusmiInitErr != nil {
+		klog.Errorf("failed to initialize xpu-smi: %v, ignoring device details", xpusmiInitErr)
+		driver.healthcare = false
+	}
+
+	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery, xpusmiInitErr == nil)
 	if len(detectedDevices) == 0 {
 		klog.Info("No supported devices detected")
 	}
@@ -116,7 +126,9 @@ PluginDataDirectoryPath: %v`,
 	if err := driver.PublishResourceSlice(ctx); err != nil {
 		return nil, err
 	}
-	if gpuFlags.Healthcare {
+
+	if driver.healthcare {
+		klog.Info("Starting health monitoring")
 		go driver.startHealthMonitor(ctx, gpuFlags.HealthcareInterval)
 	}
 	klog.V(3).Info("Finished creating new driver")
@@ -137,7 +149,7 @@ func (d *driver) PrepareResourceClaims(ctx context.Context, claims []*resourceap
 }
 
 func (d *driver) prepareResourceClaim(ctx context.Context, claim *resourceapi.ResourceClaim) kubeletplugin.PrepareResult {
-	klog.V(5).Infof("NodePrepareResource is called: request: %+v", claim)
+	klog.V(5).Infof("NodePrepareResource is called for claim %v", claim.UID)
 
 	if claimPreparation, found := d.state.Prepared[string(claim.UID)]; found {
 		klog.V(3).Infof("Claim %v was already prepared, nothing to do", claim.UID)
@@ -171,6 +183,13 @@ func (d *driver) UnprepareResourceClaims(ctx context.Context, claims []kubeletpl
 
 func (d *driver) Shutdown(ctx context.Context) error {
 	d.helper.Stop()
+	// Health monitoring does shutdown by itself (when main context goes down), if enabled,
+	// otherwise do shutdown here.
+	if !d.healthcare {
+		if err := goxpusmi.Shutdown(); err != nil {
+			klog.Errorf("failed to shutdown xpu-smi: %v", err)
+		}
+	}
 	return nil
 }
 

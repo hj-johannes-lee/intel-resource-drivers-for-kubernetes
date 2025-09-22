@@ -20,7 +20,6 @@ spec:
       containers:
       - name: kubelet-plugin
         image: intel/intel-gpu-resource-driver:latest
-        imagePullPolicy: IfNotPresent
         command: ["/kubelet-gpu-plugin"]
         env:
         - name: NODE_NAME
@@ -132,7 +131,7 @@ spec:
   matchConstraints:
     resourceRules:
     - apiGroups:   ["resource.k8s.io"]
-      apiVersions: ["v1beta1"]
+      apiVersions: ["v1"]
       operations:  ["CREATE", "UPDATE", "DELETE"]
       resources:   ["resourceslices"]
   matchConditions:
