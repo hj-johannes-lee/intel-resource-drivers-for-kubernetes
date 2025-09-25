@@ -61,6 +61,10 @@ DEVICE_FAKER_IMAGE_NAME ?= intel-device-faker
 DEVICE_FAKER_IMAGE_VERSION ?= $(DEVICE_FAKER_VERSION)
 DEVICE_FAKER_IMAGE_TAG ?= $(REGISTRY)/$(DEVICE_FAKER_IMAGE_NAME):$(DEVICE_FAKER_IMAGE_VERSION)
 
+GOXPUSMI_IMAGE_NAME ?= intel-goxpusmi
+GOXPUSMI_IMAGE_VERSION ?= v0.1.0
+GOXPUSMI_IMAGE_TAG ?= $(REGISTRY)/$(GOXPUSMI_IMAGE_NAME):$(GOXPUSMI_IMAGE_VERSION)
+
 COMMON_SRC = \
 pkg/version/*.go
 
@@ -97,6 +101,10 @@ device-faker-container-build:
 	$(DOCKER) build --pull -t $(DEVICE_FAKER_IMAGE_TAG) \
 	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.device-faker .
 
+goxpusmi-container-build:
+	$(DOCKER) build --pull -t $(GOXPUSMI_IMAGE_TAG) \
+	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.goxpusmi .
+
 .PHONY: branch-build
 # test that all commits in $GIT_BRANCH (default=current) build
 branch-build:
@@ -106,7 +114,7 @@ branch-build:
 	git checkout $$current
 
 .PHONY: containers-build
-containers-build: gpu-container-build gaudi-container-build qat-container-build device-faker-container-build
+containers-build: gpu-container-build gaudi-container-build qat-container-build device-faker-container-build goxpusmi-container-build
 
 .PHONY: container-local
 container-local: container-build

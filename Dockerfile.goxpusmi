@@ -1,0 +1,173 @@
+ARG IGSC_VERSION=V0.9.6
+ARG UBUNTU_VERSION=u22.04
+ARG GO_VERSION=1.24.2
+ARG XPU_SMI_TAG=V1.3.1
+
+########################################
+# Stage 1: Common build dependencies
+########################################
+FROM ubuntu:22.04 AS builder-base
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    git cmake build-essential pkg-config libudev-dev \
+    ca-certificates wget curl gnupg2 jq unzip gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+########################################
+# Stage 2: Build libigsc
+########################################
+FROM builder-base AS igsc-builder
+ARG IGSC_VERSION
+LABEL igsc.version=${IGSC_VERSION}
+
+RUN set -eux; \
+    if [ "${IGSC_VERSION}" = "latest" ]; then \
+        IGSC_VERSION=$(curl -s "https://api.github.com/repos/intel/igsc/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'); \
+        echo "Using latest igsc version: $IGSC_VERSION"; \
+    else \
+        echo "Using specified igsc version: ${IGSC_VERSION}"; \
+    fi; \
+    wget -O /tmp/${IGSC_VERSION}.tar.gz https://github.com/intel/igsc/archive/refs/tags/${IGSC_VERSION}.tar.gz; \
+    mkdir -p /tmp/igsc; \
+    tar -xzf /tmp/${IGSC_VERSION}.tar.gz -C /tmp/igsc --strip-components=1; \
+    cd /tmp/igsc; \
+    mkdir build && cd build; \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr ..; \
+    make -j"$(nproc)"; \
+    make install; \
+    ldconfig; \
+    mkdir -p /out/lib && cp -P /usr/lib/x86_64-linux-gnu/libigsc*.so* /out/lib/; \
+    # licenses for gsc
+    mkdir -p /out/licenses/intel-gsc && \
+    if [ -f /usr/share/doc/intel-gsc/copyright ]; then \
+      cp /usr/share/doc/intel-gsc/copyright /out/licenses/intel-gsc/; \
+    fi; \
+    rm -rf /tmp/igsc*
+
+########################################
+# Stage 3: Level Zero + xpu-smi
+########################################
+FROM builder-base AS xe-setup
+ARG UBUNTU_VERSION
+ARG XPU_SMI_TAG
+RUN set -eux; \
+    wget -qO - https://repositories.intel.com/gpu/intel-graphics.key \
+        | gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg; \
+    echo "deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy unified" \
+        | tee /etc/apt/sources.list.d/intel-gpu-jammy.list; \
+    apt-get update; \
+    apt-get install -y libze-intel-gpu1 libze1 level-zero intel-opencl-icd clinfo; \
+    ldconfig
+
+# Installing xpu-smi
+RUN set -eux; \
+    API_URL="https://api.github.com/repos/intel/xpumanager/releases/tags/${XPU_SMI_TAG}"; \
+    XPU_URL="$(curl -fsSL "$API_URL" \
+      | jq -r --arg fl "$UBUNTU_VERSION" \
+        '.assets[].browser_download_url | select(test("xpu-smi_.*_"+$fl+"_amd64\\.deb$"))' \
+      | head -n1)"; \
+    test -n "$XPU_URL"; \
+    echo "Using xpu-smi from ${XPU_SMI_TAG}: ${XPU_URL}"; \
+    curl -fsSL -o /tmp/xpu-smi.deb "$XPU_URL"; \
+    dpkg -i /tmp/xpu-smi.deb || (apt-get -y -f install && dpkg -i /tmp/xpu-smi.deb); \
+    rm -f /tmp/xpu-smi.deb; \
+    ldconfig; \
+    mkdir -p /licenses && \
+    for pkg in intel-gsc libze-intel-gpu1 level-zero xpu-smi; do \
+      if [ -f "/usr/share/doc/$pkg/copyright" ]; then \
+        mkdir -p "/licenses/$pkg" && cp "/usr/share/doc/$pkg/copyright" "/licenses/$pkg/"; \
+      fi; \
+    done; \
+    if [ -d /usr/share/common-licenses ]; then \
+      cp -r /usr/share/common-licenses /licenses/; \
+    fi
+
+########################################
+# Stage 4: Build goxpusmi
+########################################
+FROM xe-setup AS build-final
+ARG LOCAL_LICENSES
+ARG GO_VERSION
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+
+RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \
+    | tar -xzC /usr/local && \
+    ln -s /usr/local/go/bin/go /usr/local/bin/go && \
+    ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+
+WORKDIR /build
+COPY . .
+
+COPY --from=igsc-builder /out/lib/libigsc*.so* /usr/lib/x86_64-linux-gnu/
+
+# Building goxpusmi
+RUN export PATH="/usr/local/go/bin:$PATH" CGO_ENABLED=1 \
+    && make vendor \
+    && make bin/goxpusmi \
+    && mkdir -p /install_root/bin \
+    && if [ -z "$LOCAL_LICENSES" ]; then make licenses; fi \
+    && cp -r licenses /install_root/licenses-src \
+    && cp bin/goxpusmi /install_root/bin/
+
+# Prepare a unified license directory
+RUN set -eux; \
+    mkdir -p /install_root/licenses; \
+    if [ -d /licenses ]; then cp -r /licenses/* /install_root/licenses/; fi; \
+    if [ -d /out/licenses ]; then cp -r /out/licenses/* /install_root/licenses/; fi
+
+########################################
+# Stage 5: Final runtime
+########################################
+FROM ubuntu:22.04 AS runtime-final
+ARG IGSC_VERSION
+ARG GO_VERSION
+ARG XPU_SMI_TAG
+ARG UBUNTU_VERSION
+
+LABEL igsc.version="${IGSC_VERSION}" \
+      xpu_smi.tag="${XPU_SMI_TAG}" \
+      ubuntu.version="${UBUNTU_VERSION}" \
+      go.version="${GO_VERSION}" \
+      ze.repo="intel jammy unified" \
+      description="Intel Go xpu-smi tool with libigsc and xpu-smi"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+ENV ZE_ENABLE_PCI_ID_DEVICE_ORDER=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnuma1 libpciaccess0 libudev1 libdrm2 \
+    libjson-c5 libelf1 libzstd1 hwloc libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates gnupg2 curl; \
+    curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key \
+      | gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg; \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" \
+      > /etc/apt/sources.list.d/intel-gpu-jammy.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends libze-intel-gpu1 level-zero intel-gsc; \
+    apt-get purge -y curl gnupg2 ca-certificates && apt-get autoremove -y; \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=xe-setup /usr/bin/xpu-smi /usr/bin/xpu-smi
+COPY --from=xe-setup /usr/lib/x86_64-linux-gnu/libxpum.so.1 /usr/lib/x86_64-linux-gnu/libxpum.so.1
+COPY --from=build-final /install_root/bin/goxpusmi /usr/local/bin/goxpusmi
+COPY --from=build-final /install_root/licenses /licenses
+COPY --from=igsc-builder /out/lib/libigsc*.so* /usr/lib/x86_64-linux-gnu/
+
+RUN set -eux; \
+    { \
+      echo "Image versions:"; \
+      echo "  IGSC (source tag): ${IGSC_VERSION}"; \
+      echo "  XPU-SMI (tag): ${XPU_SMI_TAG}"; \
+      echo "  Ubuntu ABI: ${UBUNTU_VERSION}"; \
+      echo "  Go: ${GO_VERSION}"; \
+      dpkg-query -W -f='  ${Package}=${Version}\n' libze-intel-gpu1 level-zero intel-gsc 2>/dev/null; \
+      dpkg-query -W -f='  ${Package}=${Version}\n' xpu-smi libxpum1 2>/dev/null; \
+    } | tee /etc/image-versions.txt
+
+RUN ldconfig
+
+ENTRYPOINT ["/usr/local/bin/goxpusmi"]
