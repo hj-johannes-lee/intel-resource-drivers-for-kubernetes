@@ -8,7 +8,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  lint:
+  build:
     runs-on: [self-hosted, generic]
     steps:
       - name: Checkout code
