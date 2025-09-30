@@ -54,4 +54,4 @@ jobs:
     - name: Test
       run: make test
     - name: Coverage
-      run: make excluded-coverage
+      run: make coverage.out
