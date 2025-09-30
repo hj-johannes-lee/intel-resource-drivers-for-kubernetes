@@ -1,13 +1,9 @@
 name: Coral E2E Run
 
 on:
- push:
-   branches:
-     - main
- pull_request:
-   paths:
-     - '**/*gpu*/**'
-     - '**/*gpu*'
+  schedule:
+    # 05:00 every Monday
+    - cron: "0 5 * * 0"
 
 permissions:
   contents: read
