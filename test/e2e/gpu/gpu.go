@@ -60,7 +60,7 @@ func describeGpuDraDriver() {
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuNamespaceYamlPath)
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuDriverYamlPath)
 		_, _ = e2epod.WaitForPodsWithLabelRunningReady(ctx, f.ClientSet, gpuNamespace,
-			labels.Set{"app": "intel-gpu-resource-driver-kubelet-plugin"}.AsSelector(), 1 /* one replica */, 100*time.Second)
+			labels.Set{"app": "intel-gpu-resource-driver-kubelet-plugin"}.AsSelector(), 1 /* one replica */, 300*time.Second)
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "rollout", "status", "ds/intel-gpu-resource-driver-kubelet-plugin", "--timeout=180s")
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "wait", "--for=condition=Ready", "pods", "-l", "app=intel-gpu-resource-driver-kubelet-plugin", "--timeout=120s")
 		out := e2ekubectl.RunKubectlOrDie("", "get", "resourceslices.resource.k8s.io", "--no-headers")
