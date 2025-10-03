@@ -213,13 +213,13 @@ yamllint:
 
 .PHONE: test-image test-image-push
 test-image: vendor
-	@echo "Building container image with fake HLML for Gaudi tests with user $(shell id -u):$(shell id -g)"
+	@echo "Building container image for tests with user $(shell id -u):$(shell id -g)"
 	$(DOCKER) build \
 	--build-arg UID=$(shell id -u) \
 	--build-arg GID=$(shell id -g) \
-	--build-arg HTTP_PROXY=$(http_proxy) \
-	--build-arg HTTPS_PROXY=$(https_proxy) \
-	--build-arg NO_PROXY=$(no_proxy) \
+	--build-arg http_proxy=$(http_proxy) \
+	--build-arg https_proxy=$(https_proxy) \
+	--build-arg no_proxy=$(no_proxy) \
 	--platform="linux/$(ARCH)" \
 	-t "$(TEST_IMAGE)" 	-f Dockerfile.gaudi-test .
 
@@ -256,8 +256,6 @@ push-helm-charts: package-helm-charts
 
 .PHONY: test html-coverage test-containerized
 COVERAGE_FILE := coverage.out
-# Gaudi tests expect fake HLML library to be present at /usr/lib/habanalabs/libhlml.so
-# Dependency comes from gohlml package hardcoded LD_LIBRARY_PATH pointing to it.
 test: vendor
 ifeq ("$(container)","yes")
 		@echo setting safe directory
@@ -270,6 +268,9 @@ endif
 test-containerized:
 	$(DOCKER) run \
 	-it -e container=yes \
+	-e http_proxy=$(http_proxy) \
+	-e https_proxy=$(https_proxy) \
+	-e no_proxy=$(no_proxy) \
 	--user 1000:1000 \
 	-v "$(shell pwd)":/home/ubuntu/src:rw \
 	"$(TEST_IMAGE)" \
