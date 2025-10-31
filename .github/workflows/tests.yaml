@@ -53,5 +53,13 @@ jobs:
     - uses: actions/checkout@v4
     - name: Test
       run: make test
-    - name: Coverage
+    - name: Coverage report
       run: make coverage.out
+    - name: GPU Coverage threshold
+      run: .github/gpu-scripts/coverage_check.sh gpu-coverage 70
+    - name: Gaudi Coverage threshold
+      run: .github/gpu-scripts/coverage_check.sh gaudi-coverage 70
+    - name: QAT Coverage threshold
+      run: .github/gpu-scripts/coverage_check.sh qat-coverage 30.59
+
+
