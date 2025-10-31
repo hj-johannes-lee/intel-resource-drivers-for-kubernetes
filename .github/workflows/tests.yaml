@@ -22,7 +22,7 @@ jobs:
       run: |
         echo "Changed files:"
         git diff origin/main --stat -b -w
-        if $(git diff origin/main --stat -b -w hack/fake_libhlml Dockerfile.gaudi-test | grep "fake_libhlml\|Dockerfile\.gaudi-test" -q); then
+        if $(git diff origin/main --stat -b -w Dockerfile.gaudi-test | grep "Dockerfile\.gaudi-test" -q); then
           echo "test image rebuild is needed"
           echo "rebuild_test_image=true" >> "$GITHUB_OUTPUT"
         else
