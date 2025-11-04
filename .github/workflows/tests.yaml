@@ -22,7 +22,7 @@ jobs:
       run: |
         echo "Changed files:"
         git diff origin/main --stat -b -w
-        if $(git diff origin/main --stat -b -w hack/fake_libhlml Dockerfile.gaudi-test | grep "fake_libhlml\|Dockerfile\.gaudi-test" -q); then
+        if $(git diff origin/main --stat -b -w Dockerfile.gaudi-test | grep "Dockerfile\.gaudi-test" -q); then
           echo "test image rebuild is needed"
           echo "rebuild_test_image=true" >> "$GITHUB_OUTPUT"
         else
@@ -53,5 +53,13 @@ jobs:
     - uses: actions/checkout@v4
     - name: Test
       run: make test
-    - name: Coverage
+    - name: Coverage report
       run: make coverage.out
+    - name: GPU Coverage threshold
+      run: .github/gpu-scripts/coverage_check.sh gpu-coverage 70
+    - name: Gaudi Coverage threshold
+      run: .github/gpu-scripts/coverage_check.sh gaudi-coverage 70
+    - name: QAT Coverage threshold
+      run: .github/gpu-scripts/coverage_check.sh qat-coverage 30.59
+
+

@@ -21,7 +21,7 @@ COPY --from=go --chown=${UID}:${GID} /usr/local/go /home/ubuntu/go
 # add xpu-smi shared library for GPU tests and other dependencies
 RUN \
 apt-get update && \
-apt-get install -y make gcc wget software-properties-common python3-launchpadlib git && \
+apt-get install -y make gcc wget software-properties-common python3-launchpadlib git bc && \
 add-apt-repository -y ppa:kobuk-team/intel-graphics && \
 apt-get update && \
 apt-get install -y libze-intel-gpu1 libze1 intel-metrics-discovery intel-opencl-icd clinfo intel-gsc && \
