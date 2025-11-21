@@ -364,6 +364,7 @@ func (p *PFDevice) SetServices(srv []Services) error {
 		return err
 	}
 
+	p.Services = config
 	return nil
 }
 
@@ -547,13 +548,14 @@ func (v VFDevice) AllocateWithReconfiguration(service Services, requester string
 	if v.pfdevice.Services != None || !v.pfdevice.AllowReconfiguration {
 		return false
 	}
-	if _, err := v.pfdevice.Allocate(v.UID(), requester); err == nil {
-		if err := v.pfdevice.SetServices([]Services{service}); err == nil {
-			return true
-		}
+	if err := v.pfdevice.SetServices([]Services{service}); err != nil {
 		_, _ = v.pfdevice.free(v.UID(), requester)
+		return false
 	}
-	return false
+	if _, err := v.pfdevice.Allocate(v.UID(), requester); err != nil {
+		return false
+	}
+	return true
 }
 
 func (v *VFDevice) Free(requestedBy string) (bool, error) {
@@ -590,14 +592,12 @@ func (p *PFDevice) free(requestedDeviceUID string, requestedBy string) (bool, er
 	}
 
 	if requestedBy != "" {
-		update, err := p.freePF(requestedDeviceUID, requestedBy)
-		return update, err
-	} else {
-		for requestedBy := range p.AllocatedDevices {
-			update, err := p.freePF(requestedDeviceUID, requestedBy)
-			if err == nil {
-				return update, err
-			}
+		return p.freePF(requestedDeviceUID, requestedBy)
+	}
+
+	for requestedBy := range p.AllocatedDevices {
+		if update, err := p.freePF(requestedDeviceUID, requestedBy); err == nil {
+			return update, nil
 		}
 	}
 
@@ -671,10 +671,6 @@ func (v *VFDevice) PCIDevice() string {
 
 func (v *VFDevice) Driver() string {
 	return v.VFDriver.String()
-}
-
-func (v *VFDevice) Iommu() string {
-	return v.VFIommu
 }
 
 func deviceuid(device string) string {
