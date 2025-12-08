@@ -60,5 +60,5 @@ jobs:
     - name: Gaudi Coverage threshold
       run: .github/gpu-scripts/coverage_check.sh gaudi-coverage 70
     - name: QAT Coverage threshold
-      run: .github/gpu-scripts/coverage_check.sh qat-coverage 64.7
+      run: .github/gpu-scripts/coverage_check.sh qat-coverage 70
 
