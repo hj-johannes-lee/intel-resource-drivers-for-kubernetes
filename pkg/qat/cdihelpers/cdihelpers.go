@@ -48,11 +48,6 @@ func SyncDevices(cdiCache *cdiapi.Cache, vfdevices device.VFDevices) error {
 	for _, vendorspec := range getQatSpecs(cdiCache) {
 		vendorspecname := path.Base(vendorspec.GetPath())
 
-		if vendorspec.Kind != device.CDIKind {
-			klog.V(5).Infof("Spec file %s is for other kind %s, skipping...", vendorspecname, vendorspec.Kind)
-			continue
-		}
-
 		name := vfspecname + path.Ext(vendorspecname)
 		if name == vendorspecname {
 			klog.V(5).Infof("Adding rest of the devices to '%s'", name)
@@ -74,6 +69,8 @@ func SyncDevices(cdiCache *cdiapi.Cache, vfdevices device.VFDevices) error {
 			}
 		}
 		if vendorspecupdate {
+			vendorspec.Devices = vendorspecdevices
+
 			if len(vendorspec.Devices) == 0 {
 				klog.V(5).Infof("No devices in spec %v, deleting it", vendorspecname)
 				if err := cdiCache.RemoveSpec(vendorspecname); err != nil {
@@ -84,8 +81,6 @@ func SyncDevices(cdiCache *cdiapi.Cache, vfdevices device.VFDevices) error {
 
 			// Update spec file that has a nonexistent device.
 			klog.Infof("Updating spec file %s with existing devices", path.Base(vendorspec.GetPath()))
-
-			vendorspec.Devices = vendorspecdevices
 			if err := cdiCache.WriteSpec(vendorspec.Spec, vendorspecname); err != nil {
 				klog.Errorf("Failed to update existing CDI spec file %s: %v", vendorspecname, err)
 			}
@@ -138,21 +133,4 @@ func appendDevices(cdiCache *cdiapi.Cache, spec *cdispecs.Spec, vfdevices device
 
 	klog.Infof("CDI %s: Kind %s, Version %v", name, spec.Kind, spec.Version)
 	return nil
-}
-
-func OverwriteDevices(cdiCache *cdiapi.Cache, vfdevices device.VFDevices) error {
-	var err error
-
-	klog.V(5).Info("Add/overwrite CDI devices")
-
-	spec := &cdispecs.Spec{
-		Kind: device.CDIKind,
-	}
-
-	name, err := cdiapi.GenerateNameForSpec(spec)
-	if err != nil {
-		return fmt.Errorf("spec name not created: %v", err)
-	}
-
-	return appendDevices(cdiCache, spec, vfdevices, name)
 }
