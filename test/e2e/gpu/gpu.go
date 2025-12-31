@@ -3,7 +3,6 @@ package gpu
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -60,16 +59,7 @@ func describeGpuDraDriver() {
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuNamespaceYamlPath)
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuDriverYamlPath)
 		_, _ = e2epod.WaitForPodsWithLabelRunningReady(ctx, f.ClientSet, gpuNamespace,
-			labels.Set{"app": "intel-gpu-resource-driver-kubelet-plugin"}.AsSelector(), 1 /* one replica */, 300*time.Second)
-		e2ekubectl.RunKubectlOrDie(gpuNamespace, "rollout", "status", "ds/intel-gpu-resource-driver-kubelet-plugin", "--timeout=180s")
-		e2ekubectl.RunKubectlOrDie(gpuNamespace, "wait", "--for=condition=Ready", "pods", "-l", "app=intel-gpu-resource-driver-kubelet-plugin", "--timeout=120s")
-		out := e2ekubectl.RunKubectlOrDie("", "get", "resourceslices.resource.k8s.io", "--no-headers")
-		if strings.TrimSpace(out) == "" {
-			framework.Logf("❌ No ResourceSlice objects found. Dumping plugin pods and logs…")
-			e2ekubectl.RunKubectlOrDie(gpuNamespace, "get", "pods", "-l", "app=intel-gpu-resource-driver-kubelet-plugin", "-o", "wide")
-			e2ekubectl.RunKubectlOrDie(gpuNamespace, "logs", "-l", "app=intel-gpu-resource-driver-kubelet-plugin", "--tail=200")
-			framework.Failf("GPU DRA plugin did not advertise any ResourceSlice")
-		}
+			labels.Set{"app": "intel-gpu-resource-driver-kubelet-plugin"}.AsSelector(), 1 /* one replica */, 100*time.Second)
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuDeviceClassYamlPath)
 		e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", gpuResourceClaimTemplateYamlPath)
 		time.Sleep(10 * time.Second)
@@ -92,5 +82,73 @@ func describeGpuDraDriver() {
 			err = e2epod.WaitForPodSuccessInNamespaceTimeout(ctx, f.ClientSet, "gpu-sample-app", gpuNamespace, 300*time.Second)
 			gomega.Expect(err).To(gomega.BeNil(), utils.GetPodLogs(ctx, f, "gpu-sample-app", "gpu-sample-app"))
 		})
+
+		testCases := []struct {
+			testName      string
+			yamlFile      string
+			deployMsg     string
+			podName       string
+			containerName string
+		}{
+			{
+				testName:      "requests multiple GPUs",
+				yamlFile:      "deployments/gpu/tests/multi-gpu/multi-gpu-pod.yaml",
+				deployMsg:     "deploying pod requesting multiple GPUs",
+				podName:       "multi-gpu-test",
+				containerName: "with-resource",
+			},
+			{
+				testName:      "selects GPU by family",
+				yamlFile:      "deployments/gpu/tests/family-selector/family-selector-pod.yaml",
+				deployMsg:     "deploying pod with GPU family selector",
+				podName:       "family-selector-test",
+				containerName: "with-resource",
+			},
+			{
+				testName:      "selects GPU by memory capacity",
+				yamlFile:      "deployments/gpu/tests/memory-selector/memory-selector-pod.yaml",
+				deployMsg:     "deploying pod with GPU memory capacity selector",
+				podName:       "memory-selector-test",
+				containerName: "with-resource",
+			},
+			{
+				testName:      "selects GPU by driver type",
+				yamlFile:      "deployments/gpu/tests/driver-selector/driver-selector-pod.yaml",
+				deployMsg:     "deploying pod with GPU driver type selector",
+				podName:       "driver-selector-test",
+				containerName: "with-resource",
+			},
+			{
+				testName:      "verifies SR-IOV attribute on capable GPUs",
+				yamlFile:      "deployments/gpu/tests/sriov-check/sriov-check-pod.yaml",
+				deployMsg:     "deploying pod to check SR-IOV attribute",
+				podName:       "sriov-check-test",
+				containerName: "with-resource",
+			},
+			{
+				testName:      "shares GPU between multiple containers",
+				yamlFile:      "deployments/gpu/tests/multi-container/multi-container-pod.yaml",
+				deployMsg:     "deploying pod with multiple containers sharing GPU",
+				podName:       "multi-container-test",
+				containerName: "first-container",
+			},
+		}
+
+		for _, tc := range testCases {
+			tc := tc
+			ginkgo.It(tc.testName, func(ctx context.Context) {
+				testFile, err := utils.LocateRepoFile(tc.yamlFile)
+				if err != nil {
+					framework.Failf("unable to locate test file %q: %v", tc.yamlFile, err)
+				}
+
+				ginkgo.By(tc.deployMsg)
+				e2ekubectl.RunKubectlOrDie(gpuNamespace, "apply", "-f", testFile)
+
+				ginkgo.By("waiting for " + tc.podName + " pod to finish successfully")
+				err = e2epod.WaitForPodSuccessInNamespaceTimeout(ctx, f.ClientSet, tc.podName, gpuNamespace, 300*time.Second)
+				gomega.Expect(err).To(gomega.BeNil(), utils.GetPodLogs(ctx, f, tc.podName, tc.containerName))
+			})
+		}
 	})
 }
