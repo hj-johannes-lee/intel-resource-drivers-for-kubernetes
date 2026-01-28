@@ -26,6 +26,7 @@ import (
 	inf "gopkg.in/inf.v0"
 	resourcev1 "k8s.io/api/resource/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/dynamic-resource-allocation/deviceattribute"
 	"k8s.io/dynamic-resource-allocation/kubeletplugin"
 	"k8s.io/dynamic-resource-allocation/resourceslice"
 	"k8s.io/klog/v2"
@@ -118,17 +119,21 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 				"sriov": {
 					BoolValue: &sriovSupported,
 				},
-				"pciRoot": {
-					StringValue: &gpu.PCIRoot,
-				},
 				"pciId": {
 					StringValue: &gpu.Model,
 				},
+				// Deprecated: will be removed in 1.0.0 release, use 'resource.kubernetes.io/pciBusID'.
 				"pciAddress": {
 					StringValue: &gpu.PCIAddress,
 				},
 				"healthy": {
 					BoolValue: &gpu.Healthy,
+				},
+				deviceattribute.StandardDeviceAttributePCIeRoot: {
+					StringValue: &gpu.PCIRoot,
+				},
+				deviceattribute.StandardDeviceAttributePrefix + helpers.DRADeviceAttributePCIBusIDSuffix: {
+					StringValue: &gpu.PCIAddress,
 				},
 			},
 			Capacity: map[resourcev1.QualifiedName]resourcev1.DeviceCapacity{
@@ -136,6 +141,18 @@ func (s *nodeState) GetResources() resourceslice.DriverResources {
 				"millicores": {Value: *resource.NewDecimalQuantity(*inf.NewDec(int64(1000), inf.Scale(0)), resource.DecimalSI)},
 			},
 		}
+
+		// pciRoot Device.DeviceAttribute is deprecated: will be removed in 1.0.0 release, use resource.kubernetes.io/pcieRoot'.
+		// For backwards compatibility, strip domain, only bus was in the value.
+		if len(gpu.PCIRoot) > 0 {
+			parts := strings.Split(gpu.PCIRoot, ":")
+			if len(parts) == 2 {
+				newDevice.Attributes["pciRoot"] = resourcev1.DeviceAttribute{
+					StringValue: &parts[1],
+				}
+			}
+		}
+
 		// FIXME: TODO: K8s 1.33-1.34 only supports plain taint without description.
 		// See https://github.com/kubernetes/enhancements/issues/5055 .
 		if !gpu.Healthy {

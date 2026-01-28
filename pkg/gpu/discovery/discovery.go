@@ -128,8 +128,13 @@ func processSysfsDriverDir(files []os.DirEntry, driverName string, sysfsDriverDi
 		newDeviceInfo.RenderdIdx = renderdIdx
 		newDeviceInfo.MemoryMiB = getLocalMemoryAmountMiB(devicePCIAddress)
 
-		link := path.Join(sysfsDriverDir, devicePCIAddress)
-		newDeviceInfo.PCIRoot = helpers.DeterminePCIRoot(link)
+		linkSource := path.Join(sysfsDriverDir, devicePCIAddress)
+		pciRoot, err := helpers.DeterminePCIRoot(linkSource)
+		if err != nil {
+			klog.Warningf("could not detect PCI root complex for %v: %v", devicePCIAddress, err)
+		} else {
+			newDeviceInfo.PCIRoot = pciRoot
+		}
 
 		detectSRIOV(newDeviceInfo, sysfsDriverDir, devicePCIAddress, deviceId)
 		devices[determineDeviceName(newDeviceInfo, namingStyle)] = newDeviceInfo
