@@ -89,6 +89,7 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	klog.V(5).Infof("Prepared claims: %v", driver.state)
 
 	// Initialize XPU SMI library.
+	klog.V(5).Info("Initializing xpu-smi")
 	xpusmiInitErr := goxpusmi.Initialize()
 	if xpusmiInitErr != nil {
 		klog.Errorf("failed to initialize xpu-smi: %v, ignoring device details", xpusmiInitErr)
@@ -98,6 +99,13 @@ func newDriver(ctx context.Context, config *helpers.Config) (helpers.Driver, err
 	detectedDevices := discovery.DiscoverDevices(driver.state.SysfsRoot, device.DefaultNamingStyle, verboseDiscovery, xpusmiInitErr == nil)
 	if len(detectedDevices) == 0 {
 		klog.Warning("No supported devices detected on this node")
+	}
+
+	if !driver.healthcare {
+		klog.V(5).Info("Healthcare is disabled, setting all device health to HealthUnknown")
+		for _, dev := range detectedDevices {
+			dev.Health = device.HealthUnknown
+		}
 	}
 
 	klog.V(3).Info("Creating new NodeState")

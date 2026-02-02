@@ -71,7 +71,6 @@ func DiscoverDevices(sysfsDir, namingStyle string, verbose bool, withXpuSmi bool
 }
 
 func populateXpuDeviceDetails(verbose bool) {
-	klog.V(5).Info("Initializing xpu-smi")
 	var err error
 
 	klog.V(5).Info("Querying xpu-smi for devices information")
@@ -102,7 +101,7 @@ func processSysfsDriverDir(files []os.DirEntry, driverName string, sysfsDriverDi
 			CardIdx:    0,
 			RenderdIdx: 0,
 			Driver:     driverName,
-			Healthy:    true, // presume healthy until proven otherwise
+			Health:     device.HealthHealthy, // Presume healthy until proven otherwise. If healthcare is disabled, after discovery the driver will set this to HealthUnknown.
 		}
 
 		sysfsDeviceDir := path.Join(sysfsDriverDir, devicePCIAddress)
