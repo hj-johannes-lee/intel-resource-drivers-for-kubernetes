@@ -1,20 +1,20 @@
-name: Helm Charts Test
+name: Helm charts testing
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
     paths:
       - 'charts/**'
-      - '.github/workflows/helm-test.yaml'
+      - '.github/workflows/helm-charts-test.yaml'
+      - '.github/scripts/test-helm-charts.sh'
       - 'hack/kind-config.yaml'
   pull_request:
     paths:
       - 'charts/**'
-      - '.github/workflows/helm-test.yaml'
+      - '.github/workflows/helm-charts-test.yaml'
+      - '.github/scripts/test-helm-charts.sh'
       - 'hack/kind-config.yaml'
-
 
 jobs:
   helm-test:
@@ -27,12 +27,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Helm
+      - name: Set up helm
         uses: azure/setup-helm@v4
         with:
           version: v3.15.0
 
-      - name: Lint all Helm charts
+      - name: Lint all helm charts
         run: |
           for chart in charts/*; do
             if [ -d "$chart" ]; then
@@ -41,7 +41,7 @@ jobs:
             fi
           done
 
-      - name: Install Kind
+      - name: Install kind
         run: |
           if ! command -v kind &> /dev/null; then
             echo "Kind not found. Downloading..."
@@ -52,7 +52,6 @@ jobs:
             echo "Kind already installed:"
             kind version
           fi
-
 
       - name: Install kubectl
         run: |
@@ -75,7 +74,7 @@ jobs:
             --config hack/kind-config.yaml
           kubectl cluster-info
 
-      - name: Build Helm dependencies
+      - name: Build helm dependencies
         run: |
           for chart in charts/*; do
             if [ -d "$chart" ]; then
@@ -83,7 +82,7 @@ jobs:
               helm dependency update "$chart"
             fi
           done
-      
+
       - name: Install NFD chart
         run: |
           helm repo add nfd https://kubernetes-sigs.github.io/node-feature-discovery/charts
@@ -91,21 +90,9 @@ jobs:
           helm install nfd nfd/node-feature-discovery --wait --timeout 180s
 
       - name: Install and test charts
-        run: |
-          for chart in charts/*; do
-            if [ -d "$chart" ]; then
-              chart_name=$(basename "$chart")
-              release_name="${chart_name}-test"
-              echo "Installing $chart_name ..."
-              helm install "$release_name" "$chart" --wait --timeout 180s
-              echo "Checking resources for $chart_name"
-              kubectl get all -A
-              echo "Uninstalling $chart_name"
-              helm uninstall "$release_name"
-            fi
-          done
+        run: .github/scripts/test-helm-charts.sh
 
-      - name: Clean up Kind cluster
+      - name: Clean up kind cluster
         if: always()
         run: |
           echo "Cleaning up cluster $CLUSTER_NAME..."
