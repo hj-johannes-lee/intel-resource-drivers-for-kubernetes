@@ -61,10 +61,6 @@ DEVICE_FAKER_IMAGE_NAME ?= intel-device-faker
 DEVICE_FAKER_IMAGE_VERSION ?= $(DEVICE_FAKER_VERSION)
 DEVICE_FAKER_IMAGE_TAG ?= $(REGISTRY)/$(DEVICE_FAKER_IMAGE_NAME):$(DEVICE_FAKER_IMAGE_VERSION)
 
-GOXPUSMI_IMAGE_NAME ?= intel-goxpusmi
-GOXPUSMI_IMAGE_VERSION ?= v0.1.0
-GOXPUSMI_IMAGE_TAG ?= $(REGISTRY)/$(GOXPUSMI_IMAGE_NAME):$(GOXPUSMI_IMAGE_VERSION)
-
 COMMON_SRC = \
 pkg/version/*.go
 
@@ -76,7 +72,7 @@ include $(CURDIR)/qat.mk
 
 
 .PHONY: build device-faker device-faker-container-build
-build: vendor gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker bin/goxpusmi
+build: vendor gpu gaudi qat bin/intel-cdi-specs-generator bin/device-faker
 
 
 bin/intel-cdi-specs-generator: cmd/cdi-specs-generator/*.go $(GPU_COMMON_SRC)
@@ -89,21 +85,12 @@ bin/device-faker: cmd/device-faker/*.go
 	  go build -a -ldflags "${LDFLAGS} -X ${PKG}/pkg/version.version=${DEVICE_FAKER_VERSION} -extldflags ${EXT_LDFLAGS}" \
 	  -mod vendor -o $@ ./cmd/device-faker
 
-bin/goxpusmi: cmd/goxpusmi/*.go pkg/goxpusmi/*.go
-	GOOS=linux GOARCH=${ARCH} \
-	  go build -a -ldflags "${LDFLAGS}" \
-	  -mod vendor -o $@ ./cmd/goxpusmi
-
 device-faker: bin/device-faker
 	@echo "bin/device-faker"
 
 device-faker-container-build:
 	$(DOCKER) build --pull -t $(DEVICE_FAKER_IMAGE_TAG) \
 	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.device-faker .
-
-goxpusmi-container-build:
-	$(DOCKER) build --pull -t $(GOXPUSMI_IMAGE_TAG) \
-	--build-arg LOCAL_LICENSES=$(LOCAL_LICENSES) -f Dockerfile.goxpusmi .
 
 .PHONY: branch-build
 # test that all commits in $GIT_BRANCH (default=current) build
@@ -114,7 +101,7 @@ branch-build:
 	git checkout $$current
 
 .PHONY: containers-build
-containers-build: gpu-container-build gaudi-container-build qat-container-build device-faker-container-build goxpusmi-container-build
+containers-build: gpu-container-build gaudi-container-build qat-container-build device-faker-container-build
 
 .PHONY: container-local
 container-local: container-build
