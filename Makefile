@@ -196,7 +196,7 @@ klogformat:
 # exclude env.sh + SC1091, shellcheck external file handling is broken
 shellcheck:
 	@echo -e "\nshellcheck: validate our own shell code:"
-	find . -name '*.sh' | grep -v -e vendor/ -e /env.sh | xargs shellcheck -e SC1091
+	find . -name '*.sh' | grep -v -e vendor/ -e xpumanager/ -e /env.sh | xargs shellcheck -e SC1091
 
 # Exclude Helm template files which contain Helm templating syntax
 yamllint:
