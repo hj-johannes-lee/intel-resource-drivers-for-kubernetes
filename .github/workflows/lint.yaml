@@ -16,5 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: create symlink for xpum code
+        run: |
+          ln -s ~/xpum ./xpumanager
       - name: Lint
         run: make lint
