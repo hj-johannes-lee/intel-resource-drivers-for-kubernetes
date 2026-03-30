@@ -11,15 +11,17 @@ export https_proxy="http://proxy-dmz.intel.com:912"
 export no_proxy="127.0.0.1,localhost,10.165.116.220,${LOCAL_IP},${KUBE_API_IP},10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.svc,.svc.cluster.local,.cluster.local,intel.com,devel"
 export NO_PROXY="${no_proxy}"
 
-echo "📦 Installing Ginkgo CLI..."
-GINKGO_VER="$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2 || echo '')"
-if [ -n "$GINKGO_VER" ]; then
-  go install "github.com/onsi/ginkgo/v2/ginkgo@${GINKGO_VER}"
-else
-  go install github.com/onsi/ginkgo/v2/ginkgo@v2.21.0
+if ! type ginkgo; then
+  echo "📦 Installing Ginkgo CLI..."
+  GINKGO_VER="$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2 || echo '')"
+  if [ -n "$GINKGO_VER" ]; then
+    go install "github.com/onsi/ginkgo/v2/ginkgo@${GINKGO_VER}"
+  else
+    go install github.com/onsi/ginkgo/v2/ginkgo@v2.28.1
+  fi
+  gopath_bin="$(go env GOPATH)/bin"
+  export PATH="$PATH:$gopath_bin"
 fi
-gopath_bin="$(go env GOPATH)/bin"
-export PATH="$PATH:$gopath_bin"
 
 unset http_proxy https_proxy no_proxy
 set -euo pipefail
