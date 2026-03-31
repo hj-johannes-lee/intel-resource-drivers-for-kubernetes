@@ -10,60 +10,29 @@ permissions:
   pull-requests: read
 
 jobs:
-  reserve-onecloud:
-    runs-on: [ "self-hosted", "gpu-reserver" ]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Reserve OneCloud System for E2E
-        env:
-          CI_USER_ONECLOUD_TOKEN : ${{ secrets.CI_USER_ONECLOUD_TOKEN }}
-        run: ./.github/gpu-scripts/reserve_onecloud.sh
-  setup-system:
-    needs: "reserve-onecloud"
-    runs-on: [ "self-hosted", "gpu-reserver" ]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup system for e2e
-        env:
-          ACTIONS_RUNNER_NAME: gpu
-          LDAP_USERNAME: ${{ secrets.CI_USER_NAME }}
-          LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
-          CI_USER_ONECLOUD_TOKEN : ${{ secrets.CI_USER_ONECLOUD_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: ./.github/gpu-scripts/setup_actions_runner.sh
   e2e:
     needs: "setup-system"
-    runs-on: [ "self-hosted", "gpu" ]
+    runs-on: [ "self-hosted", "kubernetes-gpu-ci" ]
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    - name: Install Go
-      run: ./.github/gpu-scripts/install_go.sh
     - name: Create K8s cluster
       run: ./.github/gpu-scripts/create_cluster.sh
-      env:
-        CI_USER_ONECLOUD_TOKEN : ${{ secrets.CI_USER_ONECLOUD_TOKEN }}
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
-    - name: Copy kubeconfig
+    - name: Describe test environment
       run: |
-        mkdir -p "$HOME/.kube"
-        sudo cp -f /etc/kubernetes/admin.conf "$HOME/.kube/config"
-        sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
-        chmod 600 "$HOME/.kube/config"
+        echo "Event name: ${{ github.event_name }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "Ref: ${{ github.ref }}"
+        echo "SHA: ${{ github.sha }}"
+        echo "Images: $IMAGES"
+        echo "Target job: $TARGET_JOB"
+        echo "Cluster: $(kubectl version)"
+        echo "Cluster state: $(kubectl get pods -A)"
     - name: Run E2E tests
       run: ./.github/gpu-scripts/run_e2e.sh
       env:
-        CI_USER_ONECLOUD_TOKEN : ${{ secrets.CI_USER_ONECLOUD_TOKEN }}
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
         GPU_IMAGE_TAG: "ger-is-registry.caas.intel.com/dgpu-orchestration/intel-gpu-resource-driver:devel"
-  release-onecloud:
-    needs: "e2e"
-    if: ${{ always() }}
-    runs-on: [ "self-hosted", "gpu-reserver" ]
-    steps:
-      - name: Release the OneCloud System
-        env:
-          CI_USER_ONECLOUD_TOKEN : ${{ secrets.CI_USER_ONECLOUD_TOKEN }}
-        run: ./.github/gpu-scripts/release_onecloud.sh
+    - name: Teardown test environment
+      if: always()
+      run: kind delete cluster
+
