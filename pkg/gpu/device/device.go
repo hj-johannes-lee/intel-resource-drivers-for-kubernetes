@@ -28,6 +28,7 @@ var (
 	PciRegexp     = regexp.MustCompile(`[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$`)
 	CardRegexp    = regexp.MustCompile(`^card[0-9]{1,3}$`)
 	RenderdRegexp = regexp.MustCompile(`^renderD[0-9]{1,3}$`)
+	MEIRegexp     = regexp.MustCompile(`^mei[0-9]+$`)
 )
 
 const (
@@ -39,11 +40,16 @@ const (
 	SysfsI915DriverName = "i915"
 	SysfsXeDriverName   = "xe"
 	SysfsDRMpath        = "class/drm/"
+	SysfsMEIpath        = "class/mei/"
 
-	CDIVendor  = "intel.com"
-	CDIClass   = "gpu"
-	CDIKind    = CDIVendor + "/" + CDIClass
-	DriverName = CDIClass + "." + CDIVendor
+	CDIVendor   = "intel.com"
+	CDIGPUClass = "gpu"
+	CDIGPUKind  = CDIVendor + "/" + CDIGPUClass
+	CDIClass    = CDIGPUClass
+	CDIKind     = CDIGPUKind
+	CDIMEIClass = "gpu-mei"
+	CDIMEIKind  = CDIVendor + "/" + CDIMEIClass
+	DriverName  = CDIGPUClass + "." + CDIVendor
 
 	UIDLength = len("0000-00-00-0-0x0000")
 
@@ -137,6 +143,7 @@ type DeviceInfo struct {
 	Model         string            `json:"model"`         // PCI device ID
 	ModelName     string            `json:"modelname"`     // SKU name, usually Series + Model, e.g. Flex 140
 	FamilyName    string            `json:"familyname"`    // SKU family name, usually Series, e.g. Flex or Max
+	MEIName       string            `json:"meiname"`       // MEI name discovered for this GPU, e.g. mei0 for /dev/mei0
 	CardIdx       uint64            `json:"cardidx"`       // card device number (e.g. 0 for /dev/dri/card0)
 	RenderdIdx    uint64            `json:"renderdidx"`    // renderD device number (e.g. 128 for /dev/dri/renderD128)
 	MemoryMiB     uint64            `json:"memorymib"`     // in MiB
@@ -156,6 +163,14 @@ type DeviceInfo struct {
 
 func (g DeviceInfo) CDIName() string {
 	return fmt.Sprintf("%s=%s", CDIKind, g.UID)
+}
+
+func (g DeviceInfo) MEICDIName() string {
+	if g.MEIName == "" {
+		return ""
+	}
+
+	return fmt.Sprintf("%s=%s", CDIMEIKind, g.MEIName)
 }
 
 func (g *DeviceInfo) DeepCopy() *DeviceInfo {

@@ -176,6 +176,61 @@ func fakeGpuDRI(sysfsRoot string, devfsRoot string, gpu *device.DeviceInfo, i915
 	return createDevfsSymlinks(devfsRoot, cardName, renderdName, gpu.PCIAddress)
 }
 
+func fakeGpuMEI(sysfsRoot string, devfsRoot string, gpu *device.DeviceInfo, realDevices bool) error {
+	if gpu.MEIName == "" {
+		return nil
+	}
+
+	meiClassDir := path.Join(sysfsRoot, device.SysfsMEIpath)
+	if err := os.MkdirAll(meiClassDir, 0750); err != nil {
+		return fmt.Errorf("creating MEI class directory %v: %v", meiClassDir, err)
+	}
+
+	auxDirName := "mei"
+	switch gpu.Driver {
+	case device.SysfsI915DriverName:
+		auxDirName = "i915.mei-gscfi.2304"
+	case device.SysfsXeDriverName:
+		auxDirName = "xe.mei-gscfi.768"
+	}
+
+	meiDeviceDir := path.Join(sysfsRoot, "devices", gpu.PCIRoot, gpu.PCIAddress, auxDirName, "mei", gpu.MEIName)
+	if err := os.MkdirAll(meiDeviceDir, 0750); err != nil {
+		return fmt.Errorf("creating MEI device directory %v: %v", meiDeviceDir, err)
+	}
+
+	meiClassLink := path.Join(meiClassDir, gpu.MEIName)
+	if err := createRelativeSymlink(meiDeviceDir, meiClassLink); err != nil {
+		return fmt.Errorf("creating MEI class symlink %v: %v", meiClassLink, err)
+	}
+
+	if err := os.MkdirAll(devfsRoot, 0750); err != nil {
+		return fmt.Errorf("creating fake devfs root: %v", err)
+	}
+
+	if err := createDevice(path.Join(devfsRoot, gpu.MEIName), realDevices); err != nil {
+		return fmt.Errorf("creating device %v: %v", gpu.MEIName, err)
+	}
+
+	return nil
+}
+
+func createRelativeSymlink(targetPath string, linkPath string) error {
+	relTarget, err := filepath.Rel(path.Dir(linkPath), targetPath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve relative symlink from %v to %v: %v", linkPath, targetPath, err)
+	}
+
+	if err := os.Symlink(relTarget, linkPath); err != nil {
+		if os.IsExist(err) {
+			return nil
+		}
+		return fmt.Errorf("creating symlink from %v to %v: %v", linkPath, targetPath, err)
+	}
+
+	return nil
+}
+
 func createDevfsSymlinks(devfsRoot, cardName, renderdName, pciAddress string) error {
 	if err := os.Symlink(fmt.Sprintf("../%v", cardName), path.Join(devfsRoot, "dri/by-path/", fmt.Sprintf("pci-%v-card", pciAddress))); err != nil {
 		return fmt.Errorf("creating fake sysfs, err: %v", err)
@@ -224,6 +279,12 @@ func fakeSysFsGpuDevices(sysfsRoot string, devfsRoot string, gpus device.Devices
 
 		if err := fakeGpuDRI(sysfsRoot, devfsRoot, gpu, driverDeviceDir, realDevices); err != nil {
 			return fmt.Errorf("creating fake sysfs DRI devices, err: %v", err)
+		}
+
+		if gpu.DeviceType == device.GpuDeviceType {
+			if err := fakeGpuMEI(sysfsRoot, devfsRoot, gpu, realDevices); err != nil {
+				return fmt.Errorf("creating fake mei sysfs: %v", err)
+			}
 		}
 
 		if writeErr := helpers.WriteFile(path.Join(pciDriverDir, "bind"), ""); writeErr != nil {
