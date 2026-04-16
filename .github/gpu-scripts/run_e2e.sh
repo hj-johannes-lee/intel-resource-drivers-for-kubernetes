@@ -30,6 +30,12 @@ GPU_IMAGE_TAG="${GPU_IMAGE_TAG:-ger-is-registry.caas.intel.com/dgpu-orchestratio
 echo "📦 Using image: $GPU_IMAGE_TAG"
 
 echo "🧪 Running E2E tests..."
-GPU_IMAGE_TAG="$GPU_IMAGE_TAG" ginkgo -v --focus "GPU DRA Driver" ./test/e2e
+
+GINKGO_FOCUS="GPU DRA Driver"
+if [ "${ACTIONS_RUNNER_NAME:-}" = "cri" ]; then
+  GINKGO_FOCUS="GPU DRA driver is running in CRI simics"
+fi
+
+GPU_IMAGE_TAG="$GPU_IMAGE_TAG" ginkgo -v --focus "$GINKGO_FOCUS" ./test/e2e
 
 echo "✅ E2E tests passed successfully"
