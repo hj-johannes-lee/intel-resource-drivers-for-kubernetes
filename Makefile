@@ -177,7 +177,20 @@ gaudi-licenses: clean-licenses
 	save "." --save_path $(CURDIR)/licenses
 
 # linting targets for Go and other code
-.PHONY: lint format cilint vet shellcheck yamllint
+.PHONY: lint format cilint vet shellcheck yamllint lint-containerized
+
+lint-containerized:
+	$(DOCKER) run \
+	-e http_proxy=$(http_proxy) \
+	-e https_proxy=$(https_proxy) \
+	-e no_proxy=$(no_proxy) \
+	--user $(shell id -u):$(shell id -g) \
+	-v "$(shell pwd)":/home/ubuntu/src:rw \
+	"$(TEST_IMAGE)" \
+	bash -c "cd src && make lint"
+
+
+
 
 lint: vendor format cilint vet klogformat shellcheck yamllint
 
@@ -185,7 +198,7 @@ format:
 	gofmt -w -s -l ./
 
 cilint:
-	golangci-lint --max-same-issues 0 --max-issues-per-linter 0 run --timeout 2m0s ./...
+	golangci-lint --max-same-issues 0 --max-issues-per-linter 0 run --timeout 4m0s ./...
 
 vet:
 	go vet $(PKG)/...
