@@ -189,10 +189,7 @@ lint-containerized:
 	"$(TEST_IMAGE)" \
 	bash -c "cd src && make lint"
 
-
-
-
-lint: vendor format cilint vet klogformat shellcheck yamllint
+lint: vendor cilint vet klogformat shellcheck yamllint
 
 format:
 	gofmt -w -s -l ./
@@ -213,7 +210,7 @@ klogformat:
 # exclude env.sh + SC1091, shellcheck external file handling is broken
 shellcheck:
 	@echo -e "\nshellcheck: validate our own shell code:"
-	find . -name '*.sh' | grep -v -e vendor/ -e xpumanager/ -e /env.sh | xargs shellcheck -e SC1091
+	find . -name '*.sh' | grep -v -e vendor/ -e /env.sh | xargs shellcheck -e SC1091
 
 # Exclude Helm template files which contain Helm templating syntax
 yamllint:
@@ -297,7 +294,7 @@ TEST_TARGET ?= test
 
 test-containerized:
 	$(DOCKER) run \
-	-it -e container=yes \
+	-e container=yes \
 	-e http_proxy=$(http_proxy) \
 	-e https_proxy=$(https_proxy) \
 	-e no_proxy=$(no_proxy) \
@@ -338,6 +335,13 @@ gaudi-coverage: clean-coverage vendor copytests gaudi-coverage.out
 .PHONY: %-coverage
 %-coverage: %-coverage.out
 	go tool cover -func=$@.out
+
+.PHONY: coverage-check
+coverage-check: coverage.out
+	.github/scripts/coverage_check.sh gpu-coverage 70
+	.github/scripts/coverage_check.sh gaudi-coverage 70
+	.github/scripts/coverage_check.sh qat-coverage 70
+
 
 .PHONY: copytests
 copytests:
