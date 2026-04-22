@@ -1,42 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source /etc/environment
 # Configuration
 ACTIONS_RUNNER_NAME=${ACTIONS_RUNNER_NAME:-}
 LDAP_USERNAME=${LDAP_USERNAME:-}
 LDAP_PASSWORD=${LDAP_PASSWORD:-}
 PROXY_URL=${PROXY_URL:-http://proxy-dmz.intel.com:912}
-
+SYSTEM_IP=${SYSTEM_IP:-}
 MAX_SSH_RETRIES=15
 RETRY_DELAY=10
-SYSTEM_ID="573563"
-SSH_USER="sdp"
-if [[ "$ACTIONS_RUNNER_NAME" == "coral" ]]; then
-    SSH_USER="vagrant"
+
+if [[ "$ACTIONS_RUNNER_NAME" == "cri" ]]; then
+   SSH_USER="gta"
 fi
 
 get_system_ip() {
-    echo "$ACTIONS_RUNNER_NAME"
-    if [[ "$ACTIONS_RUNNER_NAME" == "coral" ]]; then
-        os_ip=10.10.10.10
+    if [[ "$ACTIONS_RUNNER_NAME" == "cri" ]]; then
+        SYSTEM_IP=$(cat /tmp/reserved_system_ip 2>/dev/null || echo "null")
         return 0
     fi
-    echo "Retrieving system IP..."
-    local response
-    response=$(curl -s -X GET "https://onecloudapi.intel.com/${CI_USER_ONECLOUD_TOKEN}/system/info/${SYSTEM_ID}")
-    os_ip=$(echo "${response}" | jq -r '.osip')
-    if [[ -z "${os_ip}" || "${os_ip}" == "null" ]]; then
+
+    if [[ -z "${SYSTEM_IP}" || "${SYSTEM_IP}" == "null" ]]; then
         echo "❌ Failed to retrieve system IP"
         exit 1
     fi
-    echo "✅ System IP: ${os_ip}"
+    echo "✅ System IP: ${SYSTEM_IP}"
 }
 
 wait_for_ssh() {
     echo "⏳ Waiting for SSH..."
     local attempt=1
     while [[ $attempt -le $MAX_SSH_RETRIES ]]; do
-        if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o BatchMode=yes "${SSH_USER}@${os_ip}" exit 2>/dev/null; then
+        if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o BatchMode=yes "${SSH_USER}@${SYSTEM_IP}" exit 2>/dev/null; then
             echo "✅ SSH connection established"
             return 0
         fi
@@ -44,13 +40,13 @@ wait_for_ssh() {
         sleep "$RETRY_DELAY"
         ((attempt++))
     done
-    echo "❌ Cannot connect to ${SSH_USER}@${os_ip}"
+    echo "❌ Cannot connect to ${SSH_USER}@${SYSTEM_IP}"
     exit 1
 }
 
 setup_proxy() {
     echo "📤 Setting up proxy..."
-    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" "
+    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${SYSTEM_IP}" "
 echo '⚙️ Setting proxy...'
 sudo tee -a /etc/environment > /dev/null << 'PROXY_EOF'
 http_proxy=\"${PROXY_URL}\"
@@ -71,7 +67,7 @@ echo '✅ Proxy configured.'
 
 install_intel_certs_and_dt() {
     echo "🔑 Installing Intel certs and devtool..."
-    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" << 'EOF'
+    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${SYSTEM_IP}" << 'EOF'
 set -euo pipefail
 
 sudo apt-get update
@@ -92,67 +88,43 @@ echo "📂 Installing devtool..."
 chmod +x ~/dt
 ~/dt update
 
-echo "📤 Setting up proxy for dt..."
-sed -i "s#\"https\": *\"[^\"]*\"#\"https\": \"${https_proxy}\"#" ~/.config/dt/cache/proxies.json
-./dt refresh-proxy
+DT_PROXIES_FILE="$HOME/.config/dt/cache/proxies.json"
+if [ -f "$DT_PROXIES_FILE" ]; then
+    echo "📤 Setting up proxy for dt..."
+    sed -i "s#\"https\": *\"[^\"]*\"#\"https\": \"${https_proxy}\"#" "$DT_PROXIES_FILE"
+    ~/dt refresh-proxy
+fi
 
 echo "✅ Devtool (dt) installed"
 EOF
 }
 
-cleanup_existing_runner() {
-    echo "🧹 Cleaning up existing runner installations..."
-    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" << 'EOF'
-set -euo pipefail
-
-echo "🛑 Stopping any running GitHub Actions services..."
-# Stop all runner services
-sudo systemctl stop actions.runner.* || true
-sudo pkill -f Runner.Listener || true
-sudo pkill -f Runner.Worker || true
-
-echo "🗂️ Removing existing runner directories..."
-# Clean up runner directories
-rm -rf ~/gha-runner-setup || true
-rm -rf ~/.local/share/powershell || true
-
-echo "🔄 Removing any systemd services..."
-# Remove systemd services
-sudo rm -f /etc/systemd/system/actions.runner.* || true
-sudo systemctl daemon-reload
-
-echo "✅ Cleanup completed"
-EOF
-}
-
 install_and_run_runner() {
     echo "🚧 Installing and starting GitHub runner..."
-
-    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" 'cat > ~/run_runner.sh' << 'EOSCRIPT'
+    
+    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${SYSTEM_IP}" 'cat > ~/run_runner.sh' << 'EOSCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 
 echo "📦 Running GitHub runner install script"
 
-mkdir -p ~/gha-runner-setup
-cd ~/gha-runner-setup
-
 ~/dt github install-runner \
-    --location=~/gha-runner-setup/actions-runner \
+    --location=gha-runner-setup/actions-runner \
     --ldap-domain=GER \
     --ldap-username="${LDAP_USERNAME}" \
     --ldap-password="${LDAP_PASSWORD}" \
     --no-prompt \
     --name="resource-drivers-for-kubernetes.${ACTIONS_RUNNER_NAME}" \
     --label "${ACTIONS_RUNNER_NAME}"
+~/dt github service-runner start --location=gha-runner-setup/actions-runner
 EOSCRIPT
 
-    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" "chmod +x ~/run_runner.sh && LDAP_USERNAME='${LDAP_USERNAME}' LDAP_PASSWORD='${LDAP_PASSWORD}' ACTIONS_RUNNER_NAME='${ACTIONS_RUNNER_NAME}' ~/run_runner.sh"
+    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${SYSTEM_IP}" "chmod +x ~/run_runner.sh && LDAP_USERNAME='${LDAP_USERNAME}' LDAP_PASSWORD='${LDAP_PASSWORD}' ACTIONS_RUNNER_NAME='${ACTIONS_RUNNER_NAME}' ~/run_runner.sh"
 }
 
 install_docker_and_registry() {
     echo "🐳 Installing Docker and setting up registry..."
-    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${os_ip}" << 'EOF'
+    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${SYSTEM_IP}" << 'EOF'
 set -euo pipefail
 
 sudo apt-get update
@@ -218,9 +190,7 @@ main() {
     get_system_ip
     wait_for_ssh
     setup_proxy
-    install_docker_and_registry
     install_intel_certs_and_dt
-    cleanup_existing_runner
     install_and_run_runner
     echo "✅ Setup system completed successfully."
 }

@@ -1,0 +1,58 @@
+name: Coral E2E Run
+
+on:
+  schedule:
+    # 05:00 every Monday
+    - cron: "0 5 * * 0"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  reserve-cri-simics:
+    runs-on: [ "self-hosted", "generic" ]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Setup system for e2e
+      env:
+        INTEL_USERNAME: ${{ secrets.CI_USER_NAME }}
+        INTEL_PASSWORD: ${{ secrets.CI_USER_PASS }}
+        GTA_PASSWORD: ${{ secrets.GTA_PASS }}
+      run: |
+          .github/gpu-scripts/reserve_cri.sh
+  setup-actions-runner:
+    needs: "reserve-cri-simics"
+    runs-on: [ "self-hosted", "generic" ]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Setup actions runner in CRI simics
+      env:
+        ACTIONS_RUNNER_NAME: cri
+        LDAP_USERNAME: ${{ secrets.CI_USER_NAME }}
+        LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
+      run: |
+          .github/gpu-scripts/setup_actions_runner.sh
+  e2e:
+    needs: "setup-actions-runner"
+    runs-on: [ "self-hosted", "cri" ]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+    - name: Install KinD
+      run: .github/gpu-scripts/install_kind.sh
+    - name: Create K8s cluster
+      run: ./.github/gpu-scripts/create_cluster.sh
+    - name: Install Go
+      run: .github/gpu-scripts/install_go.sh
+    - name: Run E2E tests
+      env:
+        ACTIONS_RUNNER_NAME: cri
+      run: |
+          source /etc/environment
+          ./.github/gpu-scripts/run_e2e.sh
+    - name: Teardown test environment
+      if: always()
+      run: kind delete cluster
