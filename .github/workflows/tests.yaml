@@ -14,12 +14,9 @@ jobs:
   build-gaudi-test-image:
     runs-on: [ "self-hosted", "generic" ]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         fetch-depth: 0
-    - name: create symlink for xpum code
-      run: |
-        ln -s ~/xpum ./xpumanager
     - name: rebuild need assessment
       id: rebuild_test_image
       run: |
@@ -52,13 +49,10 @@ jobs:
         http_proxy: http://proxy-dmz.intel.com:911
         https_proxy: http://proxy-dmz.intel.com:912
         no_proxy: 10.0.0.0/8,intel.com,*.intel.com,.intel.com
-      volumes:
-        - /home/ubuntu/xpum:/home/ubuntu/xpum:ro
     steps:
-    - uses: actions/checkout@v4
-    - name: create symlink for xpum code
-      run: |
-        ln -s /home/ubuntu/xpum ./xpumanager
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        fetch-depth: 0
     - name: Test
       run: make test
     - name: Coverage report

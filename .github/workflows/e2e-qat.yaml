@@ -38,7 +38,9 @@ jobs:
     runs-on: [ "self-hosted", "qat" ]
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        fetch-depth: 0
     - name: Create a K8s Cluster
       run: ../../../../../jobs/qat_dra_driver/ssh_host_and_recreate_cluster.sh
     - name: Build an Image for the QAT Driver and Obtain Test Images
