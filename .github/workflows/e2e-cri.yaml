@@ -14,7 +14,9 @@ jobs:
     runs-on: [ "self-hosted", "generic" ]
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        fetch-depth: 0
     - name: Setup system for e2e
       env:
         INTEL_USERNAME: ${{ secrets.CI_USER_NAME }}
@@ -27,7 +29,9 @@ jobs:
     runs-on: [ "self-hosted", "generic" ]
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        fetch-depth: 0
     - name: Setup actions runner in CRI simics
       env:
         ACTIONS_RUNNER_NAME: cri
@@ -40,7 +44,9 @@ jobs:
     runs-on: [ "self-hosted", "cri" ]
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        fetch-depth: 0
     - name: Install KinD
       run: .github/gpu-scripts/install_kind.sh
     - name: Create K8s cluster
