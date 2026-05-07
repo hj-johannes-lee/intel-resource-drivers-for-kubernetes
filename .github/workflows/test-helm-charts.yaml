@@ -73,12 +73,6 @@ jobs:
             fi
           done
 
-      - name: Install NFD chart
-        run: |
-          helm repo add nfd https://kubernetes-sigs.github.io/node-feature-discovery/charts
-          helm repo update
-          helm install nfd nfd/node-feature-discovery --wait --timeout 180s
-
       - name: Install and test charts
         run: .github/scripts/test-helm-charts.sh
 
