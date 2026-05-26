@@ -104,4 +104,4 @@ jobs:
             --app-version "$app_version" \
             --destination .charts
 
-          echo helm push ".charts/${chart_name}-${chart_version}.tgz" "${OCI_REGISTRY}"
+          helm push ".charts/${chart_name}-${chart_version}.tgz" "${OCI_REGISTRY}"

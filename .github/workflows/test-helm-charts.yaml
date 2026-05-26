@@ -66,6 +66,7 @@ jobs:
 
       - name: Build helm dependencies
         run: |
+          helm registry logout ghcr.io
           for chart in charts/*; do
             if [ -d "$chart" ]; then
               echo "Building dependencies for $chart"
