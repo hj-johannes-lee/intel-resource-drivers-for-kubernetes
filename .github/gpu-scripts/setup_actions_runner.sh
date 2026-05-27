@@ -10,16 +10,25 @@ PROXY_URL=${PROXY_URL:-http://proxy-dmz.intel.com:912}
 SYSTEM_IP=${SYSTEM_IP:-}
 MAX_SSH_RETRIES=15
 RETRY_DELAY=10
+UNINSTALL_MODE=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --uninstall)
+            UNINSTALL_MODE=true
+            ;;
+        *)
+            echo "❌ Unknown argument: $arg"
+            exit 1
+            ;;
+    esac
+done
 
 if [[ "$ACTIONS_RUNNER_NAME" == "cri" ]]; then
    SSH_USER="gta"
 fi
 
 get_system_ip() {
-    if [[ "$ACTIONS_RUNNER_NAME" == "cri" ]]; then
-        SYSTEM_IP=$(cat /tmp/reserved_system_ip 2>/dev/null || echo "null")
-        return 0
-    fi
 
     if [[ -z "${SYSTEM_IP}" || "${SYSTEM_IP}" == "null" ]]; then
         echo "❌ Failed to retrieve system IP"
@@ -71,6 +80,7 @@ install_intel_certs_and_dt() {
 set -euo pipefail
 
 sudo apt-get update
+sudo apt-get --fix-broken install -y
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y unzip curl
 
 echo "🔐 Installing Intel CA certificates..."
@@ -182,13 +192,30 @@ fi
 EOF
 }
 
+uninstall_runner() {
+    echo "🧹 Uninstalling GitHub runner..."
+    ssh -o StrictHostKeyChecking=no "${SSH_USER}@${SYSTEM_IP}" "\$HOME/dt github uninstall-runner \
+    --location=gha-runner-setup/actions-runner \
+    --ldap-domain=GER \
+    --ldap-username='${LDAP_USERNAME}' \
+    --ldap-password='${LDAP_PASSWORD}' \
+    --no-prompt"
+    echo "✅ GitHub runner uninstalled"
+}
+
 main() {
+    get_system_ip
+    wait_for_ssh
+
+    if [[ "$UNINSTALL_MODE" == "true" ]]; then
+        uninstall_runner
+        return 0
+    fi
+
     if [[ "$ACTIONS_RUNNER_NAME" == "gpu" ]]; then
         echo "🕒 Waiting 12 minutes for system boot..."
         sleep 720
     fi
-    get_system_ip
-    wait_for_ssh
     setup_proxy
     install_intel_certs_and_dt
     install_and_run_runner

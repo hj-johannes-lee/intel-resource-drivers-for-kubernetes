@@ -4,6 +4,7 @@ on:
   schedule:
     # 05:00 every Monday
     - cron: "0 5 * * 0"
+  pull_request:
 
 permissions:
   contents: read
@@ -12,6 +13,8 @@ permissions:
 jobs:
   reserve-cri-simics:
     runs-on: [ "self-hosted", "generic" ]
+    outputs:
+      system-ip: ${{ steps.capture-system-ip.outputs.system-ip }}
     steps:
     - name: Checkout code
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -24,6 +27,10 @@ jobs:
         GTA_PASSWORD: ${{ secrets.GTA_PASS }}
       run: |
           .github/gpu-scripts/reserve_cri.sh
+    - name: Capture reserved system IP
+      id: capture-system-ip
+      run: |
+          echo "system-ip=$(cat /tmp/reserved_system_ip)" >> "$GITHUB_OUTPUT"
   setup-actions-runner:
     needs: "reserve-cri-simics"
     runs-on: [ "self-hosted", "generic" ]
@@ -35,6 +42,7 @@ jobs:
     - name: Setup actions runner in CRI simics
       env:
         ACTIONS_RUNNER_NAME: cri
+        SYSTEM_IP: ${{ needs.reserve-cri-simics.outputs.system-ip }}
         LDAP_USERNAME: ${{ secrets.CI_USER_NAME }}
         LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
       run: |
@@ -61,4 +69,19 @@ jobs:
           ./.github/gpu-scripts/run_e2e.sh
     - name: Teardown test environment
       if: always()
-      run: kind delete cluster
+      run: |
+          kind delete cluster
+  uninstall-actions-runner:
+    if: always()
+    needs:
+    - reserve-cri-simics
+    - e2e
+    runs-on: [ "self-hosted", "generic" ]
+    steps:
+    - name: Uninstall actions runner in CRI simics
+      env:
+        ACTIONS_RUNNER_NAME: cri
+        SYSTEM_IP: ${{ needs.reserve-cri-simics.outputs.system-ip }}
+        LDAP_USERNAME: ${{ secrets.CI_USER_NAME }}
+        LDAP_PASSWORD: ${{ secrets.CI_USER_PASS }}
+      run: .github/gpu-scripts/setup_actions_runner.sh --uninstall
