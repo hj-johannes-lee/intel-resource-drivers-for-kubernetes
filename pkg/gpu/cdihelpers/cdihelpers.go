@@ -151,7 +151,7 @@ func addMeiDevicesToSpec(devices device.DevicesInfo, spec *specs.Spec) {
 				DeviceNodes: []*specs.DeviceNode{
 					{
 						Path:     path.Join(containerDevPath, gpuDevice.MEIName),
-						HostPath: path.Join(helpers.GetDevfsRoot(helpers.DevfsEnvVarName, ""), gpuDevice.MEIName),
+						HostPath: path.Join(helpers.GetDevfsRoot(""), gpuDevice.MEIName),
 						Type:     "c",
 					},
 				},
@@ -181,7 +181,7 @@ func addDeviceContainerEdits(newdevice *device.DeviceInfo, cdiDevice *specs.Devi
 }
 
 func addVFIOEdits(newDevice *device.DeviceInfo, cdiDevice *specs.Device) {
-	devVFIOPath := path.Join(helpers.GetDevfsRoot(helpers.DevfsEnvVarName, device.DevfsVFIOPath), device.DevfsVFIOPath)
+	devVFIOPath := path.Join(helpers.GetDevfsRoot(device.DevfsVFIOPath), device.DevfsVFIOPath)
 
 	cdiDevice.ContainerEdits = specs.ContainerEdits{
 		DeviceNodes: []*specs.DeviceNode{
@@ -268,6 +268,10 @@ func UpdateGPUDevices(cdiCache *cdiapi.Cache, devicesToUpdate []*device.DeviceIn
 		return fmt.Errorf("failed to remove old GPU devices from CDI spec: %v", err)
 	}
 	for _, deviceToAdd := range devicesToUpdate {
+		if deviceToAdd.CurrentDriver == "" {
+			klog.V(5).Infof("Device %v is not bound to any no driver, skipping CDI creation", deviceToAdd.UID)
+			continue
+		}
 		if err := AddGPUDevice(cdiCache, deviceToAdd); err != nil {
 			return fmt.Errorf("failed to add updated GPU device to CDI spec: %v", err)
 		}

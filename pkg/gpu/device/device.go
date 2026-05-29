@@ -26,10 +26,12 @@ import (
 )
 
 var (
-	PciRegexp     = regexp.MustCompile(`[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$`)
-	CardRegexp    = regexp.MustCompile(`^card[0-9]{1,3}$`)
-	RenderdRegexp = regexp.MustCompile(`^renderD[0-9]{1,3}$`)
-	MEIRegexp     = regexp.MustCompile(`^mei[0-9]+$`)
+	PciRegexp        = regexp.MustCompile(`[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$`)
+	CardRegexp       = regexp.MustCompile(`^card[0-9]{1,3}$`)
+	RenderdRegexp    = regexp.MustCompile(`^renderD[0-9]{1,3}$`)
+	MEIRegexp        = regexp.MustCompile(`^mei[0-9]+$`)
+	VFIORegexp       = regexp.MustCompile(`^vfio[0-9]+$`)
+	IOMMUGroupRegexp = regexp.MustCompile(`^[0-9]+$`)
 )
 
 const (
@@ -46,6 +48,7 @@ const (
 	SysfsDRMpath          = "class/drm/"
 	SysfsMEIpath          = "class/mei/"
 	DevfsVFIOPath         = "vfio"
+	DevfsVFIODevicesPath  = "vfio/devices"
 
 	CDIVendor   = "intel.com"
 	CDIGPUClass = "gpu"
@@ -66,18 +69,21 @@ const (
 	GpuDeviceType      = "gpu"
 	VfDeviceType       = "vf"
 
-	DriverChangeDelay = 500 * time.Millisecond
+	DriverChangeDelay = 1000 * time.Millisecond
 
 	HealthUnknown                = "Unknown"
 	HealthHealthy                = "Healthy"
 	HealthUnhealthy              = "Unhealthy"
 	HealthStatusDeviceAbsent     = "DeviceAbsent"
 	HealthStatusUnexpectedDriver = "UnexpectedDriver"
+	UnboundUnmanagedTaintKey     = "UnboundUnmanaged"
 
-	PCIVendorId       = "0x8086"
-	PCIVendorIdDec    = "8086"
-	PCIVGAClassID     = "0x030000"
-	PCIDisplayClassID = "0x038000"
+	PCIVendorId           = "0x8086"
+	PCIVGAClassID         = "0x030000"
+	PCIDisplayClassID     = "0x038000"
+	UDEVPCIVendorId       = "8086"
+	UDEVPCIVGAClassID     = "30000"
+	UDEVPCIDisplayClassID = "38000"
 )
 
 // VfAttributeFiles is a list of filenames that needs to be configured for a VF
@@ -193,7 +199,7 @@ func (g *DevicesInfo) DeepCopy() DevicesInfo {
 }
 
 func GetDriDevPath() string {
-	return filepath.Join(helpers.GetDevfsRoot(helpers.DevfsEnvVarName, DevfsDriPath), DevfsDriPath)
+	return filepath.Join(helpers.GetDevfsRoot(DevfsDriPath), DevfsDriPath)
 }
 
 func IsGPUClass(classId string) bool {

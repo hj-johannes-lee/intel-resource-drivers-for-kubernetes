@@ -53,8 +53,8 @@ func TestGPUFakeSysfs(t *testing.T) {
 		testDirs.SysfsRoot,
 		testDirs.DevfsRoot,
 		device.DevicesInfo{
-			"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardName: "card0", MEIName: "mei0", RenderDName: "renderD128", UID: "0000-00-02-0-0x56c0", MaxVFs: 16, Driver: "i915"},
-			"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardName: "card1", MEIName: "mei1", RenderDName: "renderD128", UID: "0000-00-03-0-0x56c0", MaxVFs: 16, Driver: "xe"},
+			"0000-00-02-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardName: "card0", MEIName: "mei0", RenderDName: "renderD128", UID: "0000-00-02-0-0x56c0", MaxVFs: 16, Driver: "i915", CurrentDriver: "i915"},
+			"0000-00-03-0-0x56c0": {Model: "0x56c0", MemoryMiB: 8192, DeviceType: "gpu", CardName: "card1", MEIName: "mei1", RenderDName: "renderD129", UID: "0000-00-03-0-0x56c0", MaxVFs: 16, Driver: "xe", CurrentDriver: "xe"},
 		},
 		false,
 	); err != nil {
@@ -76,8 +76,10 @@ func getFakeDriver(testDirs testhelpers.TestDirsType) (*driver, error) {
 			KubeletPluginDir:          testDirs.KubeletPluginDir,
 			KubeletPluginsRegistryDir: testDirs.KubeletPluginRegistryDir,
 		},
-		Coreclient:  kubefake.NewClientset(),
-		DriverFlags: &GPUFlags{}, // ensure correct type to avoid nil type assertion failure
+		Coreclient: kubefake.NewClientset(),
+		DriverFlags: &GPUFlags{
+			ManageBinding: true,
+		}, // ensure correct type to avoid nil type assertion failure
 	}
 
 	if err := os.MkdirAll(config.CommonFlags.KubeletPluginDir, 0755); err != nil {
@@ -114,6 +116,9 @@ func TestPrepareResourceClaims(t *testing.T) {
 		expectedResponse       map[types.UID]kubeletplugin.PrepareResult
 		initialPreparedClaims  ClaimPreparations
 		expectedPreparedClaims ClaimPreparations
+		// Where driver change is expected, bindUnbindWatcher will be used,
+		// it needs explicit stopping to close all fsnotify processes.
+		driverChange bool
 	}
 
 	testcases := []testCase{
@@ -126,12 +131,18 @@ func TestPrepareResourceClaims(t *testing.T) {
 		{
 			name: "single GPU",
 			request: []*resourceapi.ResourceClaim{
-				testhelpers.NewClaim("namespace1", "claim1", "uid1", "request1", "gpu.intel.com", "node1", []string{"0000-00-02-0-0x56c0"}, false),
+				testhelpers.NewClaim("namespace1", "claim1", "uid1", "request1", "gpu.intel.com", "node1", "gpu.intel.com", []string{"0000-00-02-0-0x56c0"}, false),
 			},
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid1": {
 					Devices: []kubeletplugin.Device{
-						{Requests: []string{"request1"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
+						{
+							Requests:     []string{"request1"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-02-0-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:02.0"}[0]}}},
+						},
 					},
 				},
 			},
@@ -140,7 +151,13 @@ func TestPrepareResourceClaims(t *testing.T) {
 				"uid1": {
 					PreparedDevices: []PreparedDevice{
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"request1"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"}},
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"request1"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-02-0-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:02.0"}[0]}}},
+							},
 						},
 					},
 				},
@@ -149,12 +166,18 @@ func TestPrepareResourceClaims(t *testing.T) {
 		{
 			name: "single existing VF",
 			request: []*resourceapi.ResourceClaim{
-				testhelpers.NewClaim("namespace2", "claim2", "uid2", "request2", "gpu.intel.com", "node1", []string{"0000-00-03-1-0x56c0"}, false),
+				testhelpers.NewClaim("namespace2", "claim2", "uid2", "request2", "gpu.intel.com", "node1", "gpu.intel.com", []string{"0000-00-03-1-0x56c0"}, false),
 			},
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid2": {
 					Devices: []kubeletplugin.Device{
-						{Requests: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+						{
+							Requests:     []string{"request2"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-03-1-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+						},
 					},
 				},
 			},
@@ -163,7 +186,13 @@ func TestPrepareResourceClaims(t *testing.T) {
 				"uid2": {
 					PreparedDevices: []PreparedDevice{
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"request2"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"request2"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-1-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+							},
 						},
 					},
 				},
@@ -172,11 +201,11 @@ func TestPrepareResourceClaims(t *testing.T) {
 		{
 			name: "single GPU without admin access prepare failure because of double allocation",
 			request: []*resourceapi.ResourceClaim{
-				testhelpers.NewClaim("namespace1", "claim1", "uid0", "request1", "gpu.intel.com", "node1", []string{"0000-00-02-0-0x56c0"}, false),
+				testhelpers.NewClaim("namespace1", "claim1", "uid0", "request1", "gpu.intel.com", "node1", "gpu.intel.com", []string{"0000-00-02-0-0x56c0"}, false),
 			},
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid0": {
-					Err: errors.New("error preparing devices for claim uid0: device 0000-00-02-0-0x56c0 (pool node1) is already allocated to another claim and cannot be prepared without adminAccess flag"),
+					Err: errors.New("device 0000-00-02-0-0x56c0 (pool node1) is already allocated to another claim and cannot be prepared without adminAccess flag"),
 				},
 			},
 			initialPreparedClaims: ClaimPreparations{
@@ -188,6 +217,7 @@ func TestPrepareResourceClaims(t *testing.T) {
 								PoolName:     "node1",
 								DeviceName:   "0000-00-02-0-0x56c0",
 								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:02.0"}[0]}}},
 							},
 						},
 					},
@@ -202,6 +232,7 @@ func TestPrepareResourceClaims(t *testing.T) {
 								PoolName:     "node1",
 								DeviceName:   "0000-00-02-0-0x56c0",
 								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:02.0"}[0]}}},
 							},
 						},
 					},
@@ -217,10 +248,34 @@ func TestPrepareResourceClaims(t *testing.T) {
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid3": {
 					Devices: []kubeletplugin.Device{
-						{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0", "intel.com/gpu-mei=mei0"}},
-						{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0", "intel.com/gpu-mei=mei1"}},
-						{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
-						{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-04-0-0x0000", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000", "intel.com/gpu-mei=mei2"}},
+						{
+							Requests:     []string{"monitor"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-02-0-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0", "intel.com/gpu-mei=mei0"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:02.0"}[0]}}},
+						},
+						{
+							Requests:     []string{"monitor"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-03-0-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0", "intel.com/gpu-mei=mei1"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.0"}[0]}}},
+						},
+						{
+							Requests:     []string{"monitor"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-03-1-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+						},
+						{
+							Requests:     []string{"monitor"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-04-0-0x0000",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000", "intel.com/gpu-mei=mei2"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:04.0"}[0]}}},
+						},
 					},
 				},
 			},
@@ -229,20 +284,44 @@ func TestPrepareResourceClaims(t *testing.T) {
 				"uid3": {
 					PreparedDevices: []PreparedDevice{
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0", "intel.com/gpu-mei=mei0"}},
-							AdminAccess:         true,
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-02-0-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0", "intel.com/gpu-mei=mei0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:02.0"}[0]}}},
+							},
+							AdminAccess: true,
 						},
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0", "intel.com/gpu-mei=mei1"}},
-							AdminAccess:         true,
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-0-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0", "intel.com/gpu-mei=mei1"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.0"}[0]}}},
+							},
+							AdminAccess: true,
 						},
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
-							AdminAccess:         true,
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-1-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+							},
+							AdminAccess: true,
 						},
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-04-0-0x0000", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000", "intel.com/gpu-mei=mei2"}},
-							AdminAccess:         true,
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-04-0-0x0000",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000", "intel.com/gpu-mei=mei2"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:04.0"}[0]}}},
+							},
+							AdminAccess: true,
 						},
 					},
 				},
@@ -257,10 +336,34 @@ func TestPrepareResourceClaims(t *testing.T) {
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid3": {
 					Devices: []kubeletplugin.Device{
-						{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0", "intel.com/gpu-mei=mei0"}},
-						{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0", "intel.com/gpu-mei=mei1"}},
-						{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
-						{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-04-0-0x0000", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000", "intel.com/gpu-mei=mei2"}},
+						{
+							Requests:     []string{"monitor"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-02-0-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0", "intel.com/gpu-mei=mei0"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:02.0"}[0]}}},
+						},
+						{
+							Requests:     []string{"monitor"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-03-0-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0", "intel.com/gpu-mei=mei1"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.0"}[0]}}},
+						},
+						{
+							Requests:     []string{"monitor"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-03-1-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+						},
+						{
+							Requests:     []string{"monitor"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-04-0-0x0000",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000", "intel.com/gpu-mei=mei2"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:04.0"}[0]}}},
+						},
 					},
 				},
 			},
@@ -273,6 +376,7 @@ func TestPrepareResourceClaims(t *testing.T) {
 								PoolName:     "node1",
 								DeviceName:   "0000-00-03-1-0x56c0",
 								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
 							},
 						},
 					},
@@ -282,27 +386,57 @@ func TestPrepareResourceClaims(t *testing.T) {
 				"uid3": {
 					PreparedDevices: []PreparedDevice{
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-02-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0", "intel.com/gpu-mei=mei0"}},
-							AdminAccess:         true,
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-02-0-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-02-0-0x56c0", "intel.com/gpu-mei=mei0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:02.0"}[0]}}},
+							},
+							AdminAccess: true,
 						},
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0", "intel.com/gpu-mei=mei1"}},
-							AdminAccess:         true,
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-0-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-0-0x56c0", "intel.com/gpu-mei=mei1"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.0"}[0]}}},
+							},
+							AdminAccess: true,
 						},
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
-							AdminAccess:         true,
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-1-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+							},
+							AdminAccess: true,
 						},
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"monitor"}, PoolName: "node1", DeviceName: "0000-00-04-0-0x0000", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000", "intel.com/gpu-mei=mei2"}},
-							AdminAccess:         true,
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"monitor"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-04-0-0x0000",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-04-0-0x0000", "intel.com/gpu-mei=mei2"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:04.0"}[0]}}},
+							},
+							AdminAccess: true,
 						},
 					},
 				},
 				"uid4": {
 					PreparedDevices: []PreparedDevice{
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"request4"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"request4"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-1-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+							},
 						},
 					},
 				},
@@ -316,7 +450,13 @@ func TestPrepareResourceClaims(t *testing.T) {
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uid4": {
 					Devices: []kubeletplugin.Device{
-						{Requests: []string{"request4"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+						{
+							Requests:     []string{"request4"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-03-1-0x56c0",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+						},
 					},
 				},
 			},
@@ -324,7 +464,13 @@ func TestPrepareResourceClaims(t *testing.T) {
 				"uid4": {
 					PreparedDevices: []PreparedDevice{
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"request4"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"request4"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-1-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+							},
 						},
 					},
 				},
@@ -333,7 +479,13 @@ func TestPrepareResourceClaims(t *testing.T) {
 				"uid4": {
 					PreparedDevices: []PreparedDevice{
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"request4"}, PoolName: "node1", DeviceName: "0000-00-03-1-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"}},
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"request4"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-03-1-0x56c0",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-03-1-0x56c0"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:03.1"}[0]}}},
+							},
 						},
 					},
 				},
@@ -342,12 +494,18 @@ func TestPrepareResourceClaims(t *testing.T) {
 		{
 			name: "single Xe GPU",
 			request: []*resourceapi.ResourceClaim{
-				testhelpers.NewClaim("namespacexe", "claimxe", "uidxe", "requestxe", "gpu.intel.com", "node1", []string{"0000-00-05-0-0x56c0"}, false),
+				testhelpers.NewClaim("namespacexe", "claimxe", "uidxe", "requestxe", "gpu.intel.com", "node1", "gpu.intel.com", []string{"0000-00-05-0-0xe211"}, false),
 			},
 			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
 				"uidxe": {
 					Devices: []kubeletplugin.Device{
-						{Requests: []string{"requestxe"}, PoolName: "node1", DeviceName: "0000-00-05-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-05-0-0x56c0"}},
+						{
+							Requests:     []string{"requestxe"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-05-0-0xe211",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-05-0-0xe211"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:05.0"}[0]}}},
+						},
 					},
 				},
 			},
@@ -356,11 +514,124 @@ func TestPrepareResourceClaims(t *testing.T) {
 				"uidxe": {
 					PreparedDevices: []PreparedDevice{
 						{
-							KubeletpluginDevice: kubeletplugin.Device{Requests: []string{"requestxe"}, PoolName: "node1", DeviceName: "0000-00-05-0-0x56c0", CDIDeviceIDs: []string{"intel.com/gpu=0000-00-05-0-0x56c0"}},
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"requestxe"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-05-0-0xe211",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-05-0-0xe211"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:05.0"}[0]}}},
+							},
 						},
 					},
 				},
 			},
+		},
+		{
+			name: "single VFIO GPU, no driver change",
+			request: []*resourceapi.ResourceClaim{
+				testhelpers.NewClaim("namespacevfio", "claimvfio", "uidvfio", "requestvfio", "gpu.intel.com", "node1", "gpu-vfio.intel.com", []string{"0000-00-06-0-0xe211"}, false),
+			},
+			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
+				"uidvfio": {
+					Devices: []kubeletplugin.Device{
+						{
+							Requests:     []string{"requestvfio"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-06-0-0xe211",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-06-0-0xe211"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:06.0"}[0]}}},
+						},
+					},
+				},
+			},
+			initialPreparedClaims: ClaimPreparations{},
+			expectedPreparedClaims: ClaimPreparations{
+				"uidvfio": {
+					PreparedDevices: []PreparedDevice{
+						{
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"requestvfio"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-06-0-0xe211",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-06-0-0xe211"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:06.0"}[0]}}},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "single VFIO GPU, driver change from xe to xe-vfio-pci",
+			request: []*resourceapi.ResourceClaim{
+				testhelpers.NewClaim("namespacevfio", "claimvfio", "uidvfio", "requestvfio", "gpu.intel.com", "node1", "gpu-vfio.intel.com", []string{"0000-00-05-0-0xe211"}, false),
+			},
+			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
+				"uidvfio": {
+					Devices: []kubeletplugin.Device{
+						{
+							Requests:     []string{"requestvfio"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-05-0-0xe211",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-05-0-0xe211"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:05.0"}[0]}}},
+						},
+					},
+				},
+			},
+			initialPreparedClaims: ClaimPreparations{},
+			expectedPreparedClaims: ClaimPreparations{
+				"uidvfio": {
+					PreparedDevices: []PreparedDevice{
+						{
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"requestvfio"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-05-0-0xe211",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-05-0-0xe211"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:05.0"}[0]}}},
+							},
+						},
+					},
+				},
+			},
+			driverChange: true,
+		},
+		{
+			name: "single VFIO GPU, driver change from xe-vfio-pci to xe",
+			request: []*resourceapi.ResourceClaim{
+				testhelpers.NewClaim("namespacexe", "claimxe", "uidxe", "requestxe", "gpu.intel.com", "node1", "gpu.intel.com", []string{"0000-00-06-0-0xe211"}, false),
+			},
+			expectedResponse: map[types.UID]kubeletplugin.PrepareResult{
+				"uidxe": {
+					Devices: []kubeletplugin.Device{
+						{
+							Requests:     []string{"requestxe"},
+							PoolName:     "node1",
+							DeviceName:   "0000-00-06-0-0xe211",
+							CDIDeviceIDs: []string{"intel.com/gpu=0000-00-06-0-0xe211"},
+							Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:06.0"}[0]}}},
+						},
+					},
+				},
+			},
+			initialPreparedClaims: ClaimPreparations{},
+			expectedPreparedClaims: ClaimPreparations{
+				"uidxe": {
+					PreparedDevices: []PreparedDevice{
+						{
+							KubeletpluginDevice: kubeletplugin.Device{
+								Requests:     []string{"requestxe"},
+								PoolName:     "node1",
+								DeviceName:   "0000-00-06-0-0xe211",
+								CDIDeviceIDs: []string{"intel.com/gpu=0000-00-06-0-0xe211"},
+								Metadata:     &kubeletplugin.DeviceMetadata{Attributes: map[string]resourceapi.DeviceAttribute{"resource.kubernetes.io/pciBusID": {StringValue: &[]string{"0000:00:06.0"}[0]}}},
+							},
+						},
+					},
+				},
+			},
+			driverChange: true,
 		},
 	}
 
@@ -383,7 +654,8 @@ func TestPrepareResourceClaims(t *testing.T) {
 				"0000-00-03-1-0x56c0": {Model: "0x56c0", MemoryMiB: 8064, DeviceType: "vf", CardName: "card2", RenderDName: "renderD130", UID: "0000-00-03-1-0x56c0", VFIndex: 0, VFProfile: "flex170_m2", ParentUID: "0000-00-03-0-0x56c0", Driver: "i915", CurrentDriver: "i915"},
 				// dummy, no SR-IOV tiles
 				"0000-00-04-0-0x0000": {Model: "0x0000", MemoryMiB: 14248, DeviceType: "gpu", CardName: "card3", MEIName: "mei2", RenderDName: "renderD131", UID: "0000-00-04-0-0x0000", MaxVFs: 16, Driver: "i915", CurrentDriver: "i915"},
-				"0000-00-05-0-0x56c0": {Model: "0x56c0", MemoryMiB: 16256, DeviceType: "gpu", CardName: "card4", MEIName: "mei3", RenderDName: "renderD128", UID: "0000-00-05-0-0x56c0", MaxVFs: 16, Driver: "xe", CurrentDriver: "xe"},
+				"0000-00-05-0-0xe211": {Model: "0xe211", MemoryMiB: 24576, DeviceType: "gpu", CardName: "card4", MEIName: "mei3", RenderDName: "renderD128", UID: "0000-00-05-0-0xe211", MaxVFs: 16, Driver: "xe", CurrentDriver: "xe"},
+				"0000-00-06-0-0xe211": {Model: "0xe211", MemoryMiB: 24576, DeviceType: "gpu", VFIODevice: "vfio0", IOMMUGroup: "15", UID: "0000-00-06-0-0xe211", MaxVFs: 0, Driver: "xe", CurrentDriver: "xe-vfio-pci"},
 			},
 			false,
 		); err != nil {
@@ -400,6 +672,11 @@ func TestPrepareResourceClaims(t *testing.T) {
 		if driverErr != nil {
 			t.Errorf("could not create kubelet-plugin: %v\n", driverErr)
 			continue
+		}
+		if testcase.driverChange {
+			watcher := fakesysfs.WatchDriverBindUnbind(t, testDirs.SysfsRoot, testDirs.DevfsRoot, false)
+			defer watcher.Close()
+			time.Sleep(device.DriverChangeDelay)
 		}
 
 		response, err := driver.PrepareResourceClaims(context.TODO(), testcase.request)
