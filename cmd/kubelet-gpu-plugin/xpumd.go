@@ -37,17 +37,11 @@ func (d *driver) waitForXPUMDStream(ctx context.Context, c xpumapi.DeviceInfoCli
 	var err error
 	var stream xpumapi.DeviceInfo_WatchDeviceHealthClient
 
-	// Allow waiting infinitely for the XPUM daemon without causing a panic in the caller.
-	attemptStep := 1
-	if infiniteWait {
-		attemptStep = 0
-	}
-
-	for attempt := 0; attempt < ConnectAttemptsMax; attempt += attemptStep {
+	for attempt := 0; infiniteWait || attempt < ConnectAttemptsMax; attempt++ {
 		klog.V(5).Infof("trying to connect to xpumd, attempt %v/%v", attempt+1, ConnectAttemptsMax)
 		stream, err = c.WatchDeviceHealth(ctx, &xpumapi.WatchDeviceHealthRequest{})
 		if err == nil || d.stopXPUMDListener {
-			break
+			return stream, nil
 		}
 
 		klog.Error("xpumd-client: error calling WatchDeviceHealth", "error", err)
@@ -90,6 +84,11 @@ func (d *driver) xpumdListen(ctx context.Context, socketFilePath string, infinit
 	maxErrors := 5
 	arbitraryErrorDelay := 5 * time.Second
 	for {
+		if d.stopXPUMDListener {
+			klog.Info("xpumd-client: stopping xpumd listener")
+			return
+		}
+
 		msg, err := stream.Recv()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -105,7 +104,7 @@ func (d *driver) xpumdListen(ctx context.Context, socketFilePath string, infinit
 			} else {
 				// Arbitrary error. Retry until maxErrors reached then panic in case the GRPC is incompatible.
 				// If :latest DRA image tag is used chances are new image will fix the issue.
-				if errCounter < maxErrors {
+				if infiniteWait || errCounter < maxErrors {
 					klog.Errorf("xpumd-client: error receiving data: %v", err)
 					errCounter++
 					time.Sleep(arbitraryErrorDelay)
@@ -118,11 +117,6 @@ func (d *driver) xpumdListen(ctx context.Context, socketFilePath string, infinit
 
 		klog.V(6).Infof("xpumd-client: received %d device info items", len(msg.Devices))
 		d.ConsumeXPUMDDeviceDetails(ctx, msg.GetDevices())
-
-		if d.stopXPUMDListener {
-			klog.Info("xpumd-client: stopping xpumd listener")
-			return
-		}
 	}
 }
 
