@@ -1,4 +1,8 @@
 #!/bin/bash
+# Copyright (C) 2026 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 
 get_pod_health() {

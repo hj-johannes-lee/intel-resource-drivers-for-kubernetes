@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
 
 BASE_URL="https://gtax-presi-fm.intel.com/api/v1"
 INTEL_USERNAME=${INTEL_USERNAME:-}
