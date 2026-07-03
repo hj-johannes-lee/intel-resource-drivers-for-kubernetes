@@ -82,41 +82,41 @@ When deploying custom resource driver image, change `image:` lines in
 After kubelet-plugin pods are ready, check ResourceSlice objects and their contents:
 ```bash
 $ kubectl get resourceslices
-NAME                          NODE    DRIVER            POOL    AGE
-rpl-s-gpu.intel.com-mbr6p     rpl-s   gpu.intel.com     rpl-s   30s
+NAME                              NODE    DRIVER          POOL    AGE
+00000-gpu.intel.com-arrow-9wfdl   arrow   gpu.intel.com   arrow   3h22m
 ```
 
 Example contents of the ResourceSlice object:
 <details>
 
-```bash
-$ kubectl get resourceslice/rpl-s-gpu.intel.com-mbr6p -o yaml
+```yaml
+# kubectl get resourceslices/00000-gpu.intel.com-arrow-9wfdl -o yaml
 apiVersion: resource.k8s.io/v1
 kind: ResourceSlice
 metadata:
-  creationTimestamp: "2024-09-27T09:11:24Z"
-  generateName: rpl-s-gpu.intel.com-
-  generation: 1
-  name: rpl-s-gpu.intel.com-mbr6p
+  creationTimestamp: "2026-06-24T08:26:26Z"
+  generateName: 00000-gpu.intel.com-arrow-
+  generation: 2
+  name: 00000-gpu.intel.com-arrow-9wfdl
   ownerReferences:
   - apiVersion: v1
     controller: true
     kind: Node
-    name: rpl-s
-    uid: 0894e000-e7a3-49ad-8749-04b27be61c03
-  resourceVersion: "2479360"
-  uid: 305a8e03-fe9b-44ea-831e-01ce70edb1a7
+    name: arrow
+    uid: 3a243a6b-e6db-4613-94f2-169f938c87ae
+  resourceVersion: "16878115"
+  uid: 72e7df0f-c853-48ed-8709-4e4a37c504ca
 spec:
   devices:
   - attributes:
       driver:
         string: i915
       family:
-        string: Unknown
+        string: Intel Graphics
       health:
         string: Healthy
       model:
-        string: Unknown
+        string: Arrow Lake-S
       pciAddress:
         string: "0000:00:02.0"
       pciId:
@@ -129,6 +129,8 @@ spec:
         string: pci0000:00
       sriov:
         bool: true
+      type:
+        string: gpu
     capacity:
       memory:
         value: "0"
@@ -139,11 +141,11 @@ spec:
       driver:
         string: xe
       family:
-        string: Unknown
+        string: Arc Pro B-Series
       health:
         string: Healthy
       model:
-        string: Unknown
+        string: B60
       pciAddress:
         string: "0000:04:00.0"
       pciId:
@@ -156,6 +158,8 @@ spec:
         string: pci0000:00
       sriov:
         bool: true
+      type:
+        string: gpu
     capacity:
       memory:
         value: 24480Mi
@@ -163,10 +167,10 @@ spec:
         value: 1k
     name: 0000-04-00-0-0xe211
   driver: gpu.intel.com
-  nodeName: rpl-s
+  nodeName: arrow
   pool:
-    generation: 0
-    name: rpl-s
+    generation: 1
+    name: arrow
     resourceSliceCount: 1
 ```
 
@@ -397,13 +401,14 @@ DeviceTaintRule to prevent workloads being scheduled and / or executed on a part
 ## [KubeVirt](https://github.com/kubevirt/enhancements/blob/main/veps/sig-compute/10-dra-devices/vep.md) support: using GPU in VM in a PCI passthrough mode
 
 Starting [version v1.8.3](https://github.com/kubevirt/kubevirt/releases/v1.8.3), KubeVirt has
-experimental / alpha support for DRA-backed GPU allocation. This requires
-[Kubernetes v1.36](https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/5304-dra-attributes-downward-api/README.md)
-and GPU DRA driver >= `v0.11.0`.
+experimental / alpha support for DRA-backed GPU allocation. This requires:
+- enabling `GPUsWithDRA` [FeatureGate in KubeVirt](https://kubevirt.io/user-guide/cluster_admin/activating_feature_gates/)
+- Kubernetes v1.36+, because of [the feature](https://github.com/kubernetes/enhancements/blob/master/keps/sig-node/5304-dra-attributes-downward-api/README.md) (enabled by default)
+- Intel(R) GPU DRA driver >= `v0.11.0`
 
 `-b | --manage-binding` parameter (default: enabled) enables automated switching between
 DRM (i915, xe) and VFIO (vfio-pci, xe-vfio-pci) Linux kernel drivers with based on the `DeviceClass`.
-See [example Pod YAML](../../deployments/gpu/examples/pod-inline-vfio.yaml)
+See [example Pod YAML](../../deployments/gpu/examples/kubevirt-vmi-inline-gpu.yaml)
 
 When the active binding management is enabled, and a `gpu-vfio.intel.com` `DeviceClass` device
 is requested in the `ResourceClaim`, the GPU device will be unbound from the DRM kernel driver
