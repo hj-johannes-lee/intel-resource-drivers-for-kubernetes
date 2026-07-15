@@ -22,6 +22,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Build helm dependencies
+        run: |
+          helm registry logout ghcr.io
+          for chart in charts/*; do
+            if [ -d "$chart" ]; then
+              echo "Building dependencies for $chart"
+              helm dependency update "$chart"
+            fi
+          done
+
       - name: Lint all helm charts
         run: |
           for chart in charts/*; do
@@ -63,16 +73,6 @@ jobs:
             --image kindest/node:${K8S_VERSION} \
             --config hack/kind-config.yaml
           kubectl cluster-info
-
-      - name: Build helm dependencies
-        run: |
-          helm registry logout ghcr.io
-          for chart in charts/*; do
-            if [ -d "$chart" ]; then
-              echo "Building dependencies for $chart"
-              helm dependency update "$chart"
-            fi
-          done
 
       - name: Install and test charts
         run: .github/scripts/test-helm-charts.sh
