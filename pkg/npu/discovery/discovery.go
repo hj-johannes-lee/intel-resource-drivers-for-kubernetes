@@ -68,7 +68,7 @@ func scanDevicesFromDriverDirFiles(driverDirFiles []os.DirEntry, sysfsDriverDir,
 		}
 
 		uid := helpers.DeviceUIDFromPCIinfo(devicePCIAddress, deviceId)
-		klog.V(5).Infof("New gaudi UID: %v", uid)
+		klog.V(5).Infof("New NPU UID: %v", uid)
 		newDeviceInfo := &device.DeviceInfo{
 			UID:         uid,
 			PCIAddress:  devicePCIAddress,
