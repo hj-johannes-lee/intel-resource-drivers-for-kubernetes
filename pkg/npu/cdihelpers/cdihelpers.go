@@ -21,20 +21,20 @@ const (
 	containerDevfsRoot = "/dev"
 )
 
-func getGaudiSpecs(cdiCache *cdiapi.Cache) []*cdiapi.Spec {
-	gaudiSpecs := []*cdiapi.Spec{}
+func getNPUSpecs(cdiCache *cdiapi.Cache) []*cdiapi.Spec {
+	npuSpecs := []*cdiapi.Spec{}
 	for _, cdiSpec := range cdiCache.GetVendorSpecs(device.CDIVendor) {
 		if cdiSpec.Kind == device.CDIKind {
-			gaudiSpecs = append(gaudiSpecs, cdiSpec)
+			npuSpecs = append(npuSpecs, cdiSpec)
 		}
 	}
-	return gaudiSpecs
+	return npuSpecs
 }
 
 // AddDetectedDevicesToCDIRegistry adds detected devices into cdi registry after deleting old specs.
 func AddDetectedDevicesToCDIRegistry(cdiCache *cdiapi.Cache, detectedDevices device.DevicesInfo) error {
-	gaudiSpecs := getGaudiSpecs(cdiCache)
-	for _, spec := range gaudiSpecs {
+	npuSpecs := getNPUSpecs(cdiCache)
+	for _, spec := range npuSpecs {
 		if err := cdiCache.RemoveSpec(spec.GetPath()); err != nil {
 			return fmt.Errorf("failed to remove old CDI spec %v: %v", spec, err)
 		}
