@@ -1,0 +1,41 @@
+name: Publish Helm charts
+
+on:
+  push:
+    tags:
+      - 'gaudi-v*'
+      - 'gpu-v*'
+      - 'qat-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  repo: ghcr.io/intel
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+    - name: Set up Helm
+      uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+
+    - name: Docker login
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Determine chart from tag
+      id: chart
+      run: |
+        TAG="${GITHUB_REF#refs/tags/}"
+        DRIVER="${TAG%-v*}"
+        echo "chart_name=intel-${DRIVER}-resource-driver" >> "$GITHUB_OUTPUT"
+
+    - name: Push Helm chart to registry
+      env:
+        RELEASE_REGISTRY: ${{ env.repo }}/charts
+      run: make push-helm-charts CHART=${{ steps.chart.outputs.chart_name }}

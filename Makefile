@@ -232,11 +232,14 @@ test-image: vendor
 test-image-push: test-image
 	$(DOCKER) push "$(TEST_IMAGE)"
 
+CHART ?=
+CHART_DIRS = $(if $(CHART),charts/$(CHART),charts/*)
+
 .PHONY: update-dependencies package-helm-charts push-helm-charts
 update-dependencies:
 	@helm repo add nfd https://kubernetes-sigs.github.io/node-feature-discovery/charts || true
 	@helm repo update
-	@set -x; for chart in charts/*; do \
+	@set -x; for chart in $(CHART_DIRS); do \
 		if [ -d "$$chart" ]; then \
 			echo "Updating dependencies for $$chart"; \
 			helm dependency update $$chart; \
@@ -245,7 +248,7 @@ update-dependencies:
 	done
 
 package-helm-charts: update-dependencies
-	@set -x; for chart in charts/*; do \
+	@set -x; for chart in $(CHART_DIRS); do \
 		if [ -d "$$chart" ]; then \
 			chart_name=$$(basename $$chart); \
 			chart_version=$$(awk '/^version:/ {print $$2; exit}' $$chart/Chart.yaml); \
