@@ -337,10 +337,10 @@ gaudi-coverage: clean-coverage vendor copytests gaudi-coverage.out
 	go tool cover -func=$@.out
 
 .PHONY: coverage-check
-coverage-check: coverage.out
-	.github/scripts/coverage_check.sh gpu-coverage 70
-	.github/scripts/coverage_check.sh gaudi-coverage 70
-	.github/scripts/coverage_check.sh qat-coverage 70
+coverage-check: clean-coverage
+	.github/gpu-scripts/coverage_check.sh gpu-coverage 70
+	.github/gpu-scripts/coverage_check.sh gaudi-coverage 70
+	.github/gpu-scripts/coverage_check.sh qat-coverage 70
 
 
 .PHONY: copytests
