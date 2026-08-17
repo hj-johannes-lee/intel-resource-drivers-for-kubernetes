@@ -75,7 +75,7 @@ jobs:
       - name: Login to GHCR
         run: |
           echo "${{ secrets.GH_PUBLIC_TOKEN }}" | \
-          helm registry login ${{ env.REGISTRY }} -u ${{ secrets.CI_USER_EMAIL }} --password-stdin
+          helm registry login ${OCI_REGISTRY} -u ${{ secrets.CI_USER_EMAIL }} --password-stdin
 
       - name: Check chart not already published
         if: ${{ inputs.allow_overwrite != true }}
