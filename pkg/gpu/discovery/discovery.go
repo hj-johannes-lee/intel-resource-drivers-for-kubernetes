@@ -53,7 +53,18 @@ func populateDevicesInfoMemory(devices map[string]*device.DeviceInfo) error {
 
 func DetermineDeviceName(info *device.DeviceInfo, namingStyle string) string {
 	if namingStyle == "classic" {
-		return info.CardName
+		if info.IsDRMBound() {
+			// In survivability mode there is no DRM device even though driver is DRM, use UID.
+			if info.Survivability {
+				return info.UID
+			}
+
+			return info.CardName
+		}
+
+		if info.IsVFIOBound() {
+			return info.VFIODevice
+		}
 	}
 
 	return info.UID
